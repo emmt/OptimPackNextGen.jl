@@ -1,8 +1,9 @@
 # TiPi.jl
 
 **TiPi** is a **T**oolkit for **I**nverse **P**roblems and **I**maging in
-Julia.  One of the objective of TiPi is to solve image reconstruction
-problems, so TiPi is designed to dela with large number of unknowns.
+Julia.  One of the main objectives of TiPi is to solve image reconstruction
+problems, so TiPi is designed to deal with large number of unknowns
+(*e.g.*, as many as pixels in an image).
 
 
 ## Cost functions
@@ -36,7 +37,7 @@ variables, `VariableType` is the type of the variables (e.g.,
 dimensions as `x` to store (or integrate) the gradient of the cost function
 (times `alpha`), `clr` tells whether to clear (fill with zeros) the values
 of the gradient or to simply add the computed gradient to the existing
-values, the retuend value is `alpha*f(x)` that is the value of the cost
+values, the returned value is `alpha*f(x)` that is the value of the cost
 function at `x` times the weight `alpha`.
 
 Thanks to the dispatching rules of Julia, the types `ParamType` and
@@ -50,34 +51,35 @@ For instance, we implement the parameters of a *maximum a posteriori* (MAP)
 cost function as:
 ```julia
 type MAPCostParam <: CostParam
-   mu::Cdouble     # regularization weight
-   lkl::CostParam  # parameters of the likelihood term
-   rgl::CostParam  # parameters of the regularization term
+    mu::Cdouble     # regularization weight
+    lkl::CostParam  # parameters of the likelihood term
+    rgl::CostParam  # parameters of the regularization term
 end
 ```
 Then, computing the cost is as simple as:
 ```julia
-function cost{T<:Real}(alpha::Real, param::MAPCostParam, x::Array{T})
+function cost{T}(alpha::Real, param::MAPCostParam, x::T)
     alpha == 0 && return 0.0
-	cost(alpha, param.lkl, x) + cost(alpha*param.mu, param.rgl, x)
+    cost(alpha, param.lkl, x) + cost(alpha*param.mu, param.rgl, x)
 end
 ```
 and computing the cost and the gradient is implemented by:
 ```julia
-function cost!{T<:Real}(alpha::Real, param::MAPCostParam, x::Array{T},
-                        gx::Array{T}, clr::Bool=false)
+function cost!{T}(alpha::Real, param::MAPCostParam, x::T, gx::T, clr::Bool=false)
     if alpha == 0
-	   clr && gx[:] = 0
-	   return 0.0
-	else
-	   return (cost(alpha,          param.lkl, x, gx, clr) +
-	           cost(alpha*param.mu, param.rgl, x, gx, false))
-	end
+        clr && fill!(gx, 0)
+        return 0.0
+    else
+        return (cost(alpha,          param.lkl, x, gx, clr) +
+                cost(alpha*param.mu, param.rgl, x, gx, false))
+    end
 end
 ```
 Note the specific way the *clear* flag `clr` is managed to preserve the
 good properties of the interface and allow our implementation of the MAP
-cost function to be mixed itself with other functions.
+cost function to be mixed itself with other functions.  Also as the `fill!`
+method is used set all components of the gradient to zero, this method must
+exists for the type `T` of the variables.
 
 
 ### Proximal operators

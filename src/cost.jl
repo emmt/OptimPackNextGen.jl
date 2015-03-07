@@ -18,9 +18,9 @@ abstract CostParam
 ##############################
 
 type MAPCostParam <: CostParam
-   mu::Cdouble     # regularization weight
-   lkl::CostParam  # parameters of the likelihood term
-   rgl::CostParam  # parameters of the regularization term
+    mu::Cdouble     # regularization weight
+    lkl::CostParam  # parameters of the likelihood term
+    rgl::CostParam  # parameters of the regularization term
 end
 
 function cost{T}(alpha::Real, param::MAPCostParam, x::T)
@@ -30,11 +30,11 @@ end
 
 function cost!{T}(alpha::Real, param::MAPCostParam, x::T, gx::T, clr::Bool=false)
     if alpha == 0
-	clr && gx[:] = 0
-	return 0.0
+        clr && fill!(gx, 0)
+        return 0.0
     else
-	return (cost(alpha,          param.lkl, x, gx, clr) +
-	        cost(alpha*param.mu, param.rgl, x, gx, false))
+        return (cost(alpha,          param.lkl, x, gx, clr) +
+                cost(alpha*param.mu, param.rgl, x, gx, false))
     end
 end
 
