@@ -13,9 +13,10 @@
 
 module TiPi
 
-export cost, CostParam
+export cost, cost!, CostParam, HyperbolicEdgePreserving
 
 include("cost.jl")
+include("hypersmooth.jl")
 
 end # module
 
