@@ -77,9 +77,9 @@ end
 ```
 Note the specific way the *clear* flag `clr` is managed to preserve the
 good properties of the interface and allow our implementation of the MAP
-cost function to be mixed itself with other functions.  Also as the `fill!`
-method is used set all components of the gradient to zero, this method must
-exists for the type `T` of the variables.
+cost function to be mixed itself with other functions.  Also, as the
+`fill!` method is used to set all components of the gradient to zero, this
+method must exists for the type `T` of the variables.
 
 
 ### Proximal operators
