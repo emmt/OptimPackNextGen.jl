@@ -10,7 +10,7 @@ problems, so TiPi is designed to deal with large number of unknowns
 
 Many inverse problems are solved by minimizing a cost function.  **TiPi**
 defines a common interface for the cost functions that can be used in that
-context.  The are currently two kind of cost functions that can be used in
+context.  There are currently two kinds of cost functions that can be used in
 TiPi:
 
 * **differentiable cost functions** for which the value of the cost
@@ -33,7 +33,7 @@ where `alpha` is the weight of the cost (it is guaranteed that `alpha` is
 nonnegative), `param` is anything needed by the cost function, `ParamType`
 is a subtype of the abstract type `CostParam`, `x` is the array of
 variables, `VariableType` is the type of the variables (e.g.,
-`Array{Cdouble,2}` for images), , `gx` is an array of same type and
+`Array{Cdouble,2}` for images), `gx` is an array of same type and
 dimensions as `x` to store (or integrate) the gradient of the cost function
 (times `alpha`), `clr` tells whether to clear (fill with zeros) the values
 of the gradient or to simply add the computed gradient to the existing
@@ -45,7 +45,8 @@ Thanks to the dispatching rules of Julia, the types `ParamType` and
 problem are used to identify the actual cost function code that is called.
 
 The weight and the clear flag arguments are intended for building composite
-cost functions as a weighted sum of cost functions.
+cost functions as a weighted sum of cost functions without sacrifying
+efficiency.
 
 For instance, we implement the parameters of a *maximum a posteriori* (MAP)
 cost function as:
