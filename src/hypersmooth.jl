@@ -31,8 +31,8 @@ flt_tuple{T}(a::Array{T,1}) = ntuple(length(a), i -> flt(a[i]))
 # This edge-preserving regularization is a smooth (i.e. differentiable) cost
 # function which can be used to implement edge-preserving smoothness.  The
 # current implementation is isotropic.  With a very low threshold, this
-# regularization can be seen as a hyperbolic approximation of the total
-# variation.
+# regularization can be seen as an hyperbolic approximation of the total
+# variation (TV).
 #
 # The quadratic norm of the spatial gradient is the sum along all the
 # dimensions of the average squared differences along the dimension.  A weight
@@ -43,9 +43,9 @@ flt_tuple{T}(a::Array{T,1}) = ntuple(length(a), i -> flt(a[i]))
 #
 #     alpha*(sqrt(sd1 + sd2 + ... + sdn + eps^2) - eps)
 #
-# with alpha > 0 the regularization weight, n the rank and sdk the average
-# squared scaled differences along the k-th dimension.  The removal of eps is
-# just to have the cost equal to zero for a flat array.
+# with `alpha` > 0 the regularization weight, `n` the rank and `sdk` the
+# average squared scaled differences along the `k`-th dimension.  The removal
+# of `eps` is just to have the cost equal to zero for a flat array.
 #
 # For instance, in 2D, the total variation is computed for each 2x2 blocs with:
 #
@@ -54,23 +54,22 @@ flt_tuple{T}(a::Array{T,1}) = ntuple(length(a), i -> flt(a[i]))
 #     sd2 = mu2^2*((x3 - x1)^2 + (x4 - x2)^2)/2
 #         = w2*((x3 - x1)^2 + (x4 - x2)^2)
 #
-# where multiplication by division by mu1 and mu2 is to scale the finite
-# differences along
-# each dimension and dimension by 2 is to average (there are 2 possible finite
-# differences in a 2x2 bloc along a given dimension).  The weights w1 and w2
-# and s are given by:
-#
+# where multiplication by `mu1` and `mu2` is to scale the finite differences
+# along each dimension and division by 2 is to average (there are 2 possible
+# finite differences in a 2x2 bloc along a given dimension).  The weights `w1`
+# and `w2` and `s` are given by:
+# ```
 #     w1 = mu1^2/2
 #     w2 = mu2^2/2
 #     s = eps^2
-#
+# ```
 # FIXME: The sum should done in double precision whatever the type?
-# FIXME: Use @simd macro
 # FIXME: Use metaprogramming to code all this ;-)
 # FIXME: save N multiplications in the isotropic case
-# FIXME: make specialized code when som of the mu's are zero
-# FIXME: optimize clear operation to avoid one pass through gx
-# FIXME: column-major storage order is assumed
+# FIXME: make specialized code when some of the mu's are zero (because
+#        that's how regularizing along not all direction will be
+#        implemented
+# FIXME: optimize clear operation to avoid one pass through gx (done in 1D)
 
 immutable HyperbolicEdgePreserving{N} <: CostParam
     eps::Cdouble
@@ -103,17 +102,21 @@ end
 #------------------------------------------------------------------------------
 # 1D case
 
-# Note that ALPHA is not taken into account when summing FX (this is done
-# at the end) while ALPHA is taken into account when integrating the
-# gradient GX.
-#
+# Note that the weight `alpha` is not taken into account when summing the cost
+# (this is done at the end) while `alpha` is taken into account when
+# integrating the gradient `gx`.
 
 function cost{T}(alpha::Real, param::HyperbolicEdgePreserving{1},
                  x::Array{T,1})
-    alpha == 0 || param.mu[1] == 0 && return 0.0
+    # Short circuit if weight is zero.
+    if alpha == 0 || param.mu[1] == 0
+        return 0.0
+    end
+
+    # Integrate un-weighted cost.
     const dim1 = size(x)[1]
     const s = convert(T, (param.eps/param.mu[1])^2)
-    fx = zero(T)
+    fx::T = zero(T)
     for i1 in 2:dim1
         @inbounds fx += sqrt((x[i1] - x[i1-1])^2 + s)
     end
@@ -124,15 +127,20 @@ end
 
 function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{1},
                   x::Array{T,1}, gx::Array{T,1}, clr::Bool=false)
+    # Minimal checking.
     @assert(size(x) == size(gx))
+
+    # Short circuit if weight is zero.
     if alpha == 0 || param.mu[1] == 0
         clr && fill!(gx, 0)
         return 0.0
     end
+
+    # Integrate un-weighted cost and gradient.
     const dim1 = size(x)[1]
     const s = convert(T, (param.eps/param.mu[1])^2)
     const beta = convert(T, alpha*param.mu[1])
-    fx = zero(T)
+    fx::T = zero(T)
     if clr
         tp = zero(T)
         @simd for i1 in 2:dim1
@@ -154,6 +162,7 @@ function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{1},
             @inbounds gx[i1]   += p
         end
     end
+
     # Remove the "bias" and scale the cost.
     return ((fx*param.mu[1]) - (dim1 - 1)*param.eps)*alpha
 end
@@ -176,7 +185,9 @@ end
 #
 function cost{T}(alpha::Real, param::HyperbolicEdgePreserving{2},
                  x::Array{T,2})
-    alpha == 0 && return 0.0
+    if alpha == 0
+        return 0.0
+    end
     dims = size(x)
     const dim1 = dims[1]
     const dim2 = dims[2]
