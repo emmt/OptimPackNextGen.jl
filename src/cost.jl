@@ -17,18 +17,20 @@ abstract CostParam
 # Maximum a posteriori (MAP) #
 ##############################
 
-type MAPCostParam <: CostParam
-    mu::Cdouble     # regularization weight
-    lkl::CostParam  # parameters of the likelihood term
-    rgl::CostParam  # parameters of the regularization term
+type MAPCostParam{L<:CostParam,R<:CostParam} <: CostParam
+    mu::Cdouble  # regularization weight
+    lkl::L       # parameters of the likelihood term
+    rgl::R       # parameters of the regularization term
 end
 
 function cost{T}(alpha::Real, param::MAPCostParam, x::T)
     alpha == 0 && return 0.0
-    cost(alpha, param.lkl, x) + cost(alpha*param.mu, param.rgl, x)
+    return (cost(alpha,          param.lkl, x) +
+            cost(alpha*param.mu, param.rgl, x))
 end
 
-function cost!{T}(alpha::Real, param::MAPCostParam, x::T, gx::T, clr::Bool=false)
+function cost!{T}(alpha::Real, param::MAPCostParam, x::T, gx::T,
+                  clr::Bool=false)
     if alpha == 0
         clr && fill!(gx, 0)
         return 0.0
