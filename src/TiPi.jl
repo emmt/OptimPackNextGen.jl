@@ -14,9 +14,14 @@
 module TiPi
 
 export cost, cost!, CostParam, HyperbolicEdgePreserving
+export MDA
 
+include("utils.jl")
+include("mda.jl")
+include("conjgrad.jl")
 include("cost.jl")
 include("hypersmooth.jl")
+include("deconv.jl")
 
 end # module
 
