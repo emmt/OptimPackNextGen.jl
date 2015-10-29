@@ -16,7 +16,7 @@ module Deconv
 import TiPi.apply!, TiPi.LinearOperator, TiPi.LinearProblem
 import TiPi.defaultweights, TiPi.pad, TiPi.zeropad
 
-type DeconvolutionHessian{T<:FloatingPoint,N} <: LinearOperator
+type DeconvolutionHessian{T<:AbstractFloat,N} <: LinearOperator
 
     # Settings from the data.
     msk::Array{Bool,N}             # mask of valid data, same size as X
@@ -32,12 +32,12 @@ type DeconvolutionHessian{T<:FloatingPoint,N} <: LinearOperator
 end
 
 
-function init{T<:FloatingPoint,N}(h::Array{T,N}, y::Array{T,N}, alpha)
+function init{T<:AbstractFloat,N}(h::Array{T,N}, y::Array{T,N}, alpha)
     dims = ntuple(N, i -> fftbestdim(size(h,i) + size(y,i) - 1))
     return init(h, y, ones(T, size(y)), dims, alpha)
 end
 
-function init{T<:FloatingPoint,N}(h::Array{T,N}, y::Array{T,N},
+function init{T<:AbstractFloat,N}(h::Array{T,N}, y::Array{T,N},
                                   xdims::NTuple{N,Int}, alpha)
     return init(h, y, defaultweights(y), xdims, alpha)
 end
@@ -52,7 +52,7 @@ function nearestother(dim::Int)
     return other
 end
 
-function init{S<:FloatingPoint,T<:FloatingPoint,N}(h::Array{T,N},
+function init{S<:AbstractFloat,T<:AbstractFloat,N}(h::Array{T,N},
                                                    y::Array{T,N},
                                                    w::Array{T,N},
                                                    xdims::NTuple{N,Int},
@@ -128,7 +128,7 @@ function init{S<:FloatingPoint,T<:FloatingPoint,N}(h::Array{T,N},
     LinearProblem(A, b)
 end
 
-function apply!{T<:FloatingPoint,N}(op::DeconvolutionHessian,
+function apply!{T<:AbstractFloat,N}(op::DeconvolutionHessian,
                                     q::Array{T,N}, p::Array{T,N})
     @assert(size(p) == size(q))
 
@@ -188,7 +188,7 @@ function apply!{T<:FloatingPoint,N}(op::DeconvolutionHessian,
 
 end
 
-function DtD!{S<:FloatingPoint, T<:FloatingPoint}(alpha::Vector{S},
+function DtD!{S<:AbstractFloat, T<:AbstractFloat}(alpha::Vector{S},
                                                   other::Array{Vector{Int}},
                                                   q::Array{T,1},
                                                   p::Array{T,1})
@@ -198,13 +198,13 @@ function DtD!{S<:FloatingPoint, T<:FloatingPoint}(alpha::Vector{S},
     other1 = other[1]
     for i in 1:length(p) # for each input element
         j = other1[i] # index of neighbor
-        t = alpha1[k]*(p[j] - p[i])
+        t = alpha1*(p[j] - p[i])
         q[i] -= t
         q[j] += t
     end
 end
 
-function DtD!{S<:FloatingPoint, T<:FloatingPoint}(alpha::Vector{S},
+function DtD!{S<:AbstractFloat, T<:AbstractFloat}(alpha::Vector{S},
                                                   other::Vector{Vector{Int}},
                                                   q::Array{T,2}, p::Array{T,2})
     @assert(length(alpha) == 2)
