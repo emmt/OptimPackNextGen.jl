@@ -14,7 +14,7 @@
 abstract LinearOperator
 
 # A LinearProblem stores the components of the normal equations.
-type LinearProblem{T<:FloatingPoint,N}
+type LinearProblem{T<:AbstractFloat,N}
     lhs::LinearOperator            # left hand side matrix
     rhs::Array{T,N}                # right hand side vector
 end
@@ -50,7 +50,7 @@ function conjgrad(A::LinearOperator, b, x0, tol, maxiter)
     return x
 end
 
-function conjgrad!{T<:FloatingPoint,N}(A::LinearOperator, b::Array{T,N}, x::Array{T,N},
+function conjgrad!{T<:AbstractFloat,N}(A::LinearOperator, b::Array{T,N}, x::Array{T,N},
                                        tol, maxiter)
     # Initialization.
     @assert(size(b) == size(x))
@@ -104,7 +104,7 @@ end
 # LINEAR ALGEBRA
 
 # update!(x,a,p) - Update "vector" x by doing: x += a*p.
-function update!{T<:FloatingPoint,N}(x::Array{T,N}, a::T, p::Array{T,N})
+function update!{T<:AbstractFloat,N}(x::Array{T,N}, a::T, p::Array{T,N})
     @assert(size(x) == size(p))
     @simd for i in 1:length(x)
         @inbounds x[i] += a*p[i]
@@ -112,7 +112,7 @@ function update!{T<:FloatingPoint,N}(x::Array{T,N}, a::T, p::Array{T,N})
 end
 
 # inner(x,y) - Compute the inner product of "vectors" x and y.
-function inner{T<:FloatingPoint,N}(x::Array{T,N}, y::Array{T,N})
+function inner{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
     @assert(size(x) == size(y))
     s::T = 0
     @simd for i in 1:length(x)
@@ -121,7 +121,7 @@ function inner{T<:FloatingPoint,N}(x::Array{T,N}, y::Array{T,N})
     return s
 end
 
-function axpby!{T<:FloatingPoint,N}(dst::Array{T,N},
+function axpby!{T<:AbstractFloat,N}(dst::Array{T,N},
                                     alpha::Real, x::Array{T,N},
                                     beta::Real,  y::Array{T,N})
     @assert(size(x) == size(dst))
