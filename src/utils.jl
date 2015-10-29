@@ -11,7 +11,7 @@
 #
 #------------------------------------------------------------------------------
 
-function defaultweights{T<:FloatingPoint,N}(y::Array{T,N})
+function defaultweights{T<:AbstractFloat,N}(y::Array{T,N})
     wgt = Array(T, size(y))
     for i in 1:length(wgt)
         wgt[i] = (isnan(y[i]) ? zero(T) : one(T))
