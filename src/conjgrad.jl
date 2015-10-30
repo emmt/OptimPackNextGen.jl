@@ -13,7 +13,7 @@
 
 abstract LinearOperator
 
-import Algebra: inner, update!, combine!
+import TiPi.Algebra: inner, update!, combine!
 
 # A LinearProblem stores the components of the normal equations.
 type LinearProblem{T<:AbstractFloat,N}
