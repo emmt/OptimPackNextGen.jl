@@ -127,14 +127,14 @@ function read(name::AbstractString)
         else
             error("not a MDA file/stream")
         end
-        typeId = int((info >> 4) & 0xF)
-        rank = int(info & 0xF)
+        typeId = Int((info >> 4) & 0xF)
+        rank = Int(info & 0xF)
         if typeId <= 0 || typeId > length(IMPLEMENTED_TYPES)
             error("illegal data type in MDA file/stream")
         end
         dataType = IMPLEMENTED_TYPES[typeId][2]
         dims = read(inp, order, UInt32, rank)
-        return read(inp, order, dataType, int(dims)...)
+        return read(inp, order, dataType, convert(Array{Int},dims)...)
     end
 end
 
