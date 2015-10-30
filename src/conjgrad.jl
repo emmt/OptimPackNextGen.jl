@@ -13,8 +13,10 @@
 
 abstract LinearOperator
 
+import Algebra: inner, update!, combine!
+
 # A LinearProblem stores the components of the normal equations.
-type LinearProblem{T<:FloatingPoint,N}
+type LinearProblem{T<:AbstractFloat,N}
     lhs::LinearOperator            # left hand side matrix
     rhs::Array{T,N}                # right hand side vector
 end
@@ -50,7 +52,7 @@ function conjgrad(A::LinearOperator, b, x0, tol, maxiter)
     return x
 end
 
-function conjgrad!{T<:FloatingPoint,N}(A::LinearOperator, b::Array{T,N}, x::Array{T,N},
+function conjgrad!{T<:AbstractFloat,N}(A::LinearOperator, b::Array{T,N}, x::Array{T,N},
                                        tol, maxiter)
     # Initialization.
     @assert(size(b) == size(x))
@@ -58,7 +60,7 @@ function conjgrad!{T<:FloatingPoint,N}(A::LinearOperator, b::Array{T,N}, x::Arra
     q = Array(T, size(x))
     r = Array(T, size(x))
     apply!(A, r, x)
-    axpby!(r, 1, b, -1, r)
+    combine!(r, 1, b, -1, r)
     rho = inner(r, r)
     if length(tol) == 1
         epsilon = tol[1]
@@ -84,7 +86,7 @@ function conjgrad!{T<:FloatingPoint,N}(A::LinearOperator, b::Array{T,N}, x::Arra
             # First iteration.
             copy!(p, r)
         else
-            axpby!(p, 1, r, (rho/rho0), p)
+            combine!(p, 1, r, (rho/rho0), p)
         end
         apply!(A, q, p)
         gamma = inner(p, q)
@@ -97,110 +99,6 @@ function conjgrad!{T<:FloatingPoint,N}(A::LinearOperator, b::Array{T,N}, x::Arra
         update!(r, -alpha, q)
         rho0 = rho
         rho = inner(r, r)
-    end
-end
-
-###############################################################################
-# LINEAR ALGEBRA
-
-# update!(x,a,p) - Update "vector" x by doing: x += a*p.
-function update!{T<:FloatingPoint,N}(x::Array{T,N}, a::T, p::Array{T,N})
-    @assert(size(x) == size(p))
-    @simd for i in 1:length(x)
-        @inbounds x[i] += a*p[i]
-    end
-end
-
-# inner(x,y) - Compute the inner product of "vectors" x and y.
-function inner{T<:FloatingPoint,N}(x::Array{T,N}, y::Array{T,N})
-    @assert(size(x) == size(y))
-    s::T = 0
-    @simd for i in 1:length(x)
-        @inbounds s += x[i]*y[i]
-    end
-    return s
-end
-
-function axpby!{T<:FloatingPoint,N}(dst::Array{T,N},
-                                    alpha::Real, x::Array{T,N},
-                                    beta::Real,  y::Array{T,N})
-    @assert(size(x) == size(dst))
-    @assert(size(y) == size(dst))
-    const n = length(dst)
-    const a::T = alpha
-    const b::T = beta
-    if a == zero(T)
-        if b == zero(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = zero(T)
-            end
-        elseif b == one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = y[i]
-            end
-        elseif b == -one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = -y[i]
-            end
-        else
-            @simd for i in 1:n
-                @inbounds dst[i] = b*y[i]
-            end
-        end
-    elseif a == one(T)
-        if b == zero(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = x[i]
-            end
-        elseif b == one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = x[i] + y[i]
-            end
-        elseif b == -one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = x[i] - y[i]
-            end
-        else
-            @simd for i in 1:n
-                @inbounds dst[i] = x[i] + b*y[i]
-            end
-        end
-    elseif a == -one(T)
-        if b == zero(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = -x[i]
-            end
-        elseif b == one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = y[i] - x[i]
-            end
-        elseif b == -one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = -x[i] - y[i]
-            end
-        else
-            @simd for i in 1:n
-                @inbounds dst[i] = b*y[i] - x[i]
-            end
-        end
-    else
-        if b == zero(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = a*x[i]
-            end
-        elseif b == one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = a*x[i] + y[i]
-            end
-        elseif b == -one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = a*x[i] - y[i]
-            end
-        else
-            @simd for i in 1:n
-                @inbounds dst[i] = a*x[i] + b*y[i]
-            end
-        end
     end
 end
 
