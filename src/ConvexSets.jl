@@ -21,7 +21,7 @@ abstract ConvexSet
 
 """
 A `BoxedSet` is a convex set with separable bounds on the variables:
-`lower[i] ≤ x[i] ≤ upper[i]` where `-∞ ≤ lower[i] ≤ upper[i] ≤ +∞`
+`lower[i] ≤ x[i] ≤ upper[i]` where `-∞ ≤ lower[i] ≤ upper[i] ≤ +∞`.
 Depending on the finiteness of the bounds and of their dependency on index
 `i`, boxed sets come in different flavors.
 """
