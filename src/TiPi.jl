@@ -18,6 +18,7 @@ export MDA
 
 include("utils.jl")
 include("algebra.jl")
+include("ConvexSets.jl")
 include("mda.jl")
 include("conjgrad.jl")
 include("cost.jl")
