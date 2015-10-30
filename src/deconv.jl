@@ -13,8 +13,8 @@
 
 module Deconv
 
-import TiPi.apply!, TiPi.LinearOperator, TiPi.LinearProblem
-import TiPi.defaultweights, TiPi.pad, TiPi.zeropad
+import TiPi: apply!, LinearOperator, LinearProblem
+import TiPi: defaultweights, pad, zeropad
 
 type DeconvolutionHessian{T<:FloatingPoint,N} <: LinearOperator
 
