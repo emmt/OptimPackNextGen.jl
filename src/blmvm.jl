@@ -42,13 +42,13 @@ end
 # FIXME: scalars should be stored as Cdouble
 # FIXME: add a savememory option
 # FIXME: add a savebest option
-function blmvm{T<:AbstractFloat}(fg!::Function, x::Array{T}, m::Integer,
-                                 dom::BoxedSet{T};
-                                 maxiter::Integer=-1,
-                                 gtol=(0.0, 1e-4),
-                                 slen=(1.0, 0.0),
-                                 sftol=1e-4,
-                                 verb::Integer=0)
+function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
+                                    dom::BoxedSet{T};
+                                    maxiter::Integer=-1,
+                                    gtol=(0.0, 1e-4),
+                                    slen=(1.0, 0.0),
+                                    sftol=1e-4,
+                                    verb::Integer=0)
     # Type for scalars (use at least double precision).
     Scalar = promote_type(T,Cdouble)
 
@@ -76,14 +76,14 @@ function blmvm{T<:AbstractFloat}(fg!::Function, x::Array{T}, m::Integer,
     #}
 
     # Allocate arrays for L-BFGS operator.
-    S = Vector(Array{T}, m)
-    Y = Vector(Array{T}, m)
+    S = Array(Array{T,N}, m)
+    Y = Array(Array{T,N}, m)
     for i in 1:m
         S[i] = Array(T, size(x))
         Y[i] = Array(T, size(x))
     end
-    beta = Vector(T, m)
-    rho  = Vector(T, m)
+    beta = Array(T, m)
+    rho  = Array(T, m)
     mp::Int = 0   # actual number of saved pairs
     mark::Int = 0 # total number of saved pair since start
 
@@ -94,22 +94,22 @@ function blmvm{T<:AbstractFloat}(fg!::Function, x::Array{T}, m::Integer,
     slot(j::Int) = (mark - j)%m + 1
 
     # Declare local variables and allocate workspaces.
-    f::Scalar                # function value at x
+    f::Scalar = 0             # function value at x
     g    = Array(T, size(x)) # gradient at x
     x0   = Array(T, size(x)) # origin of line search
-    f0::Scalar               # function value at x0
+    f0::Scalar = 0           # function value at x0
     g0   = Array(T, size(x)) # gradient at x0
     gp   = Array(T, size(x)) # projected gradient
     gp0  = Array(T, size(x)) # projected gradient at x0
     d    = Array(T, size(x)) # search direction
     temp = Array(T, size(x)) # temporary array
-    gtest::Scalar            # gradient-based threshold for convergence
-    gpnorm::Scalar           # Euclidean norm of the projected gradient
+    gtest::Scalar = 0        # gradient-based threshold for convergence
+    gpnorm::Scalar = 0       # Euclidean norm of the projected gradient
     alpha::Scalar = 0        # step length
     const GAIN = convert(Scalar, 1/2) # backtracking gain
     const ZERO = zero(Scalar)
     const ONE  = one(Scalar)
-    sty::Scalar              # inner product <s,y>
+    sty::Scalar = 0          # inner product <s,y>
 
     # FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
     #        save memory.
@@ -175,7 +175,7 @@ function blmvm{T<:AbstractFloat}(fg!::Function, x::Array{T}, m::Integer,
             if msg != nothing
                 println(msg)
             end
-            return x
+            return f
         elseif state == 0
             # Previous step was too long.
             alpha *= GAIN
@@ -207,7 +207,7 @@ function blmvm{T<:AbstractFloat}(fg!::Function, x::Array{T}, m::Integer,
                     beta[k] = rho[k]*inner(d, S[k])
                     update!(d, -beta[k], Y[k])
                 end
-                scale!(d, gamma)
+                scale!(d, gamma, d)
                 for j in mp:-1:1
                     k = slot(j)
                     update!(d, beta[k] - rho[k]*inner(d, Y[k]), S[k])
