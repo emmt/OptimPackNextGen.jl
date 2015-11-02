@@ -14,6 +14,7 @@
 module ConvexSets
 
 export project_variables!,  project_gradient!,  project_direction!
+export minimum_step, maximum_step, shortcut_step
 export ConvexSet, BoxedSet
 
 # This abstract type is the base of all convex set types.
@@ -56,7 +57,7 @@ function step_bounds{S<:ConvexSet,T}(dom::S, x::T, d::T)
      maximum_step(dom, x, d))
 end
 
-function shortcut_step{S<:ConvexSet,T}(dom::S, alpha::Real, x::T, d::T)
+function shortcut_step{S<:ConvexSet,T}(alpha::Real, dom::S, x::T, d::T)
     min(alpha, maximum_step(dom, x, d))
 end
 
@@ -98,11 +99,11 @@ function maximum_step{T,N}(dom::ScalarLowerBound{T},
     amax::T = zero(T)
     xmin::T = dom.lower
     for i in 1:length(x)
-        if d[i] >= zero(T)
+        if d[i] > zero(T)
             # inferior bound can only be encountered for a strictly
             # negative direction
-            return inf(T)
-        elseif x[i] + amax*d[i] > xmin
+            return convert(T, Inf)
+        elseif d[i] < zero(T) && x[i] + amax*d[i] > xmin
             # the bound is not reached, the step step can be enlarged
             amax = (xmin - x[i])/d[i]
         end
@@ -114,12 +115,12 @@ function minimum_step{T,N}(dom::ScalarLowerBound{T},
                            x::Array{T,N}, d::Array{T,N})
     @assert(size(d) == size(x))
     unlimited::Bool = false
-    amin::T = inf(T)
+    amin::T = convert(T, Inf)
     xmin::T = dom.lower
     for i in 1:length(x)
         if d[i] < zero(T) && (unlimited || x[i] + amin*d[i] < xmin)
             amin = (xmin - x[i])/d[i]
-            unlimited = (amin < inf(T))
+            unlimited = (amin < convert(T, Inf))
         end
     end
     amin
@@ -163,11 +164,11 @@ function maximum_step{T,N}(dom::ScalarUpperBound{T},
     amax::T = zero(T)
     xmax::T = dom.upper
     for i in 1:length(x)
-        if d[i] <= zero(T)
+        if d[i] < zero(T)
             # superior bound can only be encountered for a strictly
             # positive direction
-            return inf(T)
-        elseif x[i] + amax*d[i] < xmax
+            return convert(T, Inf)
+        elseif d[i] > zero(T) && x[i] + amax*d[i] < xmax
             # the bound is not reached, the step step can be enlarged
             amax = (xmax - x[i])/d[i]
         end
@@ -179,12 +180,12 @@ function minimum_step{T,N}(dom::ScalarUpperBound{T},
                            x::Array{T,N}, d::Array{T,N})
     @assert(size(d) == size(x))
     unlimited::Bool = false
-    amin::T = inf(T)
+    amin::T = convert(T, Inf)
     xmax::T = dom.upper
     for i in 1:length(x)
         if d[i] > zero(T) && (unlimited || x[i] + amin*d[i] > xmax)
             amin = (xmax - x[i])/d[i]
-            unlimited = (amin < inf(T))
+            unlimited = (amin < convert(T, Inf))
         end
     end
     amin
