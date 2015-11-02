@@ -42,7 +42,7 @@ end
 # FIXME: scalars should be stored as Cdouble
 # FIXME: add a savememory option
 # FIXME: add a savebest option
-function blmvm{T<:AbstractFloat}(fg::Function, x::Array{T}, m::Integer,
+function blmvm{T<:AbstractFloat}(fg!::Function, x::Array{T}, m::Integer,
                                  dom::BoxedSet{T};
                                  maxiter::Integer=-1,
                                  gtol=(0.0, 1e-4),
@@ -53,7 +53,7 @@ function blmvm{T<:AbstractFloat}(fg::Function, x::Array{T}, m::Integer,
     Scalar = promote_type(T,Cdouble)
 
     # Check number of corrections to memorize.
-    m = int(m)
+    m = Int(m)
     m < 1 && error("bad number of variable metric corrections")
 
     # Check options.
@@ -100,6 +100,7 @@ function blmvm{T<:AbstractFloat}(fg::Function, x::Array{T}, m::Integer,
     f0::Scalar               # function value at x0
     g0   = Array(T, size(x)) # gradient at x0
     gp   = Array(T, size(x)) # projected gradient
+    gp0  = Array(T, size(x)) # projected gradient at x0
     d    = Array(T, size(x)) # search direction
     temp = Array(T, size(x)) # temporary array
     gtest::Scalar            # gradient-based threshold for convergence
@@ -109,6 +110,10 @@ function blmvm{T<:AbstractFloat}(fg::Function, x::Array{T}, m::Integer,
     const ZERO = zero(Scalar)
     const ONE  = one(Scalar)
     sty::Scalar              # inner product <s,y>
+
+    # FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
+    #        save memory.
+
 
     # Start the iterations of the algorithm.
     #
@@ -122,34 +127,37 @@ function blmvm{T<:AbstractFloat}(fg::Function, x::Array{T}, m::Integer,
     msg = nothing
     t0 = time_ns()*1e-9
     while true
-        # Make sure X is feasible, compute function and gradient at X.
-        project_variables!(x, dom, x)
-        f = fg(x, g)
-        evaluations += 1
+        if state != 2
+            # Make sure X is feasible, compute function and gradient at X.
+            project_variables!(x, dom, x)
+            f = fg!(x, g)
+            evaluations += 1
 
-        # Compute projected gradient and check for global convergence.
-        project_gradient!(gp, dom, x, g)
-        gpnorm = norm2(gp)
-        if evaluations == 1
-            gtest = gtol[1] + gtol[2]*gpnorm
-        end
-        if gpnorm <= gtest
-            # Algorithm has converged.
-            if state == 0
-                iterations += 1
+            # Compute projected gradient and check for global convergence.
+            project_gradient!(gp, dom, x, g)
+            gpnorm = norm2(gp)
+            if evaluations == 1
+                gtest = gtol[1] + gtol[2]*gpnorm
             end
-            state = 2
-        elseif state == 0
-            # Line search is in progress. FIXME: re-use temp = x - x0 to update LBFGS
-            combine!(temp, 1, x, -1, x0)
-            if f <= f0 + sftol*inner(g0, temp)
-                # Line search has converged, a new iterate is available.
-                iterations += 1
-                if maxiter >= 0 && iterations >= maxiter
-                    msg = "WARNING: too many iterations"
-                    state = 2
-                else
-                    state = 1
+            if gpnorm <= gtest
+                # Algorithm has converged.
+                if state == 0
+                    iterations += 1
+                end
+                state = 2
+            elseif state == 0
+                # Line search is in progress.
+                # FIXME: re-use temp = x - x0 to update LBFGS (see below)
+                combine!(temp, 1, x, -1, x0)
+                if f <= f0 + sftol*inner(g0, temp) # FIXME: can be gp0
+                    # Line search has converged, a new iterate is available.
+                    iterations += 1
+                    if maxiter >= 0 && iterations >= maxiter
+                        msg = "WARNING: too many iterations"
+                        state = 2
+                    else
+                        state = 1
+                    end
                 end
             end
         end
@@ -176,16 +184,16 @@ function blmvm{T<:AbstractFloat}(fg::Function, x::Array{T}, m::Integer,
             if iterations >= 1
                 # Update L-BFGS approximation of the Hessian.
                 k = slot(0)
-                combine!(S[k], ONE, x,  -ONE, x0) # FIXME: already done in TEMP
-                combine!(Y[k], ONE, gp, -ONE, gp0)
+                combine!(S[k], 1, x,  -1, x0) # FIXME: already done in TEMP
+                combine!(Y[k], 1, gp, -1, gp0)
                 sty = inner(S[k], Y[k])
-                if sty <= ZERO
+                if sty <= 0
                     # Skip update (may result in loosing one correction pair).
                     mp = min(mp, m - 1)
                 else
                     # Update mark and number of saved corrections.
                     gamma = sty/inner(Y[k], Y[k])
-                    rho[k] = ONE/sty
+                    rho[k] = 1/sty
                     mark += 1
                     mp = min(mp + 1, m)
                 end
@@ -193,7 +201,7 @@ function blmvm{T<:AbstractFloat}(fg::Function, x::Array{T}, m::Integer,
             if mp >= 1
                 # Apply the L-BFGS two-loop recursion to compute a search
                 # direction.
-                scale!(d, -ONE, g)
+                scale!(d, -1, g)
                 for j in 1:+1:mp
                     k = slot(j)
                     beta[k] = rho[k]*inner(d, S[k])
@@ -205,30 +213,36 @@ function blmvm{T<:AbstractFloat}(fg::Function, x::Array{T}, m::Integer,
                     update!(d, beta[k] - rho[k]*inner(d, Y[k]), S[k])
                 end
                 project_direction!(temp, dom, x, d)
-                if inner(temp, g) >= 0.0
+                if inner(temp, g) >= 0
                     # Not a descent direction.
                     restarts += 1
                     mp = 0
                 else
-                    alpha = ONE
+                    alpha = 1
                 end
             end
             if mp < 1
                 # Use steepest descent.
-                scale!(d, -ONE, g)
+                scale!(d, -1, g)
                 alpha = initial_step(x, d, slen)
             end
 
             # Start line search.
-            state = 0
             alpha = shortcut_step(alpha, dom, x, d)
-            # FIXME: alpha may be zero
-            f0 = f
-            copy!(x0, x)
-            copy!(g0, g)
-            copy!(gp0, gp)
+            if alpha > 0
+                f0 = f
+                copy!(x0, x)
+                copy!(g0, g) # FIXME: can be gp0
+                copy!(gp0, gp)
+                state = 0
+            else
+                state = 2
+                msg = "ERROR: search direction infeasible"
+            end
         end
-        combine!(x, ONE, x0, alpha, d)
+        if state != 2
+            combine!(x, 1, x0, alpha, d)
+        end
     end
 end
 
