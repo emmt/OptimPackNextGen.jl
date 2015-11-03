@@ -23,6 +23,7 @@ include("mda.jl")
 include("conjgrad.jl")
 include("blmvm.jl")
 include("cost.jl")
+include("smooth.jl")
 include("hypersmooth.jl")
 include("deconv.jl")
 
