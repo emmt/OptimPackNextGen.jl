@@ -13,7 +13,7 @@
 
 module TiPi
 
-export cost, cost!, CostParam, HyperbolicEdgePreserving
+export cost, cost!, AbstractCost, HyperbolicEdgePreserving
 export MDA
 
 include("utils.jl")

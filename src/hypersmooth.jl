@@ -20,8 +20,8 @@ typealias Flt Cdouble
 flt(x) = convert(Flt, x)
 
 flt_tuple(a::Real) = (flt(a),)
-flt_tuple{N,T}(a::NTuple{N,T}) = ntuple(N, i -> flt(a[i]))
-flt_tuple{T}(a::Array{T,1}) = ntuple(length(a), i -> flt(a[i]))
+flt_tuple{N,T}(a::NTuple{N,T}) = ntuple(i -> flt(a[i]), N)
+flt_tuple{T}(a::Array{T,1}) = ntuple(i -> flt(a[i]), length(a))
 
 #------------------------------------------------------------------------------
 #
@@ -71,7 +71,7 @@ flt_tuple{T}(a::Array{T,1}) = ntuple(length(a), i -> flt(a[i]))
 #        implemented
 # FIXME: optimize clear operation to avoid one pass through gx (done in 1D)
 
-immutable HyperbolicEdgePreserving{N} <: CostParam
+immutable HyperbolicEdgePreserving{N} <: AbstractCost
     eps::Cdouble
     mu::NTuple{N,Cdouble}
     isotropic::Bool
@@ -91,12 +91,12 @@ end
 
 function HyperbolicEdgePreserving(eps::Real, mu::Vector{Real})
     N = length(mu)
-    HyperbolicEdgePreserving{N}(flt(eps), ntuple(N, i -> flt(mu[i])))
+    HyperbolicEdgePreserving{N}(flt(eps), ntuple(i -> flt(mu[i]), N))
 end
 
 function HyperbolicEdgePreserving(eps::Real, mu::NTuple)
     N = length(mu)
-    HyperbolicEdgePreserving{N}(flt(eps), ntuple(N, i -> flt(mu[i])))
+    HyperbolicEdgePreserving{N}(flt(eps), ntuple(i -> flt(mu[i]), N))
 end
 
 #------------------------------------------------------------------------------
