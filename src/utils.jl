@@ -21,16 +21,69 @@ end
 
 fftbestdim{T<:Integer}(n::T) = nextprod([2,3,5], n)
 
+# DOCUMENT k = fftfreq(dim);
+# or f = fftfreq(dim, step);
+#
+# Generate Discrete Fourier Transform (DFT) frequency indexes or
+# frequencies.
+#
+# With a single argument, the function returns a vector of DIM values (of
+# type long) set with the frequency indexes:
+#
+# k = [0, 1, 2, ..., n-1, -n, ..., -2, -1]   if dim = 2*n
+# k = [0, 1, 2, ..., n,   -n, ..., -2, -1]   if dim = 2*n + 1
+#
+# depending whther DIM is even or odd.  These rules are compatible to what
+# is assumed by fftshift (which to see) in the sense that:
+#
+# fftshift(fftfreq(dim)) = [-n, ..., -2, -1, 0, 1, 2, ...]
+#
+# With two arguments, STEP is the sample spacing in the direct space and
+# the result is a floating point vector with DIM elements set with the
+# frequency bin centers in cycles per unit of the sample spacing (with zero
+# at the start).  For instance, if the sample spacing is in seconds, then
+# the frequency unit is cycles/second.  This is equivalent to:
+#
+# fftfreq(dim)/(dim*step)
+#
+# SEE ALSO: fft, fftshift, indgen.
+function fftfreq(dim::Integer)
+    dim = Int(dim)
+    n = div(dim, 2)
+    f = Array(Int, dim)
+    for k in 1:dim-n
+        f[k] = k - 1
+    end
+    for k in dim-n+1:dim
+        f[k] = k - (1 + dim)
+    end
+    return f
+end
+
+function fftfreq(dim::Integer, step::Real)
+    dim = Int(dim)
+    scl = Cdouble(1/(dim*step))
+    n = div(dim, 2)
+    f = Array(Cdouble, dim)
+    for k in 1:dim-n
+        f[k] = (k - 1)*scl
+    end
+    for k in dim-n+1:dim
+        f[k] = (k - (1 + dim))*scl
+    end
+    return f
+end
+
 zeropad{T,N}(arr::Array{T,N}, dims::NTuple{N,Int}) = pad(zero(T), arr, dims)
 
 function zeropad{T,N}(arr::Array{T,N}, dims::Integer...)
     length(dims) == N || error("incompatible number of dimensions")
-    pad(zero(T), arr, ntuple(N, i -> int(dims[i])))
+    pad(zero(T), arr, ntuple(i -> int(dims[i]), N))
 end
 
 function pad{S,T,N}(val::S, arr::Array{T,N}, dims::Integer...)
     length(dims) == N || error("incompatible number of dimensions")
-    pad(val, arr, ntuple(N, i -> int(dims[i])))
+    pad(val, arr, ntuple(i -> int(dims[i]), N))
 end
 
 function pad{S,T,N}(val::S, src::Array{T,N}, dstDims::NTuple{N,Int})
