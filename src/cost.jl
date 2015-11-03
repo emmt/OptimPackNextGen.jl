@@ -11,25 +11,37 @@
 #
 #------------------------------------------------------------------------------
 
-abstract CostParam
+import Base.call
+
+abstract AbstractCost
+
+cost{T<:AbstractCost}(obj::T, x) = cost(1, obj, x)
+call{T<:AbstractCost}(obj::T, x) = cost(obj, x)
+call{T<:AbstractCost}(obj::T, alpha::Real, x) = cost(alpha, obj, x)
+
+cost!{T<:AbstractCost,S}(obj::T, x::S, g::S, clr::Bool) = cost!(1, obj, x, g, clr)
+call{T<:AbstractCost,S}(obj::T, x::S, g::S, clr::Bool) = cost!(obj, x, g, clr)
+call{T<:AbstractCost,S}(obj::T, alpha::Real, x::S, g::S, clr::Bool) = cost!(alpha, obj, x, g, clr)
+
+
 
 ##############################
 # Maximum a posteriori (MAP) #
 ##############################
 
-type MAPCostParam{L<:CostParam,R<:CostParam} <: CostParam
+type MAPCost{L<:AbstractCost,R<:AbstractCost} <: AbstractCost
     mu::Cdouble  # regularization weight
     lkl::L       # parameters of the likelihood term
     rgl::R       # parameters of the regularization term
 end
 
-function cost{T}(alpha::Real, param::MAPCostParam, x::T)
+function cost{T}(alpha::Real, param::MAPCost, x::T)
     alpha == 0 && return 0.0
     return (cost(alpha,          param.lkl, x) +
             cost(alpha*param.mu, param.rgl, x))
 end
 
-function cost!{T}(alpha::Real, param::MAPCostParam, x::T, gx::T,
+function cost!{T}(alpha::Real, param::MAPCost, x::T, gx::T,
                   clr::Bool=false)
     if alpha == 0
         clr && fill!(gx, 0)
