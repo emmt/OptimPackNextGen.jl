@@ -19,6 +19,7 @@ module Algebra
 
 # FIXME: scale! conflict with Base.scale!
 
+import Base.scale!
 export inner, norm1, norm2, normInf
 export swap!
 export scale!, update!, combine!
@@ -114,26 +115,26 @@ function swap!{T,N}(x::Array{T,N}, y::Array{T,N})
     end
 end
 
-# scale!(dst, alpha) --
-#
-# In-place scaling of destination *vector* `dst` by scalar `alpha`.
-#
-function scale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real)
-    const a::T = alpha
-    if a == zero(T)
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] = zero(T)
-        end
-    elseif a == -one(T)
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] = -dst[i]
-        end
-    elseif a != one(T)
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] *= a
-        end
-    end
-end
+# FIXME: # # scale!(dst, alpha) --
+# FIXME: # #
+# FIXME: # # In-place scaling of destination *vector* `dst` by scalar `alpha`.
+# FIXME: # #
+# FIXME: # function scale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real)
+# FIXME: #     const a::T = alpha
+# FIXME: #     if a == zero(T)
+# FIXME: #         @simd for i in 1:length(dst)
+# FIXME: #             @inbounds dst[i] = zero(T)
+# FIXME: #         end
+# FIXME: #     elseif a == -one(T)
+# FIXME: #         @simd for i in 1:length(dst)
+# FIXME: #             @inbounds dst[i] = -dst[i]
+# FIXME: #         end
+# FIXME: #     elseif a != one(T)
+# FIXME: #         @simd for i in 1:length(dst)
+# FIXME: #             @inbounds dst[i] *= a
+# FIXME: #         end
+# FIXME: #     end
+# FIXME: # end
 
 # scale!(dst, alpha, x) --
 #
