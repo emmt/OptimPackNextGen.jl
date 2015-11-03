@@ -52,8 +52,8 @@ function conjgrad(A::LinearOperator, b, x0, tol, maxiter)
     return x
 end
 
-function conjgrad!{T<:AbstractFloat,N}(A::LinearOperator, b::Array{T,N}, x::Array{T,N},
-                                       tol, maxiter)
+function conjgrad!{T<:AbstractFloat,N}(A::LinearOperator, b::Array{T,N},
+                                       x::Array{T,N}, tol, maxiter)
     # Initialization.
     @assert(size(b) == size(x))
     p = Array(T, size(x))
@@ -65,7 +65,7 @@ function conjgrad!{T<:AbstractFloat,N}(A::LinearOperator, b::Array{T,N}, x::Arra
     if length(tol) == 1
         epsilon = tol[1]
     elseif length(tol) == 2
-        epsilon = max(tol[1], tol[2]*sqrt(rho))
+        epsilon = tol[1] + tol[2]*sqrt(rho)
     else
         error("bad tolerance")
     end
