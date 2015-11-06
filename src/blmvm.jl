@@ -43,8 +43,10 @@ end
 # FIXME: add a savememory option
 # FIXME: add a savebest option
 function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
-                                    dom::BoxedSet{T};
+                                    dom::AbstractBoundedSet{T};
                                     maxiter::Integer=-1,
+                                    maxeval::Integer=-1,
+                                    epsilon::Real=0.0,
                                     gtol=(0.0, 1e-4),
                                     slen=(1.0, 0.0),
                                     sftol=1e-4,
@@ -119,15 +121,18 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     #
     # state = 0, if a line search is in progress;
     #         1, if a new iterate is available;
-    #         2, if the algorithm has converged.
+    #         2, if the algorithm has converged;
+    #         3, if too many iterations;
+    #         4, if too many function evaluations.
     state::Int = 1
     evaluations::Int = 0
     restarts::Int = 0
+    rejects::Int = 0
     iterations::Int = 0
     msg = nothing
     t0 = time_ns()*1e-9
     while true
-        if state != 2
+        if state < 2
             # Make sure X is feasible, compute function and gradient at X.
             project_variables!(x, dom, x)
             f = fg!(x, g)
@@ -161,14 +166,15 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 end
             end
         end
-        if verb > 0 && (state == 2 || (state == 1 && (iterations%verb) == 0))
+        if verb > 0 && (state >= 2 || (state == 1 && (iterations%verb) == 0))
             t = time_ns()*1e-9
             if evaluations == 1
-                println("#  ITER     EVAL   TIME (s)            PENALTY           GRADIENT        STEP")
-                println("-------------------------------------------------------------------------------")
+                println("#  ITER   EVAL  REJECT RESTART TIME (s)           PENALTY           GRADIENT        STEP")
+                println("--------------------------------------------------------------------------------------------")
             end
-            @printf(" %6d  %6d  %9.3f  %24.16e  %12.6e  %12.6e\n",
-                    iterations, evaluations, t - t0, f, gpnorm, alpha)
+            @printf(" %6d %6d  %4d   %4d  %9.3f  %24.16e  %12.6e  %12.6e\n",
+                    iterations, evaluations, rejects, restarts,
+                    t - t0, f, gpnorm, alpha)
         end
         if state == 2
             # Algorithm terminated.
@@ -187,12 +193,15 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 combine!(S[k], 1, x,  -1, x0) # FIXME: already done in TEMP
                 combine!(Y[k], 1, gp, -1, gp0)
                 sty = inner(S[k], Y[k])
-                if sty <= 0
+                yty = inner(Y[k], Y[k])
+                # FIXME: check y'.y > 0
+                if sty <= epsilon*yty
                     # Skip update (may result in loosing one correction pair).
+                    rejects += 1
                     mp = min(mp, m - 1)
                 else
                     # Update mark and number of saved corrections.
-                    gamma = sty/inner(Y[k], Y[k])
+                    gamma = sty/yty
                     rho[k] = 1/sty
                     mark += 1
                     mp = min(mp + 1, m)
@@ -240,7 +249,7 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 msg = "ERROR: search direction infeasible"
             end
         end
-        if state != 2
+        if state < 2
             combine!(x, 1, x0, alpha, d)
         end
     end
