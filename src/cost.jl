@@ -51,12 +51,3 @@ function cost!{T}(alpha::Real, param::MAPCost, x::T, gx::T,
                 cost(alpha*param.mu, param.rgl, x, gx, false))
     end
 end
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# indent-tabs-mode: nil
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:

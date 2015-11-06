@@ -592,12 +592,3 @@ function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{3},
     # Remove the "bias" and scale the cost.
     return (fx - (dim1 - 1)*(dim2 - 1)*(dim3 - 1)*param.eps)*alpha
 end
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# indent-tabs-mode: nil
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:

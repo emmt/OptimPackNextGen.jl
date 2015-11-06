@@ -134,13 +134,3 @@ function pad{S,T,N}(val::S, src::Array{T,N}, dstDims::NTuple{N,Int})
     end
     return dst
 end
-
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# indent-tabs-mode: nil
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:

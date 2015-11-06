@@ -461,12 +461,3 @@ function DtD!{S<:Real, T<:AbstractFloat}(alpha::Vector{S},
 end
 
 end # module
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# indent-tabs-mode: nil
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:

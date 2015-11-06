@@ -101,12 +101,3 @@ function conjgrad!{T<:AbstractFloat,N}(A::LinearOperator, b::Array{T,N},
         rho = inner(r, r)
     end
 end
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# indent-tabs-mode: nil
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:

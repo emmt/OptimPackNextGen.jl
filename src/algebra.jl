@@ -280,12 +280,3 @@ function combine!{T<:Real,N}(dst::Array{T,N},
 end
 
 end # module
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# indent-tabs-mode: nil
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:

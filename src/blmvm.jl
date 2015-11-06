@@ -39,7 +39,6 @@ function initial_step{T,N}(x::Array{T,N}, d::Array{T,N}, slen::NTuple{2})
     (len2 > 0 ? len2 : len1)/dnorm
 end
 
-# FIXME: scalars should be stored as Cdouble
 # FIXME: add a savememory option
 # FIXME: add a savebest option
 function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
@@ -256,12 +255,3 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
 end
 
 end # module
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# indent-tabs-mode: nil
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:

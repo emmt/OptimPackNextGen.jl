@@ -65,12 +65,3 @@ function cost!{T<:AbstractFloat}(alpha::Real,
     end
     return convert(Cdouble,alpha)*err
 end
-
-# Local Variables:
-# mode: Julia
-# tab-width: 8
-# indent-tabs-mode: nil
-# fill-column: 79
-# coding: utf-8
-# ispell-local-dictionary: "american"
-# End:
