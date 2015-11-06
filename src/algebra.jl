@@ -24,10 +24,14 @@ export inner, norm1, norm2, normInf
 export swap!
 export scale!, update!, combine!
 
-# norm2(v) --
-#
-# Return Euclidean (L2) norm of *vector* `v`.
-#
+"""
+### Euclidean norm
+
+The Euclidean (L2) norm of `v` can be computed by:
+```
+    norm2(v)
+```
+"""
 function norm2{T<:AbstractFloat,N}(v::Array{T,N})
     s::T = zero(T)
     @simd for i in 1:length(v)
@@ -36,10 +40,14 @@ function norm2{T<:AbstractFloat,N}(v::Array{T,N})
     return sqrt(s)
 end
 
-# norm1(v) --
-#
-# Return L1 norm of *vector* `v`.
-#
+"""
+### L1 norm
+
+The L1 norm of `v` can be computed by:
+```
+    norm1(v)
+```
+"""
 function norm1{T<:AbstractFloat,N}(v::Array{T,N})
     s::T = zero(T)
     @simd for i in 1:length(v)
@@ -48,10 +56,14 @@ function norm1{T<:AbstractFloat,N}(v::Array{T,N})
     return s
 end
 
-# normInf(v) --
-#
-# Return infinite norm of *vector* `v`.
-#
+"""
+### Infinite norm
+
+The infinite norm of `v` can be computed by:
+```
+    normInf(v)
+```
+"""
 function normInf{T<:AbstractFloat,N}(v::Array{T,N})
     s::T = zero(T)
     @simd for i in 1:length(v)
@@ -61,16 +73,18 @@ function normInf{T<:AbstractFloat,N}(v::Array{T,N})
 end
 
 """
-Compute scalar product.
+### Compute scalar product
 
+The call:
+```
     inner(x,y)
-
-Compute the inner product (a.k.a. scalar product) between *vectors* `x` and
-`y`.  The *triple* inner product between *vectors* `w`, `x` and `y` can be
-computed by:
-
+```
+computes the inner product (a.k.a. scalar product) between `x` and `y` (which
+must have the same size).  The triple inner product between `w`, `x` and `y`
+can be computed by:
+```
     inner(w,x,y)
-
+```
 """
 function inner{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
     @assert(size(x) == size(y))
@@ -101,17 +115,24 @@ function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
     return s
 end
 
-# swap!(x,y) --
-#
-# Exchange the contents of *vectors* `x` and `y`.
-#
+"""
+### Exchange contents
+
+The call:
+```
+    swap!(x, y)
+```
+exchanges the contents of `x` and `y` (which must have the same size).
+"""
 function swap!{T,N}(x::Array{T,N}, y::Array{T,N})
     @assert(size(x) == size(y))
     temp::T
-    @simd for i in 1:length(x)
-        @inbounds temp = x[i]
-        @inbounds x[i] = y[i]
-        @inbounds y[i] = temp
+    @inbounds begin
+        @simd for i in 1:length(x)
+            temp = x[i]
+            x[i] = y[i]
+            y[i] = temp
+        end
     end
 end
 
@@ -162,35 +183,52 @@ function scale!{T<:Real,N}(dst::Array{T,N}, alpha::Real, x::Array{T,N})
     end
 end
 
-# update!(dst, alpha, x) --
-#
-# Increment the components of destination *vector* `dst` by those of
-# `alpha*x`.
-#
+"""
+### Increment an array by a scaled step
+
+The call:
+```
+    update!(dst, alpha, x)
+```
+increments the components of the destination *vector* `dst` by those of
+`alpha*x`.  The code is optimized for some specific values of the multiplier
+`alpha`.  For instance, if `alpha` is zero, then `dst` is filled with zeros
+without using the contents of `x`.
+"""
 function update!{T<:AbstractFloat,N}(dst::Array{T,N},
                                      alpha::Real, x::Array{T,N})
     @assert(size(x) == size(dst))
     const a::T = alpha
-    if a == one(T)
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] += x[i]
-        end
-    elseif a == -one(T)
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] -= x[i]
-        end
-    elseif a != zero(T)
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] += a*x[i]
+    const n = length(dst)
+    @inbounds begin
+        if a == one(T)
+            @simd for i in 1:n
+                dst[i] += x[i]
+            end
+        elseif a == -one(T)
+            @simd for i in 1:n
+                dst[i] -= x[i]
+            end
+        elseif a != zero(T)
+            @simd for i in 1:n
+                dst[i] += a*x[i]
+            end
         end
     end
 end
 
-# combine!(dst, alpha, x, beta, y) --
-#
-# Store the linear combination `alpha*x + beta*y` into the destination
-# *vector* `dst`.
-#
+"""
+### Linear combination of arrays
+
+The call:
+```
+    combine!(dst, alpha, x, beta, y)
+```
+stores the linear combination `alpha*x + beta*y` into the destination *vector*
+`dst`.  The code is optimized for some specific values of the coefficients
+`alpha` and `beta`.  For instance, if `alpha` (resp. `beta`) is zero, then the
+contents of `x` (resp. `y`) is not used.
+"""
 function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
                                       alpha::Real, x::Array{T,N},
                                       beta::Real,  y::Array{T,N})
@@ -199,76 +237,78 @@ function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
     const n = length(dst)
     const a::T = alpha
     const b::T = beta
-    if a == zero(T)
-        if b == zero(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = zero(T)
+    @inbounds begin
+        if a == zero(T)
+            if b == zero(T)
+                @simd for i in 1:n
+                    dst[i] = zero(T)
+                end
+            elseif b == one(T)
+                @simd for i in 1:n
+                    dst[i] = y[i]
+                end
+            elseif b == -one(T)
+                @simd for i in 1:n
+                    dst[i] = -y[i]
+                end
+            else
+                @simd for i in 1:n
+                    dst[i] = b*y[i]
+                end
             end
-        elseif b == one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = y[i]
+        elseif a == one(T)
+            if b == zero(T)
+                @simd for i in 1:n
+                    dst[i] = x[i]
+                end
+            elseif b == one(T)
+                @simd for i in 1:n
+                    dst[i] = x[i] + y[i]
+                end
+            elseif b == -one(T)
+                @simd for i in 1:n
+                    dst[i] = x[i] - y[i]
+                end
+            else
+                @simd for i in 1:n
+                    dst[i] = x[i] + b*y[i]
+                end
             end
-        elseif b == -one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = -y[i]
-            end
-        else
-            @simd for i in 1:n
-                @inbounds dst[i] = b*y[i]
-            end
-        end
-    elseif a == one(T)
-        if b == zero(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = x[i]
-            end
-        elseif b == one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = x[i] + y[i]
-            end
-        elseif b == -one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = x[i] - y[i]
-            end
-        else
-            @simd for i in 1:n
-                @inbounds dst[i] = x[i] + b*y[i]
-            end
-        end
-    elseif a == -one(T)
-        if b == zero(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = -x[i]
-            end
-        elseif b == one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = y[i] - x[i]
-            end
-        elseif b == -one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = -x[i] - y[i]
-            end
-        else
-            @simd for i in 1:n
-                @inbounds dst[i] = b*y[i] - x[i]
-            end
-        end
-    else
-        if b == zero(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = a*x[i]
-            end
-        elseif b == one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = a*x[i] + y[i]
-            end
-        elseif b == -one(T)
-            @simd for i in 1:n
-                @inbounds dst[i] = a*x[i] - y[i]
+        elseif a == -one(T)
+            if b == zero(T)
+                @simd for i in 1:n
+                    dst[i] = -x[i]
+                end
+            elseif b == one(T)
+                @simd for i in 1:n
+                    dst[i] = y[i] - x[i]
+                end
+            elseif b == -one(T)
+                @simd for i in 1:n
+                    dst[i] = -x[i] - y[i]
+                end
+            else
+                @simd for i in 1:n
+                    dst[i] = b*y[i] - x[i]
+                end
             end
         else
-            @simd for i in 1:n
-                @inbounds dst[i] = a*x[i] + b*y[i]
+            if b == zero(T)
+                @simd for i in 1:n
+                    dst[i] = a*x[i]
+                end
+            elseif b == one(T)
+                @simd for i in 1:n
+                    dst[i] = a*x[i] + y[i]
+                end
+            elseif b == -one(T)
+                @simd for i in 1:n
+                    dst[i] = a*x[i] - y[i]
+                end
+            else
+                @simd for i in 1:n
+                    dst[i] = a*x[i] + b*y[i]
+                end
             end
         end
     end
