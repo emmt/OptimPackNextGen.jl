@@ -17,12 +17,8 @@
 
 module Algebra
 
-# FIXME: scale! conflict with Base.scale!
-
-import Base.scale!
 export inner, norm1, norm2, normInf
-export swap!
-export scale!, update!, combine!
+export swap!, update!, combine!
 
 """
 ### Euclidean norm
@@ -136,53 +132,6 @@ function swap!{T,N}(x::Array{T,N}, y::Array{T,N})
     end
 end
 
-# FIXME: # # scale!(dst, alpha) --
-# FIXME: # #
-# FIXME: # # In-place scaling of destination *vector* `dst` by scalar `alpha`.
-# FIXME: # #
-# FIXME: # function scale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real)
-# FIXME: #     const a::T = alpha
-# FIXME: #     if a == zero(T)
-# FIXME: #         @simd for i in 1:length(dst)
-# FIXME: #             @inbounds dst[i] = zero(T)
-# FIXME: #         end
-# FIXME: #     elseif a == -one(T)
-# FIXME: #         @simd for i in 1:length(dst)
-# FIXME: #             @inbounds dst[i] = -dst[i]
-# FIXME: #         end
-# FIXME: #     elseif a != one(T)
-# FIXME: #         @simd for i in 1:length(dst)
-# FIXME: #             @inbounds dst[i] *= a
-# FIXME: #         end
-# FIXME: #     end
-# FIXME: # end
-
-# scale!(dst, alpha, x) --
-#
-# Store `alpha*x` in destination *vector* `dst`.
-#
-function scale!{T<:Real,N}(dst::Array{T,N}, alpha::Real, x::Array{T,N})
-    @assert(size(x) == size(dst))
-    const a::T = alpha
-    if a == zero(T)
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] = zero(T)
-        end
-    elseif a == one(T)
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] = x[i]
-        end
-    elseif a == -one(T)
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] = -x[i]
-        end
-    else
-        @simd for i in 1:length(dst)
-            @inbounds dst[i] = a*x[i]
-        end
-    end
-end
-
 """
 ### Increment an array by a scaled step
 
@@ -192,8 +141,8 @@ The call:
 ```
 increments the components of the destination *vector* `dst` by those of
 `alpha*x`.  The code is optimized for some specific values of the multiplier
-`alpha`.  For instance, if `alpha` is zero, then `dst` is filled with zeros
-without using the contents of `x`.
+`alpha`.  For instance, if `alpha` is zero, then `dst` left unchanged without
+using `x`.
 """
 function update!{T<:AbstractFloat,N}(dst::Array{T,N},
                                      alpha::Real, x::Array{T,N})
@@ -220,48 +169,61 @@ end
 """
 ### Linear combination of arrays
 
-The call:
+The calls:
 ```
+    combine!(dst, alpha, x)
     combine!(dst, alpha, x, beta, y)
 ```
-stores the linear combination `alpha*x + beta*y` into the destination *vector*
-`dst`.  The code is optimized for some specific values of the coefficients
-`alpha` and `beta`.  For instance, if `alpha` (resp. `beta`) is zero, then the
-contents of `x` (resp. `y`) is not used.
+stores the linear combinations `alpha*x` and `alpha*x + beta*y` into the
+destination array `dst`.  The code is optimized for some specific values of the
+coefficients `alpha` and `beta`.  For instance, if `alpha` (resp. `beta`) is
+zero, then the contents of `x` (resp. `y`) is not used.
+
+The source array(s) and the destination an be the same.  For instance, the two
+following lines of code produce the same result:
+```
+    combine!(dst, 1, dst, alpha, x)
+    update!(dst, alpha, x)
+```
 """
+
+function combine!{T<:Real,N}(dst::Array{T,N}, a::T, x::Array{T,N})
+    @assert(size(x) == size(dst))
+    const n = length(dst)
+    @inbounds begin
+        if a == zero(T)
+            @simd for i in 1:n
+                dst[i] = zero(T)
+            end
+        elseif a == one(T)
+            @simd for i in 1:n
+                dst[i] = x[i]
+            end
+        elseif a == -one(T)
+            @simd for i in 1:n
+                dst[i] = -x[i]
+            end
+        else
+            @simd for i in 1:n
+                dst[i] = a*x[i]
+            end
+        end
+    end
+end
+
 function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                      alpha::Real, x::Array{T,N},
-                                      beta::Real,  y::Array{T,N})
+                                      a::T, x::Array{T,N},
+                                      b::T, y::Array{T,N})
     @assert(size(x) == size(dst))
     @assert(size(y) == size(dst))
     const n = length(dst)
-    const a::T = alpha
-    const b::T = beta
     @inbounds begin
         if a == zero(T)
-            if b == zero(T)
-                @simd for i in 1:n
-                    dst[i] = zero(T)
-                end
-            elseif b == one(T)
-                @simd for i in 1:n
-                    dst[i] = y[i]
-                end
-            elseif b == -one(T)
-                @simd for i in 1:n
-                    dst[i] = -y[i]
-                end
-            else
-                @simd for i in 1:n
-                    dst[i] = b*y[i]
-                end
-            end
+            combine!(dst, b, y)
+        elseif b == zero(T)
+            combine!(dst, a, x)
         elseif a == one(T)
-            if b == zero(T)
-                @simd for i in 1:n
-                    dst[i] = x[i]
-                end
-            elseif b == one(T)
+            if b == one(T)
                 @simd for i in 1:n
                     dst[i] = x[i] + y[i]
                 end
@@ -275,11 +237,7 @@ function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
                 end
             end
         elseif a == -one(T)
-            if b == zero(T)
-                @simd for i in 1:n
-                    dst[i] = -x[i]
-                end
-            elseif b == one(T)
+            if b == one(T)
                 @simd for i in 1:n
                     dst[i] = y[i] - x[i]
                 end
@@ -293,11 +251,7 @@ function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
                 end
             end
         else
-            if b == zero(T)
-                @simd for i in 1:n
-                    dst[i] = a*x[i]
-                end
-            elseif b == one(T)
+            if b == one(T)
                 @simd for i in 1:n
                     dst[i] = a*x[i] + y[i]
                 end
@@ -312,6 +266,17 @@ function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
             end
         end
     end
+end
+
+function combine!{T<:Real,N}(dst::Array{T,N},
+                             alpha::Real, x::Array{T,N})
+    combine!(dst, convert(T, alpha), x)
+end
+
+function combine!{T<:Real,N}(dst::Array{T,N},
+                             alpha::Real, x::Array{T,N},
+                             beta::Real,  y::Array{T,N})
+    combine!(dst, convert(T, alpha), x, convert(T, beta), y)
 end
 
 end # module
