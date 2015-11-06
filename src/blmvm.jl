@@ -210,13 +210,13 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
             if mp >= 1
                 # Apply the L-BFGS two-loop recursion to compute a search
                 # direction.
-                scale!(d, -1, g)
+                combine!(d, -1, g)
                 for j in 1:+1:mp
                     k = slot(j)
                     beta[k] = rho[k]*inner(d, S[k])
                     update!(d, -beta[k], Y[k])
                 end
-                scale!(d, gamma, d)
+                combine!(d, gamma, d)
                 for j in mp:-1:1
                     k = slot(j)
                     update!(d, beta[k] - rho[k]*inner(d, Y[k]), S[k])
@@ -232,7 +232,7 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
             end
             if mp < 1
                 # Use steepest descent.
-                scale!(d, -1, g)
+                combine!(d, -1, g)
                 alpha = initial_step(x, d, slen)
             end
 
