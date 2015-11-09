@@ -24,9 +24,9 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                                     maxiter::Integer=-1,
                                     maxeval::Integer=-1,
                                     epsilon::Real=0.0,
+                                    lnsrch::LineSearch=BacktrackLineSearch(),
                                     gtol=(0.0, 1e-6),
                                     slen=(1.0, 0.0),
-                                    sftol=1e-4,
                                     verb::Integer=0)
     # Type for scalars (use at least double precision).
     Scalar = promote_type(T,Cdouble)
@@ -41,7 +41,6 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     # Check options.
     #if (! is_void(xmin)) eq_nocopy, xmin, double(xmin)
     #if (! is_void(xmax)) eq_nocopy, xmax, double(xmax)
-    #if (is_void(sftol)) sftol = 1e-4
     #if (is_void(maxiter)) maxiter = -1
     #if (is_void(slen)) slen = [1.0, 0.0]
     #if (is_void(gtol)) {
@@ -81,6 +80,7 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     x0   = Array(T, size(x)) # origin of line search
     f0::Scalar = 0           # function value at x0
     g0   = Array(T, size(x)) # gradient at x0
+    df0::Scalar = 0          # directional derivative at x0
     gp   = Array(T, size(x)) # projected gradient
     gp0  = Array(T, size(x)) # projected gradient at x0
     d    = Array(T, size(x)) # search direction
@@ -130,15 +130,13 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 elseif state == LINE_SEARCH
                     # Line search is in progress.
                     # FIXME: re-use temp = x - x0 to update LBFGS (see below)
-                    combine!(temp, 1, x, -1, x0)
-                    if f <= f0 + sftol*inner(g0, temp) # FIXME: can be gp0
+                    combine!(temp, 1, x, -1, x0) # effective step
+                    (state, alpha) = iterate!(lnsrch, f, inner(g0, temp)/alpha, alpha)
+                    if state == NEW_ITERATE
                         # Line search has converged, a new iterate is available.
                         iterations += 1
                         if maxiter >= 0 && iterations >= maxiter
-                            msg = "WARNING: too many iterations"
                             state = TOO_MANY_ITERATIONS
-                        else
-                            state = NEW_ITERATE
                         end
                     end
                 end
@@ -208,7 +206,8 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     update!(d, beta[k] - rho[k]*inner(d, Y[k]), S[k])
                 end
                 project_direction!(temp, dom, x, d)
-                if inner(temp, g) >= 0
+                df0 = inner(temp, g)
+                if df0 >= 0
                     # Not a descent direction.
                     restarts += 1
                     mp = 0
@@ -219,6 +218,7 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
             if mp < 1
                 # Use steepest descent.
                 combine!(d, -1, g)
+                df0 = -gpnorm
                 alpha = initial_step(x, d, slen)
             end
 
@@ -227,9 +227,9 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
             if alpha > 0
                 f0 = f
                 copy!(x0, x)
-                copy!(g0, g) # FIXME: can be gp0
+                copy!(g0, g) # FIXME: storage can be gp0
                 copy!(gp0, gp)
-                state = LINE_SEARCH
+                (state, alpha) = start!(lnsrch, f0, df0, alpha)
             else
                 state = CONVERGENCE
                 warn("search direction infeasible")
