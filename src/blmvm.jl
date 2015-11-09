@@ -15,29 +15,7 @@ module BLMVM
 
 using TiPi.Algebra
 using TiPi.ConvexSets
-
-# initial_step(x, d, slen) --
-#
-#   Return initial step length for the first iteration or after a restart.
-#   X are the current variables, D is the search direction, SLEN=[ALEN,RLEN]
-#   where ALEN and RLEN are an absolute and relative step length (ALEN > 0 and
-#   RLEN >= 0).
-#
-#   The result is: A/||D|| where ||D|| is the Euclidean norm of D and
-#
-#       A = RLEN*||X|| if RLEN*||X|| > 0
-#         = ALEN       otherwise
-#
-function initial_step{T,N}(x::Array{T,N}, d::Array{T,N}, slen::NTuple{2})
-    @assert(size(x) == size(d))
-    dnorm = norm2(d)
-    len1::Cdouble = slen[1]
-    len2::Cdouble = slen[2]
-    if len2 > 0
-        len2 *= norm2(x)
-    end
-    (len2 > 0 ? len2 : len1)/dnorm
-end
+using TiPi.Optimization
 
 # FIXME: add a savememory option
 # FIXME: add a savebest option
@@ -46,12 +24,15 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                                     maxiter::Integer=-1,
                                     maxeval::Integer=-1,
                                     epsilon::Real=0.0,
-                                    gtol=(0.0, 1e-4),
+                                    gtol=(0.0, 1e-6),
                                     slen=(1.0, 0.0),
                                     sftol=1e-4,
                                     verb::Integer=0)
     # Type for scalars (use at least double precision).
     Scalar = promote_type(T,Cdouble)
+
+    # Size of the problem.
+    const n = length(x)
 
     # Check number of corrections to memorize.
     m = Int(m)
@@ -117,13 +98,7 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
 
 
     # Start the iterations of the algorithm.
-    #
-    # state = 0, if a line search is in progress;
-    #         1, if a new iterate is available;
-    #         2, if the algorithm has converged;
-    #         3, if too many iterations;
-    #         4, if too many function evaluations.
-    state::Int = 1
+    state::Int = NEW_ITERATE
     evaluations::Int = 0
     restarts::Int = 0
     rejects::Int = 0
@@ -131,41 +106,46 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     msg = nothing
     t0 = time_ns()*1e-9
     while true
-        if state < 2
-            # Make sure X is feasible, compute function and gradient at X.
-            project_variables!(x, dom, x)
-            f = fg!(x, g)
-            evaluations += 1
+        if state < CONVERGENCE
+            if maxeval > 0 && evaluations > maxeval
+                state = TOO_MANY_EVALUATIONS
+            else
+                # Make sure X is feasible, compute function and gradient at X.
+                project_variables!(x, dom, x)
+                f = fg!(x, g)
+                evaluations += 1
 
-            # Compute projected gradient and check for global convergence.
-            project_gradient!(gp, dom, x, g)
-            gpnorm = norm2(gp)
-            if evaluations == 1
-                gtest = gtol[1] + gtol[2]*gpnorm
-            end
-            if gpnorm <= gtest
-                # Algorithm has converged.
-                if state == 0
-                    iterations += 1
+                # Compute projected gradient and check for global convergence.
+                project_gradient!(gp, dom, x, g)
+                gpnorm = norm2(gp)
+                if evaluations == 1
+                    gtest = gtol[1] + gtol[2]*gpnorm
                 end
-                state = 2
-            elseif state == 0
-                # Line search is in progress.
-                # FIXME: re-use temp = x - x0 to update LBFGS (see below)
-                combine!(temp, 1, x, -1, x0)
-                if f <= f0 + sftol*inner(g0, temp) # FIXME: can be gp0
-                    # Line search has converged, a new iterate is available.
-                    iterations += 1
-                    if maxiter >= 0 && iterations >= maxiter
-                        msg = "WARNING: too many iterations"
-                        state = 2
-                    else
-                        state = 1
+                if gpnorm <= gtest
+                    # Algorithm has converged.
+                    if state == LINE_SEARCH
+                        iterations += 1
+                    end
+                    state = CONVERGENCE
+                elseif state == LINE_SEARCH
+                    # Line search is in progress.
+                    # FIXME: re-use temp = x - x0 to update LBFGS (see below)
+                    combine!(temp, 1, x, -1, x0)
+                    if f <= f0 + sftol*inner(g0, temp) # FIXME: can be gp0
+                        # Line search has converged, a new iterate is available.
+                        iterations += 1
+                        if maxiter >= 0 && iterations >= maxiter
+                            msg = "WARNING: too many iterations"
+                            state = TOO_MANY_ITERATIONS
+                        else
+                            state = NEW_ITERATE
+                        end
                     end
                 end
             end
         end
-        if verb > 0 && (state >= 2 || (state == 1 && (iterations%verb) == 0))
+        if verb > 0 && (state >= CONVERGENCE ||
+                        (state == NEW_ITERATE && (iterations%verb) == 0))
             t = time_ns()*1e-9
             if evaluations == 1
                 println("#  ITER   EVAL  REJECT RESTART TIME (s)           PENALTY           GRADIENT        STEP")
@@ -175,13 +155,20 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     iterations, evaluations, rejects, restarts,
                     t - t0, f, gpnorm, alpha)
         end
-        if state == 2
-            # Algorithm terminated.
-            if msg != nothing
-                println(msg)
+        if state >= CONVERGENCE
+            if f > f0
+                # Restore best solution so far (this may only occur if a line
+                # search has been interrupted because of too many function
+                # evaluations).
+                copy!(x, x0)
+                f = f0
+            end
+            if state > CONVERGENCE
+                warn(Optimization.reason[state])
             end
             return f
-        elseif state == 0
+        end
+        if state == LINE_SEARCH
             # Previous step was too long.
             alpha *= GAIN
         else
@@ -242,10 +229,10 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 copy!(x0, x)
                 copy!(g0, g) # FIXME: can be gp0
                 copy!(gp0, gp)
-                state = 0
+                state = LINE_SEARCH
             else
-                state = 2
-                msg = "ERROR: search direction infeasible"
+                state = CONVERGENCE
+                warn("search direction infeasible")
             end
         end
         if state < 2
