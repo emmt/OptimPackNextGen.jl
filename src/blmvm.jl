@@ -29,7 +29,7 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                                     slen=(1.0, 0.0),
                                     verb::Integer=0)
     # Type for scalars (use at least double precision).
-    Scalar = promote_type(T,Cdouble)
+    Scalar = promote_type(T, Cdouble)
 
     # Size of the problem.
     const n = length(x)
@@ -39,8 +39,6 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     m < 1 && error("bad number of variable metric corrections")
 
     # Check options.
-    #if (! is_void(xmin)) eq_nocopy, xmin, double(xmin)
-    #if (! is_void(xmax)) eq_nocopy, xmax, double(xmax)
     #if (is_void(maxiter)) maxiter = -1
     #if (is_void(slen)) slen = [1.0, 0.0]
     #if (is_void(gtol)) {
@@ -65,14 +63,14 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     end
     beta = Array(T, m)
     rho  = Array(T, m)
-    mp::Int = 0   # actual number of saved pairs
-    mark::Int = 0 # total number of saved pair since start
+    mp::Int = 0      # actual number of saved pairs
+    updates::Int = 0 # total number of updates since start
 
     # The following closure returns the index where is stored the
-    # (mark-j)-th correction pair.  Argument j must be in the inclusive
+    # (updates-j)-th correction pair.  Argument j must be in the inclusive
     # range 0:mp with mp the actual number of saved corrections.  At any
-    # moment, 0 ≤ mp ≤ mark; thus mark - j ≥ 0.
-    slot(j::Int) = (mark - j)%m + 1
+    # moment, 0 ≤ mp ≤ updates; thus updates - j ≥ 0.
+    slot(j::Int) = (updates - j)%m + 1
 
     # Declare local variables and allocate workspaces.
     f::Scalar = 0             # function value at x
@@ -166,10 +164,7 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
             end
             return f
         end
-        if state == LINE_SEARCH
-            # Previous step was too long.
-            alpha *= GAIN
-        else
+        if state == NEW_ITERATE
             # A new search direction is required.
             if iterations >= 1
                 # Update L-BFGS approximation of the Hessian.
@@ -184,10 +179,10 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     rejects += 1
                     mp = min(mp, m - 1)
                 else
-                    # Update mark and number of saved corrections.
+                    # Update number of saved corrections.
                     gamma = sty/yty
                     rho[k] = 1/sty
-                    mark += 1
+                    updates += 1
                     mp = min(mp + 1, m)
                 end
             end
