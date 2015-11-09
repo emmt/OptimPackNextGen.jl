@@ -81,6 +81,12 @@ can be computed by:
 ```
     inner(w,x,y)
 ```
+Finally:
+```
+    inner(sel, x, y)
+```
+computes the sum of the product of the elements of `x` and `y` whose indices
+are given by the `sel` argument.
 """
 function inner{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
     @assert(size(x) == size(y))
@@ -91,22 +97,24 @@ function inner{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
     return s
 end
 
-# FIXME: this is a suggestion:
-function inner{T<:Integer,N}(j::Array{T,N}, k::Array{T,N})
-    @assert(size(j) == size(k))
-    s::T = 0
-    @simd for i in 1:length(j)
-        @inbounds s += j[i]*k[i]
-    end
-    return s/lenght(x)
-end
-
 function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
     @assert(size(x) == size(w))
     @assert(size(y) == size(w))
     s::T = zero(T)
     @simd for i in 1:length(w)
         @inbounds s += w[i]*x[i]*y[i]
+    end
+    return s
+end
+
+function inner{T<:AbstractFloat,N}(sel::Array{Int,N}, x::Array{T,N}, y::Array{T,N})
+    @assert(size(y) == size(x))
+    s::T = zero(T)
+    const n = length(x)
+    @simd for i in 1:length(sel)
+        j = sel[i]
+        1 <= j <= n || throw(BoundsError())
+        @inbounds s += x[j]*y[j]
     end
     return s
 end
