@@ -1,7 +1,12 @@
 #
 # vmlmb.jl -
 #
-# Implement Thiébaut's VMLMB algorithm in Julia.
+# Implement Éric Thiébaut's VMLMB algorithm in Julia.
+#
+# The algorithm is described in:
+#
+#     Éric Thiébaut, "Optimization issues in blind deconvolution algorithms"
+#     in Astronomical Data Analysis II, SPIE Proc. 4847, 174-183 (2002).
 #
 #------------------------------------------------------------------------------
 #
@@ -22,6 +27,10 @@ const STRICT = (1<<0)  # enforce search direction to strictly belongs to the
 
 # FIXME: add a savememory option
 # FIXME: add a savebest option
+# FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
+#        save memory.
+# FIXME: detect whether subset of free variables is complete, empty, or
+#        unchanged to speed up code
 function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                                     dom::AbstractBoundedSet{T};
                                     maxiter::Integer=-1,
@@ -42,7 +51,6 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     m < 1 && error("bad number of variable metric corrections")
 
     # Check options.
-    #if (is_void(sftol)) sftol = 1e-4
     #if (is_void(maxiter)) maxiter = -1
     #if (is_void(slen)) slen = [1.0, 0.0]
     #if (is_void(gtol)) {
@@ -67,8 +75,9 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     end
     beta = Array(T, m)
     rho  = Array(T, m)
-    mp::Int = 0      # actual number of saved pairs
-    updates::Int = 0 # total number of updates since start
+    gamma::Scalar = 0 # initial approximation of inverse Hessian
+    mp::Int = 0       # actual number of saved pairs
+    updates::Int = 0  # total number of updates since start
 
     # The following closure returns the index where is stored the
     # (updates-j)-th correction pair.  Argument j must be in the inclusive
@@ -93,79 +102,19 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     yty::Scalar = 0          # inner product <y,y>
     const deriv = usederivative(lnsrch)
     w = Array(T, size(x))    # 1 for free variables; 0 else
-
-    # FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
-    #        save memory.
-
-    # FIXME: detect whether subset of free variables is complete, empty, or
-    #        unchanged to speed up code
-
-    # Start the iterations of the algorithm.
     state::Int = NEW_ITERATE
     evaluations::Int = 0
     restarts::Int = 0
     iterations::Int = 0
-    constrained::Bool = false
-    msg = nothing
-    t0 = time_ns()*1e-9
-    j0 = slot(0)
-    while true
-        if state < CONVERGENCE
-            if maxeval > 0 && evaluations > maxeval
-                state = TOO_MANY_EVALUATIONS
-                if f > f0
-                    # Restore best solution so far.
-                    copy!(x, x0)
-                    f = f0
-                end
-            else
-                # Make sure X is feasible, compute function and gradient at X.
-                project_variables!(x, dom, x)
-                f = fg!(x, g)
-                evaluations += 1
 
-                # Compute projected gradient and check for global convergence.
-                project_gradient!(gp, dom, x, g)
-                gpnorm = norm2(gp)
-                if evaluations == 1
-                    gtest = gtol[1] + gtol[2]*gpnorm
-                end
-                if gpnorm <= gtest
-                    # Algorithm has converged.
-                    if state == LINE_SEARCH
-                        iterations += 1
-                    end
-                    state = CONVERGENCE
-                elseif state == LINE_SEARCH
-                    # Line search is in progress.
-                    if deriv
-                        # FIXME: re-use temp = x - x0 to update LBFGS (see below)
-                        combine!(temp, 1, x, -1, x0) # effective step
-                        df = inner(g, temp)/alpha
-                    else
-                        df = 0
-                    end
-                    (state, alpha) = iterate!(lnsrch, alpha, f, df)
-                    if state == NEW_ITERATE
-                        # Line search has converged, a new iterate is available.
-                        iterations += 1
-                        if maxiter >= 0 && iterations >= maxiter
-                            state = TOO_MANY_ITERATIONS
-                        end
-                    end
-                end
-                if state == NEW_ITERATE
-                    # Determine the set of free variables.
-                    @simd for i in 1:n
-                        @inbounds w[i] = (gp[i] != 0 ? 1 : 0)
-                    end
-                end
-            end
-        end
-        if verb > 0 && (state >= CONVERGENCE ||
-                        (state == NEW_ITERATE && (iterations%verb) == 0))
+    # Create a closure to print information (this simplifies a lot the
+    # structure of the code).
+    if verb > 0
+        t0 = time_ns()*1e-9
+        function printer()
             t = time_ns()*1e-9
             if evaluations == 1
+                println("# VMLMB algorithm (N=$n, M=$m)")
                 println("#  ITER   EVAL  RESTART TIME (s)           PENALTY           GRADIENT        STEP")
                 println("--------------------------------------------------------------------------------------")
             end
@@ -173,14 +122,59 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     iterations, evaluations, restarts,
                     t - t0, f, gpnorm, alpha)
         end
-        if state >= CONVERGENCE
-            # Algorithm terminated.
-            if state > CONVERGENCE
-                warn(Optimization.reason[state])
+    end
+
+    # Main loop of the algorithm.
+    while true
+        # Make sure X is feasible, compute function and gradient at X.
+        project_variables!(x, dom, x)
+        f = fg!(x, g)
+        evaluations += 1
+
+        # Compute projected gradient and check for global convergence.
+        project_gradient!(gp, dom, x, g)
+        gpnorm = norm2(gp)
+        if evaluations == 1
+            gtest = gtol[1] + gtol[2]*gpnorm
+        end
+        if gpnorm <= gtest
+            # Algorithm has converged.
+            if state == LINE_SEARCH
+                iterations += 1
             end
-            return f
+            state = CONVERGENCE
+            break
+        end
+        if state == LINE_SEARCH
+            # Line search is in progress.
+            if deriv
+                # FIXME: re-use temp = x - x0 to update LBFGS (see below)
+                combine!(temp, 1, x, -1, x0) # effective step
+                df = inner(g, temp)/alpha
+            else
+                df = 0
+            end
+            (state, alpha) = iterate!(lnsrch, alpha, f, df)
+            if state == NEW_ITERATE
+                # Line search has converged, increment iteration number.
+                iterations += 1
+                if maxiter >= 0 && iterations >= maxiter
+                    state = TOO_MANY_ITERATIONS
+                    break
+                end
+            end
         end
         if state == NEW_ITERATE
+            # A new iterate is available.
+            if verb > 0 && (iterations%verb) == 0
+                printer()
+            end
+
+            # Determine the set of free variables.
+            @simd for i in 1:n
+                @inbounds w[i] = (gp[i] != 0 ? 1 : 0)
+            end
+
             # A new search direction is required.
             if iterations >= 1
                 # Update L-BFGS approximation of the Hessian.
@@ -194,7 +188,7 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 # Apply the L-BFGS Strang's two-loop recursion to compute a
                 # search direction.
                 combine!(d, -1, gp)
-                gamma::Scalar = 0 # initial approximation of inverse Hessian
+                gamma = 0
                 for j in 1:+1:mp
                     k = slot(j)
                     sty = inner(w, Y[k], S[k])
@@ -219,7 +213,7 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     for j in mp:-1:1
                         k = slot(j)
                         if rho[k] > 0
-                            update!(d, beta[k] - rho[k]*inner(d, Y[k]), S[k])
+                            update!(d, beta[k] - rho[k]*inner(w, d, Y[k]), S[k])
                         end
                     end
                     if (flags&STRICT) == STRICT
@@ -249,20 +243,35 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
 
             # Start line search.
             alpha = shortcut_step(alpha, dom, x, d)
-            if alpha > 0
-                f0 = f
-                copy!(x0, x)
-                copy!(g0, g)
-                (state, alpha) = start!(lnsrch, f0, df0, alpha)
-            else
-                state = CONVERGENCE
-                warn("search direction infeasible")
+            if alpha <= 0
+                state = WOULD_BLOCK
+                break
             end
+            f0 = f
+            copy!(x0, x)
+            copy!(g0, g)
+            (state, alpha) = start!(lnsrch, f0, df0, alpha)
         end
-        if state < CONVERGENCE
-            combine!(x, 1, x0, alpha, d)
+
+        # Next point to try.
+        if maxeval > 0 && evaluations >= maxeval
+            state = TOO_MANY_EVALUATIONS
+            break
         end
+        combine!(x, 1, x0, alpha, d)
     end
+
+    # Algorithm terminated.
+    if f > f0
+        # Restore best solution so far.
+        copy!(x, x0)
+        f = f0
+    end
+    verb > 0 && printer()
+    if state > CONVERGENCE
+        warn(Optimization.reason[state])
+    end
+    return f
 end
 
 end # module

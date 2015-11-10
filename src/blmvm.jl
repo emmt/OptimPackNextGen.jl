@@ -1,7 +1,13 @@
 #
 # blmvm.jl -
 #
-# Implement Benson & Moré BLMVM algorithm in Julia.
+# Implement Steven J. Benson & Jorge Moré BLMVM algorithm in Julia.
+#
+# The algorithm is described in:
+#
+#     Steven J. Benson and Jorge Moré, "A Limited-Memory Variable-Metric
+#     Algorithm for Bound-Constrained Minimization", Mathematics and Computer
+#     Science Division, Argonne National Laboratory, ANL/MCS-P909-0901 (2001).
 #
 #------------------------------------------------------------------------------
 #
@@ -19,6 +25,8 @@ using TiPi.Optimization
 
 # FIXME: add a savememory option
 # FIXME: add a savebest option
+# FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
+#        save memory.
 function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                                     dom::AbstractBoundedSet{T};
                                     maxiter::Integer=-1,
@@ -63,8 +71,9 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     end
     beta = Array(T, m)
     rho  = Array(T, m)
-    mp::Int = 0      # actual number of saved pairs
-    updates::Int = 0 # total number of updates since start
+    gamma::Scalar = 0 # initial approximation of inverse Hessian
+    mp::Int = 0       # actual number of saved pairs
+    updates::Int = 0  # total number of updates since start
 
     # The following closure returns the index where is stored the
     # (updates-j)-th correction pair.  Argument j must be in the inclusive
@@ -89,69 +98,20 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     sty::Scalar = 0          # inner product <s,y>
     yty::Scalar = 0          # inner product <y,y>
     const deriv = usederivative(lnsrch)
-
-    # FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
-    #        save memory.
-
-    # Start the iterations of the algorithm.
     state::Int = NEW_ITERATE
     evaluations::Int = 0
     restarts::Int = 0
     rejects::Int = 0
     iterations::Int = 0
-    msg = nothing
-    t0 = time_ns()*1e-9
-    while true
-        if state < CONVERGENCE
-            if maxeval > 0 && evaluations > maxeval
-                state = TOO_MANY_EVALUATIONS
-                if f > f0
-                    # Restore best solution so far.
-                    copy!(x, x0)
-                    f = f0
-                end
-            else
-                # Make sure X is feasible, compute function and gradient at X.
-                project_variables!(x, dom, x)
-                f = fg!(x, g)
-                evaluations += 1
 
-                # Compute projected gradient and check for global convergence.
-                project_gradient!(gp, dom, x, g)
-                gpnorm = norm2(gp)
-                if evaluations == 1
-                    gtest = gtol[1] + gtol[2]*gpnorm
-                end
-                if gpnorm <= gtest
-                    # Algorithm has converged.
-                    if state == LINE_SEARCH
-                        iterations += 1
-                    end
-                    state = CONVERGENCE
-                elseif state == LINE_SEARCH
-                    # Line search is in progress.
-                    if deriv
-                        # FIXME: re-use temp = x - x0 to update LBFGS (see below)
-                        combine!(temp, 1, x, -1, x0) # effective step
-                        df = inner(g, temp)/alpha
-                    else
-                        df = 0
-                    end
-                    (state, alpha) = iterate!(lnsrch, alpha, f, df)
-                    if state == NEW_ITERATE
-                        # Line search has converged, a new iterate is available.
-                        iterations += 1
-                        if maxiter >= 0 && iterations >= maxiter
-                            state = TOO_MANY_ITERATIONS
-                        end
-                    end
-                end
-            end
-        end
-        if verb > 0 && (state >= CONVERGENCE ||
-                        (state == NEW_ITERATE && (iterations%verb) == 0))
+    # Create a closure to print information (this simplifies a lot the
+    # structure of the code).
+    if verb > 0
+        t0 = time_ns()*1e-9
+        function printer()
             t = time_ns()*1e-9
             if evaluations == 1
+                println("# BLMVM algorithm (N=$n, M=$m)")
                 println("#  ITER   EVAL  REJECT RESTART TIME (s)           PENALTY           GRADIENT        STEP")
                 println("--------------------------------------------------------------------------------------------")
             end
@@ -159,13 +119,54 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     iterations, evaluations, rejects, restarts,
                     t - t0, f, gpnorm, alpha)
         end
-        if state >= CONVERGENCE
-            if state > CONVERGENCE
-                warn(Optimization.reason[state])
+    end
+
+    # Main loop of the algorithm.
+    while true
+        # Make sure X is feasible, compute function and gradient at X.
+        project_variables!(x, dom, x)
+        f = fg!(x, g)
+        evaluations += 1
+
+        # Compute projected gradient and check for global convergence.
+        project_gradient!(gp, dom, x, g)
+        gpnorm = norm2(gp)
+        if evaluations == 1
+            gtest = gtol[1] + gtol[2]*gpnorm
+        end
+        if gpnorm <= gtest
+            # Algorithm has converged.
+            if state == LINE_SEARCH
+                iterations += 1
             end
-            return f
+            state = CONVERGENCE
+            break
+        end
+        if state == LINE_SEARCH
+            # Line search is in progress.
+            if deriv
+                # FIXME: re-use temp = x - x0 to update LBFGS (see below)
+                combine!(temp, 1, x, -1, x0) # effective step
+                df = inner(g, temp)/alpha
+            else
+                df = 0
+            end
+            (state, alpha) = iterate!(lnsrch, alpha, f, df)
+            if state == NEW_ITERATE
+                # Line search has converged, increment iteration number.
+                iterations += 1
+                if maxiter >= 0 && iterations >= maxiter
+                    state = TOO_MANY_ITERATIONS
+                    break
+                end
+            end
         end
         if state == NEW_ITERATE
+            # A new iterate is available.
+            if verb > 0 && (iterations%verb) == 0
+                printer()
+            end
+
             # A new search direction is required.
             if iterations >= 1
                 # Update L-BFGS approximation of the Hessian.
@@ -174,7 +175,10 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 combine!(Y[k], 1, gp, -1, gp0)
                 sty = inner(S[k], Y[k])
                 yty = inner(Y[k], Y[k])
-                # FIXME: check y'.y > 0
+                if yty <= 0
+                    state = NO_GRADIENT_CHANGE
+                    break
+                end
                 if sty <= epsilon*yty
                     # Skip update (may result in loosing one correction pair).
                     rejects += 1
@@ -222,20 +226,35 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
 
             # Start line search.
             alpha = shortcut_step(alpha, dom, x, d)
-            if alpha > 0
-                f0 = f
-                copy!(x0, x)
-                copy!(gp0, gp)
-                (state, alpha) = start!(lnsrch, f0, df0, alpha)
-            else
-                state = CONVERGENCE
-                warn("search direction infeasible")
+            if alpha <= 0
+                state = WOULD_BLOCK
+                break
             end
+            f0 = f
+            copy!(x0, x)
+            copy!(gp0, gp)
+            (state, alpha) = start!(lnsrch, f0, df0, alpha)
         end
-        if state < CONVERGENCE
-            combine!(x, 1, x0, alpha, d)
+
+        # Next point to try.
+        if maxeval > 0 && evaluations >= maxeval
+            state = TOO_MANY_EVALUATIONS
+            break
         end
+        combine!(x, 1, x0, alpha, d)
     end
+
+    # Algorithm terminated.
+    if f > f0
+        # Restore best solution so far.
+        copy!(x, x0)
+        f = f0
+    end
+    verb > 0 && printer()
+    if state > CONVERGENCE
+        warn(Optimization.reason[state])
+    end
+    return f
 end
 
 end # module
