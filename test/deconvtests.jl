@@ -2,13 +2,13 @@ include("../src/TiPi.jl")
 
 using OptimPack
 
-function deconvtest(test::Int=1)
+function deconvtest(test::ASCIIString="conjgrad")
     dir = "../data/"
     y = TiPi.MDA.read(dir*"saturn.mda")
     h = TiPi.MDA.read(dir*"saturn_psf.mda")
     wgt = TiPi.MDA.read(dir*"saturn_wgt.mda")
     T = eltype(y)
-    if test == 1
+    if test == "conjgrad"
         if true
             x = fill(zero(T), (640,640))
             prob = TiPi.Deconv.init(h, y, wgt, size(x), [5e-3,5e-3];
@@ -37,11 +37,11 @@ function deconvtest(test::Int=1)
             end
         end
         dom = TiPi.ConvexSets.ScalarLowerBound(zero(T))
-        if test == 2
+        if test == "vmlmb"
             f = TiPi.VMLMB.vmlmb!(fg!, x, 3, dom, maxeval=500, verb=1,
-                                  flags=TiPi.VMLMB.STRICT, gtol=(0.0,0.0))
+                                  gtol=(0.0,0.0))
             TiPi.MDA.write(x,"/tmp/tipideconvtest-vmlmb.mda")
-        elseif test == 3
+        elseif test == "blmvm"
             f = TiPi.BLMVM.blmvm!(fg!, x, 3, dom, maxeval=500, verb=1,
                                   gtol=(0.0,0.0))
             #x = vmlm(fg!, x, 5, verb=true, maxiter=100)
