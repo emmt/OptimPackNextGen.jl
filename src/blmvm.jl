@@ -77,7 +77,6 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     g    = Array(T, size(x)) # gradient at x
     x0   = Array(T, size(x)) # origin of line search
     f0::Scalar = 0           # function value at x0
-    g0   = Array(T, size(x)) # gradient at x0
     df::Scalar = 0           # directional derivative at x
     df0::Scalar = 0          # directional derivative at x0
     gp   = Array(T, size(x)) # projected gradient
@@ -202,8 +201,10 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     k = slot(j)
                     update!(d, beta[k] - rho[k]*inner(d, Y[k]), S[k])
                 end
-                project_direction!(temp, dom, x, d)
-                df0 = inner(temp, g)
+                project_direction!(d, dom, x, d) # FIXME: in original algorithm,
+                                                 # the direction itself is not
+                                                 # projected
+                df0 = inner(d, g)
                 if df0 >= 0
                     # Not a descent direction.
                     restarts += 1
@@ -224,7 +225,6 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
             if alpha > 0
                 f0 = f
                 copy!(x0, x)
-                copy!(g0, g) # FIXME: storage can be gp0
                 copy!(gp0, gp)
                 (state, alpha) = start!(lnsrch, f0, df0, alpha)
             else
