@@ -1,7 +1,5 @@
 include("../src/TiPi.jl")
 
-using OptimPack
-
 function deconvtest(test::ASCIIString="conjgrad")
     dir = "../data/"
     y = TiPi.MDA.read(dir*"saturn.mda")
