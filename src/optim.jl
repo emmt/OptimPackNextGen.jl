@@ -14,7 +14,9 @@
 module Optimization
 
 using TiPi.Algebra
+using TiPi.ConvexSets
 
+export blmvm!, vmlmb!
 export LINE_SEARCH, NEW_ITERATE, CONVERGENCE
 export TOO_MANY_ITERATIONS, TOO_MANY_EVALUATIONS
 export NO_FUNCTION_CHANGE, NO_GRADIENT_CHANGE
@@ -221,5 +223,11 @@ function iterate!(ls::BacktrackLineSearch, stp::Cdouble, f1::Cdouble, df1::Cdoub
         end
     end
 end
+
+#-------------------------------------------------------------------------------
+# OPTIMIZATION ALGORITHMS
+
+include("blmvm.jl")
+include("vmlmb.jl")
 
 end # module

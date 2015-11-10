@@ -36,12 +36,12 @@ function deconvtest(test::ASCIIString="conjgrad")
         end
         dom = TiPi.ConvexSets.ScalarLowerBound(zero(T))
         if test == "vmlmb"
-            f = TiPi.VMLMB.vmlmb!(fg!, x, 3, dom, maxeval=500, verb=1,
-                                  gtol=(0.0,0.0))
+            f = TiPi.Optimization.vmlmb!(fg!, x, 3, dom, maxeval=500, verb=1,
+                                         gtol=(0.0,0.0))
             TiPi.MDA.write(x,"/tmp/tipideconvtest-vmlmb.mda")
         elseif test == "blmvm"
-            f = TiPi.BLMVM.blmvm!(fg!, x, 3, dom, maxeval=500, verb=1,
-                                  gtol=(0.0,0.0))
+            f = TiPi.Optimization.blmvm!(fg!, x, 3, dom, maxeval=500, verb=1,
+                                         gtol=(0.0,0.0))
             #x = vmlm(fg!, x, 5, verb=true, maxiter=100)
             TiPi.MDA.write(x,"/tmp/tipideconvtest-blmvm.mda")
         end

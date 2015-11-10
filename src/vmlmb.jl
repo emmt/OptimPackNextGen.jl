@@ -16,12 +16,6 @@
 #
 #------------------------------------------------------------------------------
 
-module VMLMB
-
-using TiPi.Algebra
-using TiPi.ConvexSets
-using TiPi.Optimization
-
 # FIXME: add a savememory option
 # FIXME: add a savebest option
 # FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
@@ -271,5 +265,3 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     end
     return f
 end
-
-end # module
