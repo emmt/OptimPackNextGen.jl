@@ -22,9 +22,6 @@ using TiPi.Algebra
 using TiPi.ConvexSets
 using TiPi.Optimization
 
-const STRICT = (1<<0)  # enforce search direction to strictly belongs to the
-                       # subset of the free variables
-
 # FIXME: add a savememory option
 # FIXME: add a savebest option
 # FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
@@ -38,8 +35,7 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                                     lnsrch::LineSearch=BacktrackLineSearch(),
                                     gtol=(0.0, 1e-6),
                                     slen=(1.0, 0.0),
-                                    verb::Integer=0,
-                                    flags::Integer=0)
+                                    verb::Integer=0)
     # Type for scalars (use at least double precision).
     Scalar = promote_type(T, Cdouble)
 
@@ -187,7 +183,7 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
             if mp >= 1
                 # Apply the L-BFGS Strang's two-loop recursion to compute a
                 # search direction.
-                combine!(d, -1, gp)
+                combine!(d, -1, g)
                 gamma = 0
                 for j in 1:+1:mp
                     k = slot(j)
@@ -216,11 +212,13 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                             update!(d, beta[k] - rho[k]*inner(w, d, Y[k]), S[k])
                         end
                     end
-                    if (flags&STRICT) == STRICT
-                        @simd for i in 1:n
-                            @inbounds d[i] *= w[i]
-                        end
+
+                    # Enforce search direction to belong to the subset of the
+                    # free variables.
+                    @simd for i in 1:n
+                        @inbounds d[i] *= w[i]
                     end
+
                     # Check whether the algorithm has produced a descent
                     # direction.
                     project_direction!(temp, dom, x, d)
