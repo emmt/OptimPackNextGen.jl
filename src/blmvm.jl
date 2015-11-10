@@ -213,9 +213,9 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 end
             end
             if mp < 1
-                # Use steepest descent.
-                combine!(d, -1, g)
-                df0 = -gpnorm
+                # Use (projected) steepest descent.
+                combine!(d, -1, gp)
+                df0 = -gpnorm^2
                 alpha = initial_step(x, d, slen)
             end
 
