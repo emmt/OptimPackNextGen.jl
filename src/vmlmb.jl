@@ -104,7 +104,6 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     state::Int = NEW_ITERATE
     evaluations::Int = 0
     restarts::Int = 0
-    rejects::Int = 0
     iterations::Int = 0
     constrained::Bool = false
     msg = nothing
@@ -167,11 +166,11 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                         (state == NEW_ITERATE && (iterations%verb) == 0))
             t = time_ns()*1e-9
             if evaluations == 1
-                println("#  ITER   EVAL  REJECT RESTART TIME (s)           PENALTY           GRADIENT        STEP")
-                println("--------------------------------------------------------------------------------------------")
+                println("#  ITER   EVAL  RESTART TIME (s)           PENALTY           GRADIENT        STEP")
+                println("--------------------------------------------------------------------------------------")
             end
-            @printf(" %6d %6d  %4d   %4d  %9.3f  %24.16e  %12.6e  %12.6e\n",
-                    iterations, evaluations, rejects, restarts,
+            @printf(" %6d %6d  %4d   %9.3f  %24.16e  %12.6e  %12.6e\n",
+                    iterations, evaluations, restarts,
                     t - t0, f, gpnorm, alpha)
         end
         if state >= CONVERGENCE
@@ -241,10 +240,10 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     end
                 end
             end
-            if mp <= 0
-                # Use steepest projected descent.
+            if mp < 1
+                # Use (projected) steepest projected descent.
                 combine!(d, -1, gp)
-                df0 = -gpnorm
+                df0 = -gpnorm^2
                 alpha = initial_step(x, d, slen)
             end
 
