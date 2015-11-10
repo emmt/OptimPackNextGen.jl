@@ -78,6 +78,7 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     x0   = Array(T, size(x)) # origin of line search
     f0::Scalar = 0           # function value at x0
     g0   = Array(T, size(x)) # gradient at x0
+    df::Scalar = 0           # directional derivative at x
     df0::Scalar = 0          # directional derivative at x0
     gp   = Array(T, size(x)) # projected gradient
     gp0  = Array(T, size(x)) # projected gradient at x0
@@ -86,14 +87,12 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     gtest::Scalar = 0        # gradient-based threshold for convergence
     gpnorm::Scalar = 0       # Euclidean norm of the projected gradient
     alpha::Scalar = 0        # step length
-    const GAIN = convert(Scalar, 1/2) # backtracking gain
-    const ZERO = zero(Scalar)
-    const ONE  = one(Scalar)
     sty::Scalar = 0          # inner product <s,y>
+    yty::Scalar = 0          # inner product <y,y>
+    const deriv = usederivative(lnsrch)
 
     # FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
     #        save memory.
-
 
     # Start the iterations of the algorithm.
     state::Int = NEW_ITERATE
@@ -107,6 +106,11 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
         if state < CONVERGENCE
             if maxeval > 0 && evaluations > maxeval
                 state = TOO_MANY_EVALUATIONS
+                if f > f0
+                    # Restore best solution so far.
+                    copy!(x, x0)
+                    f = f0
+                end
             else
                 # Make sure X is feasible, compute function and gradient at X.
                 project_variables!(x, dom, x)
@@ -127,9 +131,14 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     state = CONVERGENCE
                 elseif state == LINE_SEARCH
                     # Line search is in progress.
-                    # FIXME: re-use temp = x - x0 to update LBFGS (see below)
-                    combine!(temp, 1, x, -1, x0) # effective step
-                    (state, alpha) = iterate!(lnsrch, f, inner(g0, temp)/alpha, alpha)
+                    if deriv
+                        # FIXME: re-use temp = x - x0 to update LBFGS (see below)
+                        combine!(temp, 1, x, -1, x0) # effective step
+                        df = inner(g, temp)/alpha
+                    else
+                        df = 0
+                    end
+                    (state, alpha) = iterate!(lnsrch, alpha, f, df)
                     if state == NEW_ITERATE
                         # Line search has converged, a new iterate is available.
                         iterations += 1
@@ -152,13 +161,6 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     t - t0, f, gpnorm, alpha)
         end
         if state >= CONVERGENCE
-            if f > f0
-                # Restore best solution so far (this may only occur if a line
-                # search has been interrupted because of too many function
-                # evaluations).
-                copy!(x, x0)
-                f = f0
-            end
             if state > CONVERGENCE
                 warn(Optimization.reason[state])
             end
@@ -230,7 +232,7 @@ function blmvm!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 warn("search direction infeasible")
             end
         end
-        if state < 2
+        if state < CONVERGENCE
             combine!(x, 1, x0, alpha, d)
         end
     end
