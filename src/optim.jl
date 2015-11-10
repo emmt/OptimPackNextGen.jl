@@ -17,6 +17,7 @@ using TiPi.Algebra
 
 export LINE_SEARCH, NEW_ITERATE, CONVERGENCE
 export TOO_MANY_ITERATIONS, TOO_MANY_EVALUATIONS
+export NO_FUNCTION_CHANGE, NO_GRADIENT_CHANGE
 export initial_step
 export iterate!, start!, usederivative
 export LineSearch, ArmijoLineSearch, BacktrackLineSearch
@@ -26,12 +27,18 @@ const NEW_ITERATE          = 1 # a new iterate is available for inspection
 const CONVERGENCE          = 2 # algorithm has converged
 const TOO_MANY_ITERATIONS  = 3 # too many iterations
 const TOO_MANY_EVALUATIONS = 4 # too many evaluations
+const NO_FUNCTION_CHANGE   = 5 # no function change between iterations
+const NO_GRADIENT_CHANGE   = 6 # no gradient change between iterations
+const WOULD_BLOCK          = 7 # search direction infeasible
 
 reason = Dict{Int,ASCIIString}(LINE_SEARCH => "line search in progress",
                                NEW_ITERATE => "a new iterate is available",
                                CONVERGENCE => "algorithm has converged",
                                TOO_MANY_ITERATIONS => "too many iterations",
-                               TOO_MANY_EVALUATIONS => "too many evaluations")
+                               TOO_MANY_EVALUATIONS => "too many evaluations",
+                               NO_FUNCTION_CHANGE => "no function change between iterations",
+                               NO_GRADIENT_CHANGE => "no gradient change between iterations",
+                               WOULD_BLOCK => "search direction infeasible")
 
 """
 ### Estimate initial step length
