@@ -32,7 +32,7 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                                     verb::Integer=0,
                                     flags::Integer=0)
     # Type for scalars (use at least double precision).
-    Scalar = promote_type(T,Cdouble)
+    Scalar = promote_type(T, Cdouble)
 
     # Size of the problem.
     const n = length(x)
@@ -42,8 +42,6 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     m < 1 && error("bad number of variable metric corrections")
 
     # Check options.
-    #if (! is_void(xmin)) eq_nocopy, xmin, double(xmin)
-    #if (! is_void(xmax)) eq_nocopy, xmax, double(xmax)
     #if (is_void(sftol)) sftol = 1e-4
     #if (is_void(maxiter)) maxiter = -1
     #if (is_void(slen)) slen = [1.0, 0.0]
@@ -69,14 +67,14 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     end
     beta = Array(T, m)
     rho  = Array(T, m)
-    mp::Int = 0   # actual number of saved pairs
-    mark::Int = 0 # total number of saved pair since start
+    mp::Int = 0      # actual number of saved pairs
+    updates::Int = 0 # total number of updates since start
 
     # The following closure returns the index where is stored the
-    # (mark-j)-th correction pair.  Argument j must be in the inclusive
+    # (updates-j)-th correction pair.  Argument j must be in the inclusive
     # range 0:mp with mp the actual number of saved corrections.  At any
-    # moment, 0 ≤ mp ≤ mark; thus mark - j ≥ 0.
-    slot(j::Int) = (mark - j)%m + 1
+    # moment, 0 ≤ mp ≤ updates; thus updates - j ≥ 0.
+    slot(j::Int) = (updates - j)%m + 1
 
     # Declare local variables and allocate workspaces.
     f::Scalar = 0             # function value at x
@@ -91,9 +89,9 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     gtest::Scalar = 0        # gradient-based threshold for convergence
     gpnorm::Scalar = 0       # Euclidean norm of the projected gradient
     alpha::Scalar = 0        # step length
-    const GAIN = convert(Scalar, 1/2) # backtracking gain
-    const ZERO = zero(Scalar)
-    const ONE  = one(Scalar)
+    sty::Scalar = 0          # inner product <s,y>
+    yty::Scalar = 0          # inner product <y,y>
+    const deriv = usederivative(lnsrch)
     w = Array(T, size(x))    # 1 for free variables; 0 else
 
     # FIXME: use S[slot(0)] and Y[slot(0)] to store x - x0 and gp0 and thus
@@ -111,10 +109,16 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
     constrained::Bool = false
     msg = nothing
     t0 = time_ns()*1e-9
+    j0 = slot(0)
     while true
         if state < CONVERGENCE
             if maxeval > 0 && evaluations > maxeval
                 state = TOO_MANY_EVALUATIONS
+                if f > f0
+                    # Restore best solution so far.
+                    copy!(x, x0)
+                    f = f0
+                end
             else
                 # Make sure X is feasible, compute function and gradient at X.
                 project_variables!(x, dom, x)
@@ -135,8 +139,14 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     state = CONVERGENCE
                 elseif state == LINE_SEARCH
                     # Line search is in progress.
-                    combine!(temp, 1, x, -1, x0) # effective step
-                    (state, alpha) = iterate!(lnsrch, f, inner(g0, temp)/alpha, alpha)
+                    if deriv
+                        # FIXME: re-use temp = x - x0 to update LBFGS (see below)
+                        combine!(temp, 1, x, -1, x0) # effective step
+                        df = inner(g, temp)/alpha
+                    else
+                        df = 0
+                    end
+                    (state, alpha) = iterate!(lnsrch, alpha, f, df)
                     if state == NEW_ITERATE
                         # Line search has converged, a new iterate is available.
                         iterations += 1
@@ -166,13 +176,6 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
         end
         if state >= CONVERGENCE
             # Algorithm terminated.
-            if f > f0
-                # Restore best solution so far (this may only occur if a line
-                # search has been interrupted because of too many function
-                # evaluations).
-                copy!(x, x0)
-                f = f0
-            end
             if state > CONVERGENCE
                 warn(Optimization.reason[state])
             end
@@ -185,7 +188,7 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                 k = slot(0)
                 combine!(S[k], 1, x, -1, x0) # FIXME: already done in TEMP
                 combine!(Y[k], 1, g, -1, g0)
-                mark += 1
+                updates += 1
                 mp = min(mp + 1, m)
             end
             if mp >= 1
