@@ -16,7 +16,7 @@ module Optimization
 using TiPi.Algebra
 using TiPi.ConvexSets
 
-export blmvm!, vmlmb!
+export blmvm!, vmlmb!, vmlmc!
 export LINE_SEARCH, NEW_ITERATE, CONVERGENCE
 export TOO_MANY_ITERATIONS, TOO_MANY_EVALUATIONS
 export NO_FUNCTION_CHANGE, NO_GRADIENT_CHANGE
@@ -229,5 +229,6 @@ end
 
 include("blmvm.jl")
 include("vmlmb.jl")
+include("vmlmc.jl")
 
 end # module

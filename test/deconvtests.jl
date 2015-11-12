@@ -39,6 +39,10 @@ function deconvtest(test::ASCIIString="conjgrad")
             f = TiPi.Optimization.vmlmb!(fg!, x, 3, dom, maxeval=500, verb=1,
                                          gtol=(0.0,0.0))
             TiPi.MDA.write(x,"/tmp/tipideconvtest-vmlmb.mda")
+        elseif test == "vmlmc"
+            f = TiPi.Optimization.vmlmc!(fg!, x, 3, dom, maxeval=500, verb=1,
+                                         gtol=(0.0,0.0))
+            TiPi.MDA.write(x,"/tmp/tipideconvtest-vmlmc.mda")
         elseif test == "blmvm"
             f = TiPi.Optimization.blmvm!(fg!, x, 3, dom, maxeval=500, verb=1,
                                          gtol=(0.0,0.0))
