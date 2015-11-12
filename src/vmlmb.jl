@@ -197,8 +197,8 @@ function vmlmb!{T<:AbstractFloat,N}(fg!::Function, x::Array{T,N}, m::Integer,
                     end
                 end
                 if gamma > 0
-                    # Apply initial inverse Hessain approximation and proceed
-                    # with the second loop of Strang's algorithm.
+                    # Apply initial inverse Hessian approximation and proceed
+                    # with the second loop of Strang's recursion.
                     combine!(d, gamma, d)
                     for j in mp:-1:1
                         k = slot(j)
