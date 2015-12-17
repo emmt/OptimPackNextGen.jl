@@ -31,7 +31,7 @@ fx = cost!(alpha::Real, param::ParamType, x::VariableType,
 ```
 where `alpha` is the multiplier of the cost (it is guaranteed that `alpha` is
 nonnegative), `param` is anything needed by the cost function, `ParamType` is
-a subtype of the abstract type `CostParam`, `x` is the array of variables,
+a subtype of the abstract type `AbstractCost`, `x` is the array of variables,
 `VariableType` is the type of the variables (e.g., `Array{Cdouble,2}` for
 images), `gx` is an array of same type and dimensions as `x` to store (or
 integrate) the gradient of the cost function (times `alpha`), `clr` tells
@@ -51,22 +51,22 @@ sacrifying efficiency.
 For instance, we implement the parameters of a *maximum a posteriori* (MAP)
 cost function as:
 ```julia
-type MAPCostParam <: CostParam
-    mu::Cdouble     # regularization weight
-    lkl::CostParam  # parameters of the likelihood term
-    rgl::CostParam  # parameters of the regularization term
+type MAPCost <: AbstractCost
+    mu::Cdouble        # regularization weight
+    lkl::AbstractCost  # parameters of the likelihood term
+    rgl::AbstractCost  # parameters of the regularization term
 end
 ```
 Then, computing the cost is as simple as:
 ```julia
-function cost{T}(alpha::Real, param::MAPCostParam, x::T)
+function cost{T}(alpha::Real, param::MAPCost, x::T)
     alpha == 0 && return 0.0
     cost(alpha, param.lkl, x) + cost(alpha*param.mu, param.rgl, x)
 end
 ```
 and computing the cost and the gradient is implemented by:
 ```julia
-function cost!{T}(alpha::Real, param::MAPCostParam, x::T, gx::T, clr::Bool=false)
+function cost!{T}(alpha::Real, param::MAPCost, x::T, gx::T, clr::Bool=false)
     if alpha == 0
         clr && fill!(gx, 0)
         return 0.0
@@ -107,7 +107,7 @@ explained above).
 Typically, only the `prox!` method has to be implemented.  A default
 definition for the `prox` method is provided:
 ```julia
-function prox(alpha::Real, param::CostParam, x)
+function prox(alpha::Real, param::AbstractCost, x)
    xp = similar(x)
    prox!(alpha, param, x, xp)
    return xp
@@ -121,10 +121,10 @@ a new instance of the same type (and with the same size as `x`).
 
 There is no such thing as:
 ```julia
-    abstract DifferentiableCostParam <: CostParam
+    abstract DifferentiableAbstractCost <: AbstractCost
 ```
-The rationale is that rather than implementing a sub-type of `CostParam` for
-differentiable cost functions, it is sufficient to have such specific cost
+The rationale is that rather than implementing a sub-type of `AbstractCost`
+for differentiable cost functions, it is sufficient to have such specific cost
 functions implement the `cost!` method.  Cost functions which are not
 differentiable shall not implement the `cost!` method.  The same applies for
 other specificities, for instance a cost function may have an associated
