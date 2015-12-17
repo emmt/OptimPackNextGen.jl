@@ -15,15 +15,26 @@ import Base.call
 
 abstract AbstractCost
 
-cost{T<:AbstractCost}(obj::T, x) = cost(1, obj, x)
-call{T<:AbstractCost}(obj::T, x) = cost(obj, x)
-call{T<:AbstractCost}(obj::T, alpha::Real, x) = cost(alpha, obj, x)
+cost(obj::AbstractCost, x) = cost(1, obj, x)
+call(obj::AbstractCost, x) = cost(obj, x)
+call(obj::AbstractCost, alpha::Real, x) = cost(alpha, obj, x)
 
-cost!{T<:AbstractCost,S}(obj::T, x::S, g::S, clr::Bool) = cost!(1, obj, x, g, clr)
-call{T<:AbstractCost,S}(obj::T, x::S, g::S, clr::Bool) = cost!(obj, x, g, clr)
-call{T<:AbstractCost,S}(obj::T, alpha::Real, x::S, g::S, clr::Bool) = cost!(alpha, obj, x, g, clr)
+cost!{T}(obj::AbstractCost, x::T, g::T, clr::Bool) = cost!(1, obj, x, g, clr)
+call{T}(obj::AbstractCost, x::T, g::T, clr::Bool) = cost!(obj, x, g, clr)
+call{T}(obj::AbstractCost, alpha::Real, x::T, g::T, clr::Bool) = cost!(alpha, obj, x, g, clr)
 
+function prox!{T}(alpha::Real, param::AbstractCost, x::T, xp::T)
+   error("proximal operator not implemented for $(typeof(param))")
+end
 
+function prox(alpha::Real, param::AbstractCost, x)
+   xp = similar(x)
+   prox!(alpha, param, x, xp)
+   return xp
+end
+
+prox!{T}(obj::AbstractCost, x::T, xp::T) = prox!(1, obj, x, xp)
+prox{T}(obj::AbstractCost, x::T) = prox(1, obj, x)
 
 ##############################
 # Maximum a posteriori (MAP) #
