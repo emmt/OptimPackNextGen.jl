@@ -83,9 +83,9 @@ used here to set all components of the gradient to zero, this method must
 exists for the type `T` of the variables.
 
 
-### Proximal operators
+### Proximity operators
 
-The proximal operator of the cost function `f(x)` (times the multiplier `α`)
+The proximity operator of the cost function `f(x)` (times the multiplier `α`)
 is defined by:
 ```
     prox(α, f, x) = argmin_y { α f(y) + (1/2) ||x - y||² }
@@ -93,7 +93,7 @@ is defined by:
 
 where `||...||` denotes the usual Eclidean norm.
 
-The proximal operator of `f(x)` is implemented by the following methods:
+The proximity operator of `f(x)` is implemented by the following methods:
 ```julia
 px = prox(alpha::Real, param::ParamType, x::VariableType)
 prox!(alpha::Real, param::ParamType, x::VariableType, xp::VariableType)
@@ -128,7 +128,7 @@ for differentiable cost functions, it is sufficient to have such specific cost
 functions implement the `cost!` method.  Cost functions which are not
 differentiable shall not implement the `cost!` method.  The same applies for
 other specificities, for instance a cost function may have an associated
-proximal operator or not.  Since Julia does not allow for multiple heritage,
+proximity operator or not.  Since Julia does not allow for multiple heritage,
 we distinguish various flavor of cost functions by the methods they implement
 (that's more Julia style).
 
