@@ -102,3 +102,19 @@ intance of `ParamType` and `x` are the variables.  The argument `param`
 carries all parameters needed by the specific cost fonction and also serves as
 a signature to identity the cost function (as explained above).
 
+
+### Rationale
+
+There is no such thing as:
+```julia
+    abstract DifferentiableCostParam <: CostParam
+```
+The rationale is that rather than implementing a sub-type of `CostParam` for
+differentiable cost functions, it is sufficient to have such specific cost
+functions implement the `cost!` method.  Cost functions which are not
+differentiable shall not implement the `cost!` method.  The same applies for
+other specificities, for instance a cost function may have an associated
+proximal operator or not.  Since Julia does not allow for multiple heritage,
+we distinguish various flavor of cost functions by the methods they implement
+(that's more Julia style).
+
