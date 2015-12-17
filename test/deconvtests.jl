@@ -1,11 +1,14 @@
 include("../src/TiPi.jl")
 
-function deconvtest(test::ASCIIString="conjgrad")
+function deconvtest(test::ASCIIString="conjgrad"; single::Bool=false)
     dir = "../data/"
     y = TiPi.MDA.read(dir*"saturn.mda")
     h = TiPi.MDA.read(dir*"saturn_psf.mda")
     wgt = TiPi.MDA.read(dir*"saturn_wgt.mda")
-    T = eltype(y)
+    T = single ? Cfloat : Cdouble
+    y = convert(Array{T}, y)
+    h = convert(Array{T}, h)
+    wgt = convert(Array{T}, wgt)
     if test == "conjgrad"
         if true
             x = fill(zero(T), (640,640))
