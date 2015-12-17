@@ -100,7 +100,7 @@ end
 function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
     @assert(size(x) == size(w))
     @assert(size(y) == size(w))
-    s::T = zero(T)
+    s::T = 0
     @simd for i in 1:length(w)
         @inbounds s += w[i]*x[i]*y[i]
     end
@@ -109,7 +109,7 @@ end
 
 function inner{T<:AbstractFloat,N}(sel::Array{Int,N}, x::Array{T,N}, y::Array{T,N})
     @assert(size(y) == size(x))
-    s::T = zero(T)
+    s::T = 0
     const n = length(x)
     @simd for i in 1:length(sel)
         j = sel[i]
