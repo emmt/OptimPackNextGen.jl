@@ -85,3 +85,20 @@ exists for the type `T` of the variables.
 
 ### Proximal operators
 
+The proximal operator of the cost function `f(x)` (times the multiplier `α`)
+is defined by:
+```
+    prox(α, f, x) = argmin_y { α f(y) + (1/2) ||x - y||² }
+```
+
+where `||...||` denotes the usual Eclidean norm.
+
+The proximal operator of `f(x)` is implemented by the following method:
+```julia
+px = prox(alpha::Real, param::ParamType, x::VariableType)
+```
+where `alpha` is the multiplier (guaranteed to be nonnegative), `param` is an
+intance of `ParamType` and `x` are the variables.  The argument `param`
+carries all parameters needed by the specific cost fonction and also serves as
+a signature to identity the cost function (as explained above).
+
