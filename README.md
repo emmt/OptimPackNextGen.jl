@@ -93,14 +93,28 @@ is defined by:
 
 where `||...||` denotes the usual Eclidean norm.
 
-The proximal operator of `f(x)` is implemented by the following method:
+The proximal operator of `f(x)` is implemented by the following methods:
 ```julia
 px = prox(alpha::Real, param::ParamType, x::VariableType)
+prox!(alpha::Real, param::ParamType, x::VariableType, xp::VariableType)
 ```
 where `alpha` is the multiplier (guaranteed to be nonnegative), `param` is an
-intance of `ParamType` and `x` are the variables.  The argument `param`
-carries all parameters needed by the specific cost fonction and also serves as
-a signature to identity the cost function (as explained above).
+intance of `ParamType`, `x` gives the input variables, `xp` is the result.
+The argument `param` carries all parameters needed by the specific cost
+fonction and also serves as a signature to identity the cost function (as
+explained above).
+
+Typically, only the `prox!` method has to be implemented.  A default
+definition for the `prox` method is provided:
+```julia
+function prox(alpha::Real, param::CostParam, x)
+   xp = similar(x)
+   prox!(alpha, param, x, xp)
+   return xp
+end
+```
+which assumes that `similar(x)` is implemented for the type of `x` and yields
+a new instance of the same type (and with the same size as `x`).
 
 
 ### Rationale
