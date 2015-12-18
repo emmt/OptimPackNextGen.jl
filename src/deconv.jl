@@ -267,7 +267,7 @@ end
 
 
 function init{T<:AbstractFloat,N}(h::Array{T,N}, y::Array{T,N}, alpha)
-    dims = ntuple(N, i -> fftbestdim(size(h,i) + size(y,i) - 1))
+    dims = ntuple(N, i -> goodfftdim(size(h,i) + size(y,i) - 1))
     return init(h, y, ones(T, size(y)), dims, alpha)
 end
 
