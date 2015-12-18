@@ -13,8 +13,9 @@
 
 module TiPi
 
-export cost, cost!, AbstractCost, HyperbolicEdgePreserving
+export cost, cost!, prox, prox!, AbstractCost, HyperbolicEdgePreserving
 export MDA
+export goodfftdim, fftfreq, zeropad, pad
 
 include("utils.jl")
 include("algebra.jl")
