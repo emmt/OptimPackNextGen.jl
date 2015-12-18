@@ -19,34 +19,50 @@ function defaultweights{T<:AbstractFloat,N}(y::Array{T,N})
     return wgt
 end
 
-fftbestdim{T<:Integer}(n::T) = nextprod([2,3,5], n)
+"""
+### Get good dimension length for the FFT
 
-# DOCUMENT k = fftfreq(dim);
-# or f = fftfreq(dim, step);
-#
-# Generate Discrete Fourier Transform (DFT) frequency indexes or
-# frequencies.
-#
-# With a single argument, the function returns a vector of DIM values (of
-# type long) set with the frequency indexes:
-#
-# k = [0, 1, 2, ..., n-1, -n, ..., -2, -1]   if dim = 2*n
-# k = [0, 1, 2, ..., n,   -n, ..., -2, -1]   if dim = 2*n + 1
-#
-# depending whther DIM is even or odd.  These rules are compatible to what
-# is assumed by fftshift (which to see) in the sense that:
-#
-# fftshift(fftfreq(dim)) = [-n, ..., -2, -1, 0, 1, 2, ...]
-#
-# With two arguments, STEP is the sample spacing in the direct space and
-# the result is a floating point vector with DIM elements set with the
-# frequency bin centers in cycles per unit of the sample spacing (with zero
-# at the start).  For instance, if the sample spacing is in seconds, then
-# the frequency unit is cycles/second.  This is equivalent to:
-#
-# fftfreq(dim)/(dim*step)
-#
-# SEE ALSO: fft, fftshift, indgen.
+```
+    goodfftdim(len)
+```
+returns the smallest integer which is greater or equal `len` and which is a
+multiple of powers of 2, 3 and/or 5.
+
+"""
+goodfftdim(n::Integer) = nextprod([2,3,5], n)
+
+"""
+### Generate Discrete Fourier Transform frequency indexes or frequencies
+
+Syntax:
+```
+    k = fftfreq(dim)
+    f = fftfreq(dim, step)
+```
+
+With a single argument, the function returns a vector of `dim` values set with
+the frequency indexes:
+```
+    k = [0, 1, 2, ..., n-1, -n, ..., -2, -1]   if dim = 2*n
+    k = [0, 1, 2, ..., n,   -n, ..., -2, -1]   if dim = 2*n + 1
+```
+depending whther `dim` is even or odd.  These rules are compatible to what is
+assumed by `fftshift` (which to see) in the sense that:
+```
+    fftshift(fftfreq(dim)) = [-n, ..., -2, -1, 0, 1, 2, ...]
+```
+
+With two arguments, `step` is the sample spacing in the direct space and the
+result is a floating point vector with `dim` elements set with the frequency
+bin centers in cycles per unit of the sample spacing (with zero at the start).
+For instance, if the sample spacing is in seconds, then the frequency unit is
+cycles/second.  This is equivalent to:
+```
+     fftfreq(dim)/(dim*step)
+```
+
+See also: `fft`, `fftshift`.
+"""
 function fftfreq(dim::Integer)
     dim = Int(dim)
     n = div(dim, 2)
