@@ -148,27 +148,29 @@ end
 
 for (func, swap) in ((:call, false), (:translate, true))
     @eval begin
-        function $func{T<:AbstractFloat,T1<:Real,T2<:Real}(A::AffineTransform2D{T},
-                                                           x::T1, y::T2)
+        function $func{T<:AbstractFloat,
+            T1<:Real, T2<:Real}(A::AffineTransform2D{T}, x::T1, y::T2)
             $func(A, convert(T, x), convert(T, y))
         end
-        function $func{T<:AbstractFloat}(A::AffineTransform2D{T}, t::NTuple{2,T})
+        function $func{T<:AbstractFloat}(A::AffineTransform2D{T},
+                                         t::NTuple{2,T})
             $func(A, t[1], t[2])
         end
-        function $func{S<:Real,T<:AbstractFloat}(A::AffineTransform2D{T}, t::NTuple{2,S})
+        function $func{T<:AbstractFloat,
+            T1<:Real, T2<:Real}(A::AffineTransform2D{T}, t::Tuple{T1,T2})
             $func(A, convert(T, t[1]), convert(T, t[2]))
         end
         if $swap
-            function $func{T<:AbstractFloat,T1<:Real,T2<:Real}(x::T1, y::T2,
-                                                               A::AffineTransform2D{T})
+            function $func{T<:AbstractFloat,
+                T1<:Real, T2<:Real}(x::T1, y::T2, A::AffineTransform2D{T})
                 $func(convert(T, x), convert(T, y), A)
             end
             function $func{T<:AbstractFloat}(t::NTuple{2,T},
                                              A::AffineTransform2D{T})
                 $func(t[1], t[2], A)
             end
-            function $func{S<:Real,T<:AbstractFloat}(t::NTuple{2,S},
-                                                     A::AffineTransform2D{T})
+            function $func{T<:AbstractFloat,
+                T1<:Real, T2<:Real}(t::Tuple{T1,T2}, A::AffineTransform2D{T})
                 $func(convert(T, t[1]), convert(T, t[2]), A)
             end
         end
@@ -317,6 +319,17 @@ function leftdivide{T<:AbstractFloat}(A::AffineTransform2D{T},
                          Tyx*Tx   + Tyy*Ty)
 end
 
+for func in (:combine, :rightdivide, :leftdivide)
+    @eval begin
+        function $func{R<:AbstractFloat,
+            S<:AbstractFloat}(A::AffineTransform2D{R},
+                              B::AffineTransform2D{S})
+            T = promote_type(R, S)
+            $func(convert(T, A), convert(T, B))
+        end
+    end
+end
+
 """
 `intercept(A)` returns the tuple `(x,y)` such that `A(x,y) = (0,0)`.
 """
@@ -326,20 +339,12 @@ function intercept{T<:AbstractFloat}(A::AffineTransform2D{T})
     return ((A.xy*A.y - A.yy*A.x)/det, (A.yx*A.x - A.xx*A.y)/det)
 end
 
-+{S<:Real,T<:AbstractFloat}(t::NTuple{2,S},
-                            A::AffineTransform2D{T}) = translate(t, A)
++{T<:AbstractFloat}(t::NTuple{2}, A::AffineTransform2D{T}) = translate(t, A)
 
-+{S<:Real,T<:AbstractFloat}(A::AffineTransform2D{T},
-                            t::NTuple{2,S}) = translate(A, t)
++{T<:AbstractFloat}(A::AffineTransform2D{T}, t::NTuple{2}) = translate(A, t)
 
-+{S<:Real,T<:AbstractFloat}(x::S, y::S,
-                            A::AffineTransform2D{T}) = translate(x, y, A)
-
-+{S<:Real,T<:AbstractFloat}(A::AffineTransform2D{T},
-                            x::S, y::S) = translate(A, x, y)
-
-*{T<:AbstractFloat}(A::AffineTransform2D{T},
-                    B::AffineTransform2D{T}) = combine(A, B)
+*{R<:AbstractFloat,S<:AbstractFloat}(A::AffineTransform2D{R},
+                                     B::AffineTransform2D{S}) = combine(A, B)
 
 *{T<:AbstractFloat}(A::AffineTransform2D{T}, t::NTuple{2}) = call(A, t)
 
@@ -347,11 +352,11 @@ end
 
 *{S<:Real,T<:AbstractFloat}(A::AffineTransform2D{T}, ρ::S) = scale(A, ρ)
 
-\{T<:AbstractFloat}(A::AffineTransform2D{T},
-                    B::AffineTransform2D{T}) = leftdivide(A, B)
+\{R<:AbstractFloat,S<:AbstractFloat}(A::AffineTransform2D{R},
+                                     B::AffineTransform2D{S}) = leftdivide(A, B)
 
-/{T<:AbstractFloat}(A::AffineTransform2D{T},
-                    B::AffineTransform2D{T}) = rightdivide(A, B)
+/{R<:AbstractFloat,S<:AbstractFloat}(A::AffineTransform2D{R},
+                                     B::AffineTransform2D{S}) = rightdivide(A, B)
 
 function show{T}(io::IO, A::AffineTransform2D{T})
     println(io, typeof(A), ":")
@@ -384,6 +389,8 @@ function runtests()
     show(call(B, 1.0, 4))
     println()
     show(call(B, (1f0, 4f0)))
+    println()
+    show(call(B, (1.0, 4f0)))
     println()
     xy = intercept(B)
     xpyp = B*xy
