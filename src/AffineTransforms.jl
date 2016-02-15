@@ -20,7 +20,7 @@
 
 module AffineTransforms
 
-export AffineTransform2D, combine, rotate, translate, invert
+export AffineTransform2D, combine, rotate, translate, invert, intercept
 import Base: convert, scale, call, show, *, +, /, \
 """
 # Affine 2D Transforms
@@ -317,6 +317,15 @@ function leftdivide{T<:AbstractFloat}(A::AffineTransform2D{T},
                          Tyx*Tx   + Tyy*Ty)
 end
 
+"""
+`intercept(A)` returns the tuple `(x,y)` such that `A(x,y) = (0,0)`.
+"""
+function intercept{T<:AbstractFloat}(A::AffineTransform2D{T})
+    det = A.xx*A.yy - A.xy*A.yx
+    det != zero(T) || error("transformation is not invertible")
+    return ((A.xy*A.y - A.yy*A.x)/det, (A.yx*A.x - A.xx*A.y)/det)
+end
+
 +{S<:Real,T<:AbstractFloat}(t::NTuple{2,S},
                             A::AffineTransform2D{T}) = translate(t, A)
 
@@ -376,6 +385,9 @@ function runtests()
     println()
     show(call(B, (1f0, 4f0)))
     println()
+    xy = intercept(B)
+    xpyp = B*xy
+    println("$xy --> $xpyp")
     nothing
 end
 
