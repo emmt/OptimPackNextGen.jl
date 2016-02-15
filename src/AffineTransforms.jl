@@ -20,8 +20,11 @@
 
 module AffineTransforms
 
-export AffineTransform2D, combine, rotate, translate, invert, intercept
-import Base: convert, scale, call, show, *, +, /, \
+export AffineTransform2D,
+   combine, rotate, translate, invert, intercept,
+   jacobian
+
+import Base: convert, call, det, scale, show, *, +, /, \
 """
 # Affine 2D Transforms
 
@@ -262,22 +265,38 @@ for func in (:scale, :rotate)
 end
 
 #------------------------------------------------------------------------------
-# Invert an affine transform
 
+"""
+`det(A)` returns the determinant of the linear part of the affine
+transform `A`.
+"""
+det{T<:AbstractFloat}(A::AffineTransform2D{T}) = A.xx*A.yy - A.xy*A.yx
+
+"""
+`jacobian(A)` returns the Jacobian of the affine transform `A`, that is the
+absolute value of the determinant of its linear part.
+"""
+jacobian{T<:AbstractFloat}(A::AffineTransform2D{T}) = abs(det(A))
+
+"""
+`invert(A)` returns the inverse of the affine transform `A`.
+"""
 function invert{T<:AbstractFloat}(A::AffineTransform2D{T})
-    det = A.xx*A.yy - A.xy*A.yx
-    det != zero(T) || error("transformation is not invertible")
-    Txx =  A.yy/det
-    Txy = -A.xy/det
-    Tyx = -A.yx/det
-    Tyy =  A.xx/det
+    d = det(A)
+    d == zero(T) && error("transformation is not invertible")
+    Txx =  A.yy/d
+    Txy = -A.xy/d
+    Tyx = -A.yx/d
+    Tyy =  A.xx/d
     AffineTransform2D{T}(Txx, Txy, -Txx*A.x - Txy*A.y,
                          Tyx, Tyy, -Tyx*A.x - Tyy*A.y)
 end
 
-#------------------------------------------------------------------------------
-# Combine two transforms A and B to form A.B
-
+"""
+`combine(A,B)` yields `A*B`, the affine transform which combines the two
+affine transforms `A` and `B`, that is the affine transform which applies
+`B` and then `A`.
+"""
 function combine{T<:AbstractFloat}(A::AffineTransform2D{T},
                                    B::AffineTransform2D{T})
     AffineTransform2D{T}(A.xx*B.xx + A.xy*B.yx,
@@ -288,27 +307,35 @@ function combine{T<:AbstractFloat}(A::AffineTransform2D{T},
                          A.yx*B.x  + A.yy*B.y + A.y)
 end
 
+"""
+`rightdivide(A,B)` yields `A/B`, the right division of the affine
+transform `A` by the affine transform `B`.
+"""
 function rightdivide{T<:AbstractFloat}(A::AffineTransform2D{T},
                                        B::AffineTransform2D{T})
-    det = B.xx*B.yy - B.xy*B.yx
-    det != zero(T) || error("right operand is not invertible")
-    Rxx = (A.xx*B.yy - A.xy*B.yx)/det
-    Rxy = (A.xy*B.xx - A.xx*B.xy)/det
-    Ryx = (A.yx*B.yy - A.yy*B.yx)/det
-    Ryy = (A.yy*B.xx - A.yx*B.xy)/det
+    d = det(B)
+    d == zero(T) && error("right operand is not invertible")
+    Rxx = (A.xx*B.yy - A.xy*B.yx)/d
+    Rxy = (A.xy*B.xx - A.xx*B.xy)/d
+    Ryx = (A.yx*B.yy - A.yy*B.yx)/d
+    Ryy = (A.yy*B.xx - A.yx*B.xy)/d
     AffineTransform2D{T}(Rxx, Rxy, A.x - (Rxx*B.x + Rxy*B.y),
                          Ryx, Ryy, A.y - (Ryx*B.y + Ryy*B.y))
 
 end
 
+"""
+`leftdivide(A,B)` yields `A\\B`, the left division of the affine
+transform `A` by the affine transform `B`.
+"""
 function leftdivide{T<:AbstractFloat}(A::AffineTransform2D{T},
                                       B::AffineTransform2D{T})
-    det = A.xx*A.yy - A.xy*A.yx
-    det != zero(T) || error("left operand is not invertible")
-    Txx =  A.yy/det
-    Txy = -A.xy/det
-    Tyx = -A.yx/det
-    Tyy =  A.xx/det
+    d = det(A)
+    d == zero(T) && error("left operand is not invertible")
+    Txx =  A.yy/d
+    Txy = -A.xy/d
+    Tyx = -A.yx/d
+    Tyy =  A.xx/d
     Tx = B.x - A.x
     Ty = B.y - A.y
     AffineTransform2D{T}(Txx*B.xx + Txy*B.yx,
@@ -334,10 +361,11 @@ end
 `intercept(A)` returns the tuple `(x,y)` such that `A(x,y) = (0,0)`.
 """
 function intercept{T<:AbstractFloat}(A::AffineTransform2D{T})
-    det = A.xx*A.yy - A.xy*A.yx
-    det != zero(T) || error("transformation is not invertible")
-    return ((A.xy*A.y - A.yy*A.x)/det, (A.yx*A.x - A.xx*A.y)/det)
+    d = det(A)
+    d == zero(T) && error("transformation is not invertible")
+    return ((A.xy*A.y - A.yy*A.x)/d, (A.yx*A.x - A.xx*A.y)/d)
 end
+
 
 +{T<:AbstractFloat}(t::NTuple{2}, A::AffineTransform2D{T}) = translate(t, A)
 
