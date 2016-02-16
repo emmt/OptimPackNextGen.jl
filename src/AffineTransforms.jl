@@ -39,7 +39,7 @@ by:
 The immutable type `AffineTransform2D` is used to store an affine 2D transform
 `C`, it can be created by:
 ```
-  C = AffineTransform2D() # yields the identity
+  C = AffineTransform2D(T) # yields the identity with type T
   C = AffineTransform2D(Cxx, Cxy, Cx, Cyx, Cyy, Cy)
 ```
 
@@ -75,6 +75,8 @@ Many operations are available to manage or apply affine transforms:
   B = invert(A)      # reciprocal coordinate transform
   C = A/B            # right division, same as: C = combine(A, invert(B))
   C = A\B            # left division, same as: C = combine(invert(A), B)
+```
+
 """
 immutable AffineTransform2D{T<:AbstractFloat}
     xx::T
