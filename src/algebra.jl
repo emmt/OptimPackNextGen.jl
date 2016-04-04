@@ -107,7 +107,7 @@ function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
     return s
 end
 
-function inner{T<:AbstractFloat,N}(sel::Array{Int,N}, x::Array{T,N}, y::Array{T,N})
+function inner{T<:AbstractFloat,N}(sel::Vector{Int}, x::Array{T,N}, y::Array{T,N})
     @assert(size(y) == size(x))
     s::T = 0
     const n = length(x)
@@ -201,7 +201,7 @@ function combine!{T<:Real,N}(dst::Array{T,N}, a::T, x::Array{T,N})
     @inbounds begin
         if a == zero(T)
             @simd for i in 1:n
-                dst[i] = zero(T)
+                dst[i] = a
             end
         elseif a == one(T)
             @simd for i in 1:n
