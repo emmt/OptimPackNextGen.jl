@@ -18,8 +18,10 @@ export MDA
 export goodfftdim, fftfreq, zeropad, pad
 
 include("utils.jl")
+include("AffineTransforms.jl")
 include("algebra.jl")
 include("ConvexSets.jl")
+#include("filters.jl")
 include("mda.jl")
 include("conjgrad.jl")
 include("optim.jl")
