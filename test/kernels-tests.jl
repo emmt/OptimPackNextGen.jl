@@ -12,7 +12,11 @@ function runtests()
     for (name, ker) in (("Box", Kernels.box),
                         ("Box (type)", Kernels.BoxKernel{Float32}),
                         ("Catmull-Rom",  Kernels.catmull_rom),
-                        ("Mitchell-Netravali",  Kernels.mitchell_netravili))
+                        ("Mitchell-Netravali",  Kernels.mitchell_netravili),
+                        ("cardinal Mitchell-Netravali",
+                         Kernels.MitchellNetraviliKernel(Float16, 0, 1)),
+                        ("Duff's tensioned B-spline",
+                         Kernels.MitchellNetraviliKernel(Float32, 0.5, 0)))
         println(name," kernel:")
         println(" - support: ", length(ker))
         println(" - normalized: ", Kernels.isnormalized(ker))

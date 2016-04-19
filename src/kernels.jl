@@ -16,6 +16,8 @@ module Kernels
 
 import Base: length, apply, call
 export iscardinal, isnormalized
+export BoxKernel, TriangleKernel, QuadraticKernel, CubicKernel,
+       CatmullRomKernel, KeysKernel, MitchellNetraviliKernel
 
 two{T}(::Type{T}) = convert(T, 2)::T
 three{T}(::Type{T}) = convert(T, 3)::T
@@ -171,6 +173,9 @@ These kernels are cubic splines which depends on 2 parameters `b` and `c`.
 whatever the values of `(b,c)`, all these kernels are "normalized", symmetric
 and their value and first derivative are continuous.
 
+Taking `b = 0` is a sufficient and necessary condition to have cardinal
+kernels.  This correspond to Keys's family of kernels.
+
 Using the constraint: `b + 2c = 1` yields a cubic filter with, at least,
 quadratic order approximation.
 
@@ -230,7 +235,7 @@ function call{T<:AbstractFloat}(ker::MitchellNetraviliKernel{T}, x::T)
 end
 
 length{T<:MitchellNetraviliKernel}(::Type{T}) = 4
-iscardinal{T<:MitchellNetraviliKernel}(::Type{T}) = true
+iscardinal{T<:AbstractFloat}(ker::MitchellNetraviliKernel{T}) = (ker.b == zero(T))
 isnormalized{T<:MitchellNetraviliKernel}(::Type{T}) = true
 
 #------------------------------------------------------------------------------
