@@ -19,10 +19,8 @@ export iscardinal, isnormalized
 export BoxKernel, TriangleKernel, QuadraticKernel, CubicKernel,
        CatmullRomKernel, KeysKernel, MitchellNetraviliKernel
 
-two{T}(::Type{T}) = convert(T, 2)::T
-three{T}(::Type{T}) = convert(T, 3)::T
-four{T}(::Type{T}) = convert(T, 4)::T
-half{T}(::Type{T}) = convert(T, 1//2)::T
+# This function is needed for rational constants.
+@inline _{T<:AbstractFloat}(::Type{T}, num::Real, den::Real) = T(num)/T(den)
 
 """
 Abstract `Kernel` type is the super type of kernel functions used for
@@ -79,7 +77,7 @@ BoxKernel{T<:AbstractFloat}(::Type{T}) = BoxKernel{T}()
 const box = BoxKernel(Cdouble)
 
 function call{T<:AbstractFloat}(::Type{BoxKernel{T}}, x::T)
-    T(-1//2) <= x < T(1//2) ? one(T) : zero(T)
+    _(T,-1,2) <= x < _(T,1,2) ? one(T) : zero(T)
 end
 
 length{T<:BoxKernel}(::Type{T}) = 1
@@ -122,13 +120,13 @@ const quadratic = QuadraticKernel(Cdouble)
 
 function call{T<:AbstractFloat}(::Type{QuadraticKernel{T}}, x::T)
     t = abs(x)
-    if t >= T(3//2)
+    if t >= _(T,3,2)
         return zero(T)
-    elseif t <= T(1//2)
-        return T(3//4) - t*t
+    elseif t <= _(T,1,2)
+        return _(T,3,4) - t*t
     else
-        t -= T(3//2)
-        return T(1//2)*t*t
+        t -= _(T,3,2)
+        return _(T,1,2)*t*t
     end
 end
 
@@ -140,8 +138,8 @@ isnormalized{T<:QuadraticKernel}(::Type{T}) = true
 """
 # Cubic Spline Kernel
 
-The 4th order (cubic) B-spline kernel is also known as Parzen window or
-de la Vallée Poussin window.
+The 4th order (cubic) B-spline kernel is also known as Parzen window or de la
+Vallée Poussin window.
 """
 immutable CubicKernel{T} <: SingletonKernel{T}; end
 
@@ -154,10 +152,10 @@ function call{T<:AbstractFloat}(::Type{CubicKernel{T}}, x::T)
     if t >= T(2)
         return zero(T)
     elseif t <= one(T)
-        return (T(1//2)*t - one(T))*t*t + T(2//3)
+        return (_(T,1,2)*t - one(T))*t*t + _(T,2,3)
     else
         t = T(2) - t
-        return T(1//6)*t*t*t
+        return _(T,1,6)*t*t*t
     end
 end
 
@@ -229,7 +227,7 @@ const mitchell_netravili = MitchellNetraviliKernel(Cdouble)
 
 function call{T<:AbstractFloat}(ker::MitchellNetraviliKernel{T}, x::T)
     t = abs(x)
-    t >= two(T) ? zero(T) :
+    t >= T(2) ? zero(T) :
     t <= one(T) ? (ker.p3*t + ker.p2)*t*t + ker.p0 :
     ((ker.q3*t + ker.q2)*t + ker.q1)*t + ker.q0
 end
@@ -271,7 +269,7 @@ KeysKernel{T<:AbstractFloat}(::Type{T}, a::T) = KeysKernel{T}(a)
 
 function call{T<:AbstractFloat}(ker::KeysKernel{T}, x::T)
     t = abs(x)
-    t >= two(T) ? zero(T) :
+    t >= T(2) ? zero(T) :
     t <= one(T) ? (ker.p3*t + ker.p2)*t*t + ker.p0 :
     ((ker.q3*t + ker.q2)*t + ker.q1)*t + ker.q0
 end
@@ -291,9 +289,9 @@ const catmull_rom = CatmullRomKernel(Cdouble)
 
 function call{T<:AbstractFloat}(::Type{CatmullRomKernel{T}}, x::T)
     t = abs(x)
-    t >= two(T) ? zero(T) :
-    t <= one(T) ? (T(3//2)*t - T(5//2))*t*t + one(T) :
-    ((T(5//2) - T(1//2)*t)*t - four(T))*t + two(T)
+    t >= T(2) ? zero(T) :
+    t <= one(T) ? (_(T,3,2)*t - _(T,5,2))*t*t + one(T) :
+    ((_(T,5,2) - _(T,1,2)*t)*t - T(4))*t + T(2)
 end
 
 length{T<:CatmullRomKernel}(::Type{T}) = 4
