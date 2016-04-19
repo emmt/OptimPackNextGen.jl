@@ -17,7 +17,7 @@ module Kernels
 import Base: length, apply, call
 export iscardinal, isnormalized
 export BoxKernel, TriangleKernel, QuadraticKernel, CubicKernel,
-       CatmullRomKernel, KeysKernel, MitchellNetraviliKernel
+       CatmullRomKernel, KeysKernel, MitchellNetraviliKernel, LanczosKernel
 
 # This function is needed for rational constants.
 @inline _{T<:AbstractFloat}(::Type{T}, num::Real, den::Real) = T(num)/T(den)
@@ -299,10 +299,44 @@ iscardinal{T<:CatmullRomKernel}(::Type{T}) = true
 isnormalized{T<:CatmullRomKernel}(::Type{T}) = true
 
 #------------------------------------------------------------------------------
+"""
+# Lanczos Resampling Kernel
+
+`LanczosKernel(a)` creates a Lanczos kernel of support size `2a`
+
+The Lanczos kernel does not have the partition of unity property.  However,
+Lanczos kernel tends to be normalized for large support size.
+[link](https://en.wikipedia.org/wiki/Lanczos_resampling)
+"""
+immutable LanczosKernel{T} <: Kernel{T}
+    s::Int # support
+    a::T   # 1/2 support
+    b::T   # a/pi^2
+    c::T   # pi/a
+    function LanczosKernel(n::Integer)
+        @assert(n > 0)
+        a = T(n)
+        new(2*n, a, a/pi^2, pi/a)
+    end
+end
+
+LanczosKernel{T<:AbstractFloat}(::Type{T}, n::Integer) = LanczosKernel{T}(n)
+
+function call{T<:AbstractFloat}(ker::LanczosKernel{T}, x::T)
+    abs(x) >= ker.a ? zero(T) :
+    x == zero(T) ? one(T) :
+    ker.b*sin(pi*x)*sin(ker.c*x)/(x*x)
+end
+
+length{T<:AbstractFloat}(ker::LanczosKernel{T}) = ker.s
+iscardinal{T<:LanczosKernel}(::Type{T}) = true
+isnormalized{T<:LanczosKernel}(::Type{T}) = false
+
+#------------------------------------------------------------------------------
 
 # Methods needed to cope with type conversions (must be "specialized" to avoid
 # dispatching ambiguities).
-for K in (KeysKernel, MitchellNetraviliKernel)
+for K in (KeysKernel, MitchellNetraviliKernel, LanczosKernel)
     @eval begin
         function call{T<:AbstractFloat}(ker::$K{T}, x::Real)
             call(ker, T(x))
