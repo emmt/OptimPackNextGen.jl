@@ -19,16 +19,6 @@ module Algebra
 
 export inner, norm1, norm2, normInf
 export swap!, update!, combine!
-import Base: *
-
-abstract LinearOperator{T}
-
-function apply{T}(op::LinearOperator{T}, src::T)
-    dst = similar(src)
-    apply!(dst, op, src)
-    return dst
-end
-*{T}(op::LinearOperator{T}, src::T) = apply(op, src)
 
 """
 ### Euclidean norm
