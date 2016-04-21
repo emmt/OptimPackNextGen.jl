@@ -38,8 +38,4 @@ include("smooth.jl")
 include("hypersmooth.jl")
 include("deconv.jl")
 
-using .LineSearch
-export start!, iterate!, get_task, get_reason, get_step,
-       AbstractLineSearch, MoreThuenteLineSearch
-
 end # module
