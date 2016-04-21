@@ -210,7 +210,7 @@ The call:
 yields a line search method finds a step that satisfies the sufficient decrease
 condition:
 
-    f(stp) <= f(0) + ftol*stp*f'(0),
+    f(stp) ≤ f(0) + ftol*stp*f'(0),
 
 where `stp` is smaller or equal the initial step (backtracking).
 
@@ -332,11 +332,11 @@ decrease condition and a curvature condition.
 The algorithm is designed to find a step `stp` that satisfies the sufficient
 decrease condition:
 
-      f(stp) <= f(0) + ftol*stp*f'(0),
+      f(stp) ≤ f(0) + ftol*stp*f'(0),
 
 and the curvature condition:
 
-      abs(f'(stp)) <= gtol*abs(f'(0)).
+      abs(f'(stp)) ≤ gtol*abs(f'(0)).
 
 If `ftol` is less than `gtol` and if, for example, the function is bounded
 below, then there is always a step which satisfies both conditions.
@@ -347,7 +347,7 @@ modified function:
 
       psi(stp) = f(stp) - f(0) - ftol*stp*f'(0).
 
-If `psi(stp) <= 0` and `f'(stp) >= 0` for some step `stp`, then the interval is
+If `psi(stp) ≤ 0` and `f'(stp) ≥ 0` for some step `stp`, then the interval is
 chosen so that it contains a minimizer of `f`.
 
 If no step can be found that satisfies both conditions, then the algorithm
@@ -504,23 +504,23 @@ function start!(ws::MoreThuenteLineSearch, stp::Float, f::Float, g::Float,
 end
 
 function iterate!(ws::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
-    # If psi(stp) <= 0 and f'(stp) >= 0 for some step, then the algorithm
+    # If psi(stp) ≤ 0 and f'(stp) ≥ 0 for some step, then the algorithm
     # enters the second stage.
     ftest::Float = ws.finit + stp*ws.gtest
-    if ws.stage == 1 && f <= ftest && g >= 0
+    if ws.stage == 1 && f ≤ ftest && g ≥ 0
         ws.stage = 2
     end
 
     # Test for termination (convergence or warnings).
-    if f <= ftest && abs(g) <= -ws.gtol*ws.ginit
+    if f ≤ ftest && abs(g) ≤ -ws.gtol*ws.ginit
         return convergence!(ws, "strong Wolfe conditions hold")
-    elseif stp == ws.stpmin && (f > ftest || g >= ws.gtest)
+    elseif stp == ws.stpmin && (f > ftest || g ≥ ws.gtest)
         return warning!(ws, "stp = stpmin")
-    elseif stp == ws.stpmax && f <= ftest && g <= ws.gtest
+    elseif stp == ws.stpmax && f ≤ ftest && g ≤ ws.gtest
         return warning!(ws, "stp = stpmax")
-    elseif ws.brackt && ws.smax - ws.smin <= ws.xtol*ws.smax
+    elseif ws.brackt && ws.smax - ws.smin ≤ ws.xtol*ws.smax
         return warning!(ws, "xtol test satisfied")
-    elseif ws.brackt && (stp <= ws.smin || stp >= ws.smax)
+    elseif ws.brackt && (stp ≤ ws.smin || stp ≥ ws.smax)
         return warning!(ws, "rounding errors prevent progress")
     end
 
@@ -528,7 +528,7 @@ function iterate!(ws::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
     # if a lower function value has been obtained but the decrease is not
     # sufficient.
 
-    if ws.stage == 1 && f <= ws.fx && f > ftest
+    if ws.stage == 1 && f ≤ ws.fx && f > ftest
 
         # Define the modified function and derivative values.
         ws.fx -= ws.stx*ws.gtest
@@ -554,7 +554,7 @@ function iterate!(ws::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
 
     # Decide if a bisection step is needed.
     if ws.brackt
-        if (abs(ws.sty - ws.stx) >= 0.66*ws.width1)
+        if (abs(ws.sty - ws.stx) ≥ 0.66*ws.width1)
             stp = ws.stx + 0.5*(ws.sty - ws.stx)
         end
         ws.width1 = ws.width
@@ -577,8 +577,8 @@ function iterate!(ws::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
     # If further progress is not possible, let `stp` be the best point
     # obtained during the search.
 
-    if (ws.brackt && (stp <= ws.smin || stp >= ws.smax) ||
-        (ws.brackt && ws.smax - ws.smin <= ws.xtol*ws.smax))
+    if (ws.brackt && (stp ≤ ws.smin || stp ≥ ws.smax) ||
+        (ws.brackt && ws.smax - ws.smin ≤ ws.xtol*ws.smax))
         stp = ws.stx
     end
 
