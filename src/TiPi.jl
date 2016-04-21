@@ -30,11 +30,16 @@ include("ConvexSets.jl")
 include("kernels.jl")
 include("interp.jl")
 include("mda.jl")
+include("lnsrch.jl")
 include("conjgrad.jl")
 include("optim.jl")
 include("cost.jl")
 include("smooth.jl")
 include("hypersmooth.jl")
 include("deconv.jl")
+
+using .LineSearch
+export start!, iterate!, get_task, get_reason, get_step,
+       AbstractLineSearch, MoreThuenteLineSearch
 
 end # module
