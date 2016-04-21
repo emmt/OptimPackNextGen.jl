@@ -41,18 +41,18 @@ type, a typical line search is perfomred as follows:
     stpmax = ...        # upper bound for the step
     searching = start!(ls, stp, f0, dtg0, stpmin, stpmax)
     while searching
-        x = x0 + stp*d   # compute trial point
-        f = func(x)      # function value at x
-        g = grad(x)      # gradient at x
-        dtg = inner(d,g) # directional derivative at x
-        (stp, searching) = iterate!(ls, stp, f, dtg)
+        x = x0 + stp*d    # compute trial point
+        f = func(x)       # function value at x
+        g = grad(x)       # gradient at x
+        dtg = inner(d, g) # directional derivative at x
+        stp, searching = iterate!(ls, stp, f, dtg)
     end
     task = get_task(ls)
     if task != :CONVERGENCE
         if task == :ERROR
-            error(get_reason(ls)
+            error(get_reason(ls))
         else
-            println("warning: ", get_reason(ls))
+            warn(get_reason(ls))
         end
     end
 
@@ -405,7 +405,6 @@ function iterate!(ws::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
     # if a lower function value has been obtained but the decrease is not
     # sufficient.
 
-
     if ws.stage == 1 && f <= ws.fx && f > ftest
 
         # Define the modified function and derivative values.
@@ -557,11 +556,11 @@ function cstep!(ws::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
         # step is taken, otherwise the average of the cubic and quadratic steps
         # is taken.
 
-        theta = THREE*(fx-fp)/(stp-stx) + dx + dp
+        theta = THREE*(fx - fp)/(stp - stx) + dx + dp
         s = max(abs(theta), abs(dx), abs(dp))
-        gamma = s*sqrt((theta/s)^2-(dx/s)*(dp/s))
+        gamma = s*sqrt((theta/s)^2 - (dx/s)*(dp/s))
         if stp < stx; gamma = -gamma; end
-        p = (gamma-dx) + theta
+        p = (gamma - dx) + theta
         q = ((gamma - dx) + gamma) + dp
         r = p/q
         stpc = stx + r*(stp - stx)
