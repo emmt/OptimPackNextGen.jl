@@ -17,6 +17,12 @@ export cost, cost!, prox, prox!, AbstractCost, HyperbolicEdgePreserving
 export MDA
 export goodfftdim, fftfreq, zeropad, pad
 
+"""
+`Float` is the type of all floating point scalar, it is currently an alias to
+`Cdouble` which is itself an alias to `Float64`.
+"""
+typealias Float Cdouble
+
 include("utils.jl")
 include("AffineTransforms.jl")
 include("algebra.jl")
