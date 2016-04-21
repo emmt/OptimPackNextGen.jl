@@ -14,7 +14,7 @@
 module LineSearch
 
 export start!, iterate!, get_task, get_reason, get_step,
-       AbstractLineSearch, MoreThuenteLineSearch
+       AbstractLineSearch, BacktrackingLineSearch, MoreThuenteLineSearch
 
 # Use the same floating point type for scalars as in TiPi.
 import ..Float
@@ -197,6 +197,129 @@ function failure!(ls::AbstractLineSearch, reason::AbstractString)
     ls.task = :ERROR
     ls.reason = reason
     return (ls.step, false)
+end
+
+#------------------------------------------------------------------------------
+"""
+## Backtracking and Armijo line search methods
+
+The call:
+
+    ls = BacktrackingLineSearch(ftol=..., amin=...)
+
+yields a line search method finds a step that satisfies the sufficient decrease
+condition:
+
+    f(stp) <= f(0) + ftol*stp*f'(0),
+
+where `stp` is smaller or equal the initial step (backtracking).
+
+Possible keywords are:
+
+* `ftol` specifies a nonnegative tolerance for the sufficient decrease
+         condition.
+
+* `amin` specifies a minimal relative step size to trigger taking a bisection
+  step instead of a quadratic step; if `amin ≥ 1/2`, a bisection step is always
+  taken which amounts to Armijo's method.
+
+Default values are `ftol = 1e-3` and `amin = 1/2`.
+
+"""
+type BacktrackingLineSearch <: AbstractLineSearch
+
+    # Common to all line search instances.
+    reason::AbstractString
+    task::Symbol
+    step::Float
+
+    # More & Thuente line search parameters.
+    ftol::Float
+    amin::Float
+    finit::Float
+    ginit::Float
+    gtest::Float
+    stpmin::Float
+    stpmax::Float
+
+    # Constructor.
+    function BacktrackingLineSearch(;
+                                    ftol::Float=1e-3,
+                                    amin::Float=0.5)
+        @assert ftol ≥ 0
+        @assert amin ≥ 0
+
+        ls = new()
+
+        ls.ftol = ftol
+        ls.amin = amin
+        ls.finit = 0
+        ls.ginit = 0
+        ls.gtest = 0
+        ls.stpmin = 0
+        ls.stpmax = 0
+
+        return initialize!(ls)
+    end
+end
+
+requires_derivative(::Type{BacktrackingLineSearch}) = false
+
+function start!(ls::BacktrackingLineSearch, stp::Float, f0::Float, g0::Float,
+                stpmin::Float, stpmax::Float)
+
+    @assert 0 ≤ stpmin ≤ stpmax
+    @assert stpmin ≤ stp ≤ stpmax
+    @assert g0 < 0 "not a descent direction"
+
+    ls.stpmin = stpmin
+    ls.stpmax = stpmax
+    ls.finit = f0
+    ls.ginit = g0
+    ls.gtest = ls.ftol*ls.ginit
+
+    return starting!(ls, stp)
+
+end
+
+function iterate!(ls::BacktrackingLineSearch, stp::Float, f::Float, g::Float)
+    const HALF = Float(1)/Float(2)
+
+    # Check for convergence otherwise take a (safeguarded) bisection
+    # step unless already at the lower bound.
+    if f ≤ ls.finit + stp*ls.gtest
+        # First Wolfe (Armijo) condition satisfied.
+        return convergence!(ls, "Armijo's condition holds")
+    end
+    if stp ≤ ls.stpmin
+        stp = ls.stpmin
+        return warning!(ls, "stp ≤ stpmin")
+    end
+    if ls.amin ≥ HALF
+        # Bisection step.
+        stp *= HALF
+    else
+        q::Float = -stp*ls.ginit;
+        r::Float = (f - (ls.finit - q))*Float(2)
+        if r ≤ 0
+            # Bisection step.
+            stp *= HALF
+        elseif q ≤ ls.amin*r
+            # Small step.
+            stp *= ls.amin
+        else
+            # Quadratic step.
+            stp *= q/r
+        end
+    end
+    if stp < ls.stpmin
+        # Safeguard the step.
+        stp = ls.stpmin
+    end
+
+    # Obtain another function and derivative.
+    return searching!(ls, stp)
+
 end
 
 #------------------------------------------------------------------------------
