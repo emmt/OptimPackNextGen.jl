@@ -438,31 +438,31 @@ type MoreThuenteLineSearch <: AbstractLineSearch
         @assert gtol ≥ 0
         @assert xtol ≥ 0
 
-        ws = new()
+        ls = new()
 
-        ws.ftol = ftol
-        ws.gtol = gtol
-        ws.xtol = xtol
-        ws.smin = 0
-        ws.smax = 0
-        ws.stx = 0
-        ws.fx = 0
-        ws.dx = 0
-        ws.sty = 0
-        ws.fy = 0
-        ws.dy = 0
+        ls.ftol = ftol
+        ls.gtol = gtol
+        ls.xtol = xtol
+        ls.smin = 0
+        ls.smax = 0
+        ls.stx = 0
+        ls.fx = 0
+        ls.dx = 0
+        ls.sty = 0
+        ls.fy = 0
+        ls.dy = 0
 
-        ws.stpmin = 0
-        ws.stpmax = 0
-        ws.finit = 0
-        ws.ginit = 0
-        ws.gtest = 0
-        ws.width = 0
-        ws.width1 = 0
-        ws.brackt = false
-        ws.stage = 0
+        ls.stpmin = 0
+        ls.stpmax = 0
+        ls.finit = 0
+        ls.ginit = 0
+        ls.gtest = 0
+        ls.width = 0
+        ls.width1 = 0
+        ls.brackt = false
+        ls.stage = 0
 
-        return initialize!(ws)
+        return initialize!(ls)
     end
 end
 
@@ -473,117 +473,117 @@ const xtrapu = Float(4.0)
 
 # The arguments `stp`, `f`, `g` contain the values of the step,
 # function, and directional derivative at `stp`.
-function start!(ws::MoreThuenteLineSearch, stp::Float, f::Float, g::Float,
+function start!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float,
                 stpmin::Float, stpmax::Float)
 
     @assert 0 ≤ stpmin ≤ stpmax
     @assert stpmin ≤ stp ≤ stpmax
     @assert g < 0 "not a descent direction"
 
-    ws.stpmin = stpmin
-    ws.stpmax = stpmax
-    ws.brackt = false
-    ws.stage = 1
-    ws.finit = f
-    ws.ginit = g
-    ws.gtest = ws.ftol*ws.ginit
-    ws.width = ws.stpmax - ws.stpmin
-    ws.width1 = 2*ws.width
+    ls.stpmin = stpmin
+    ls.stpmax = stpmax
+    ls.brackt = false
+    ls.stage = 1
+    ls.finit = f
+    ls.ginit = g
+    ls.gtest = ls.ftol*ls.ginit
+    ls.width = ls.stpmax - ls.stpmin
+    ls.width1 = 2*ls.width
 
-    ws.stx = 0
-    ws.fx = ws.finit
-    ws.dx = ws.ginit
-    ws.sty = 0
-    ws.fy = ws.finit
-    ws.dy = ws.ginit
-    ws.smin = 0
-    ws.smax = stp + xtrapu*stp
+    ls.stx = 0
+    ls.fx = ls.finit
+    ls.dx = ls.ginit
+    ls.sty = 0
+    ls.fy = ls.finit
+    ls.dy = ls.ginit
+    ls.smin = 0
+    ls.smax = stp + xtrapu*stp
 
-    return starting!(ws, stp)
+    return starting!(ls, stp)
 
 end
 
-function iterate!(ws::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
+function iterate!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
     # If psi(stp) ≤ 0 and f'(stp) ≥ 0 for some step, then the algorithm
     # enters the second stage.
-    ftest::Float = ws.finit + stp*ws.gtest
-    if ws.stage == 1 && f ≤ ftest && g ≥ 0
-        ws.stage = 2
+    ftest::Float = ls.finit + stp*ls.gtest
+    if ls.stage == 1 && f ≤ ftest && g ≥ 0
+        ls.stage = 2
     end
 
     # Test for termination (convergence or warnings).
-    if f ≤ ftest && abs(g) ≤ -ws.gtol*ws.ginit
-        return convergence!(ws, "strong Wolfe conditions hold")
-    elseif stp == ws.stpmin && (f > ftest || g ≥ ws.gtest)
-        return warning!(ws, "stp = stpmin")
-    elseif stp == ws.stpmax && f ≤ ftest && g ≤ ws.gtest
-        return warning!(ws, "stp = stpmax")
-    elseif ws.brackt && ws.smax - ws.smin ≤ ws.xtol*ws.smax
-        return warning!(ws, "xtol test satisfied")
-    elseif ws.brackt && (stp ≤ ws.smin || stp ≥ ws.smax)
-        return warning!(ws, "rounding errors prevent progress")
+    if f ≤ ftest && abs(g) ≤ -ls.gtol*ls.ginit
+        return convergence!(ls, "strong Wolfe conditions hold")
+    elseif stp == ls.stpmin && (f > ftest || g ≥ ls.gtest)
+        return warning!(ls, "stp = stpmin")
+    elseif stp == ls.stpmax && f ≤ ftest && g ≤ ls.gtest
+        return warning!(ls, "stp = stpmax")
+    elseif ls.brackt && ls.smax - ls.smin ≤ ls.xtol*ls.smax
+        return warning!(ls, "xtol test satisfied")
+    elseif ls.brackt && (stp ≤ ls.smin || stp ≥ ls.smax)
+        return warning!(ls, "rounding errors prevent progress")
     end
 
     # A modified function is used to predict the step during the first stage
     # if a lower function value has been obtained but the decrease is not
     # sufficient.
 
-    if ws.stage == 1 && f ≤ ws.fx && f > ftest
+    if ls.stage == 1 && f ≤ ls.fx && f > ftest
 
         # Define the modified function and derivative values.
-        ws.fx -= ws.stx*ws.gtest
-        ws.fy -= ws.sty*ws.gtest
-        ws.dx -= ws.gtest
-        ws.dy -= ws.gtest
+        ls.fx -= ls.stx*ls.gtest
+        ls.fy -= ls.sty*ls.gtest
+        ls.dx -= ls.gtest
+        ls.dy -= ls.gtest
 
         # Call `cstep!` to update `stx`, `sty`, and to compute the new step.
-        stp = cstep!(ws, stp, f - stp*ws.gtest, g - ws.gtest)
+        stp = cstep!(ls, stp, f - stp*ls.gtest, g - ls.gtest)
 
         # Reset the function and derivative values for f.
-        ws.fx += ws.stx*ws.gtest
-        ws.fy += ws.sty*ws.gtest
-        ws.dx += ws.gtest
-        ws.dy += ws.gtest
+        ls.fx += ls.stx*ls.gtest
+        ls.fy += ls.sty*ls.gtest
+        ls.dx += ls.gtest
+        ls.dy += ls.gtest
 
     else
 
         # Call `cstep!` to update `stx`, `sty`, and to compute the new step.
-        stp = cstep!(ws, stp, f, g)
+        stp = cstep!(ls, stp, f, g)
 
     end
 
     # Decide if a bisection step is needed.
-    if ws.brackt
-        if (abs(ws.sty - ws.stx) ≥ 0.66*ws.width1)
-            stp = ws.stx + 0.5*(ws.sty - ws.stx)
+    if ls.brackt
+        if (abs(ls.sty - ls.stx) ≥ 0.66*ls.width1)
+            stp = ls.stx + 0.5*(ls.sty - ls.stx)
         end
-        ws.width1 = ws.width
-        ws.width = abs(ws.sty - ws.stx)
+        ls.width1 = ls.width
+        ls.width = abs(ls.sty - ls.stx)
     end
 
     # Set the minimum and maximum steps allowed for `stp`.
-    if ws.brackt
-        ws.smin = min(ws.stx, ws.sty)
-        ws.smax = max(ws.stx, ws.sty)
+    if ls.brackt
+        ls.smin = min(ls.stx, ls.sty)
+        ls.smax = max(ls.stx, ls.sty)
     else
-        ws.smin = stp + xtrapl*(stp - ws.stx)
-        ws.smax = stp + xtrapu*(stp - ws.stx)
+        ls.smin = stp + xtrapl*(stp - ls.stx)
+        ls.smax = stp + xtrapu*(stp - ls.stx)
     end
 
     # Force the step to be within the bounds `stpmax` and `stpmin`.
-    stp = max(stp, ws.stpmin)
-    stp = min(stp, ws.stpmax)
+    stp = max(stp, ls.stpmin)
+    stp = min(stp, ls.stpmax)
 
     # If further progress is not possible, let `stp` be the best point
     # obtained during the search.
 
-    if (ws.brackt && (stp ≤ ws.smin || stp ≥ ws.smax) ||
-        (ws.brackt && ws.smax - ws.smin ≤ ws.xtol*ws.smax))
-        stp = ws.stx
+    if (ls.brackt && (stp ≤ ls.smin || stp ≥ ls.smax) ||
+        (ls.brackt && ls.smax - ls.smin ≤ ls.xtol*ls.smax))
+        stp = ls.stx
     end
 
     # Obtain another function and derivative.
-    return searching!(ws, stp)
+    return searching!(ls, stp)
 
 end
 
@@ -592,7 +592,7 @@ end
 
 The call:
 
-     nextstep = cstep!(ws, stp, fp, dp)
+     nextstep = cstep!(ls, stp, fp, dp)
 
 computes a safeguarded step for a search procedure and updates an interval that
 contains a step that satisfies a sufficient decrease and a curvature condition.
@@ -601,45 +601,45 @@ The argument `stp` is the current step, the argument `fp` and `dp` respectively
 give the function value and derivative at `stp`.  The returned value `nextstep`
 is the new trial step.
 
-The parameter `ws.stx` contains the step with the least function value.  If
-`ws.brackt` is set to true then a minimizer has been bracketed in an interval
-with endpoints `ws.stx` and `ws.sty`.  The subroutine assumes that if
-`ws.brackt` is set to true then:
+The parameter `ls.stx` contains the step with the least function value.  If
+`ls.brackt` is set to true then a minimizer has been bracketed in an interval
+with endpoints `ls.stx` and `ls.sty`.  The subroutine assumes that if
+`ls.brackt` is set to true then:
 
-    min(ws.stx, ws.sty) < stp < max(ws.stx, ws.sty),
+    min(ls.stx, ls.sty) < stp < max(ls.stx, ls.sty),
 
 and that the derivative at `stx` is negative in the direction of the step.
 
-Workspace `ws` is used as follows:
+Workspace `ls` is used as follows:
 
-* `ws.stx` is the best step obtained so far and is an endpoint of the interval
-  that contains the minimizer.  On exit, `ws.stx` is the updated best step.
+* `ls.stx` is the best step obtained so far and is an endpoint of the interval
+  that contains the minimizer.  On exit, `ls.stx` is the updated best step.
 
-* `ws.fx` is the function value at `ws.stx`.  On exit, `ws.fx` is the updated
-  function value at `ws.stx`.
+* `ls.fx` is the function value at `ls.stx`.  On exit, `ls.fx` is the updated
+  function value at `ls.stx`.
 
-* `ws.dx` is derivative of the function at `ws.stx`.  The derivative must be
-  negative in the direction of the step, that is, `ws.dx` and `stp - ws.stx`
-  must have opposite signs.  On exit, `ws.dx` is the updated derivative of the
-  function at `ws.stx`.
+* `ls.dx` is derivative of the function at `ls.stx`.  The derivative must be
+  negative in the direction of the step, that is, `ls.dx` and `stp - ls.stx`
+  must have opposite signs.  On exit, `ls.dx` is the updated derivative of the
+  function at `ls.stx`.
 
-* `ws.sty` is the second endpoint of the interval that contains the minimizer.
-  On exit, `ws.sty` is the updated endpoint of the interval that contains the
+* `ls.sty` is the second endpoint of the interval that contains the minimizer.
+  On exit, `ls.sty` is the updated endpoint of the interval that contains the
   minimizer.
 
-* `ws.fy` is the function value at `ws.sty`.  On exit, `ws.fy` is the updated
-  function value at `ws.sty`.
+* `ls.fy` is the function value at `ls.sty`.  On exit, `ls.fy` is the updated
+  function value at `ls.sty`.
 
-* `ws.dy` is derivative of the function at `ws.sty`.  On exit, `ws.dy` is the
-  updated derivative of the function at `ws.sty`.
+* `ls.dy` is derivative of the function at `ls.sty`.  On exit, `ls.dy` is the
+  updated derivative of the function at `ls.sty`.
 
-* `ws.brackt` is a boolean variable which specifies if a minimizer has been
-  bracketed.  Initially `ws.brackt` must be set to `false`.  On exit,
-  `ws.brackt` specifies if a minimizer has been bracketed.
+* `ls.brackt` is a boolean variable which specifies if a minimizer has been
+  bracketed.  Initially `ls.brackt` must be set to `false`.  On exit,
+  `ls.brackt` specifies if a minimizer has been bracketed.
 
-* `ws.smin` is a lower bound for the step.  Its value is left unchanged.
+* `ls.smin` is a lower bound for the step.  Its value is left unchanged.
 
-* `ws.smax` is an upper bound for the step.  Its value is left unchanged.
+* `ls.smax` is an upper bound for the step.  Its value is left unchanged.
 
 
 ### History
@@ -654,21 +654,21 @@ Workspace `ws` is used as follows:
   Conversion to Julia by Éric Thiébaut.
 
 """
-function cstep!(ws::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
+function cstep!(ls::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
 
     const ZERO::Float = 0
     const TWO::Float = 2
     const THREE::Float = 3
     const P66::Float = 0.66
 
-    stx::Float = ws.stx
-    fx::Float  = ws.fx
-    dx::Float  = ws.dx
-    sty::Float = ws.sty
-    fy::Float  = ws.fy
-    dy::Float  = ws.dy
-    stpmin::Float = ws.smin
-    stpmax::Float = ws.smax
+    stx::Float = ls.stx
+    fx::Float  = ls.fx
+    dx::Float  = ls.dx
+    sty::Float = ls.sty
+    fy::Float  = ls.fy
+    dy::Float  = ls.dy
+    stpmin::Float = ls.smin
+    stpmax::Float = ls.smax
 
     opposite = (dx < ZERO < dp) || (dp < ZERO < dx)
 
@@ -693,7 +693,7 @@ function cstep!(ws::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
         else
             stpf = stpc + (stpq - stpc)/TWO
         end
-        ws.brackt = true
+        ls.brackt = true
 
     elseif opposite
 
@@ -716,7 +716,7 @@ function cstep!(ws::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
         else
             stpf = stpq
         end
-        ws.brackt = true
+        ls.brackt = true
 
       elseif abs(dp) < abs(dx)
 
@@ -741,13 +741,13 @@ function cstep!(ws::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
         if r < ZERO && gamma != ZERO
             stpc = stp + r*(stx - stp)
         elseif stp > stx
-            stpc = ws.stpmax
+            stpc = ls.stpmax
         else
-            stpc = ws.stpmin
+            stpc = ls.stpmin
         end
         stpq = stp + (dp/(dp - dx))*(stx - stp)
 
-        if ws.brackt
+        if ls.brackt
 
             # A minimizer has been bracketed.  If the cubic step is closer to
             # `stp` than the secant step, the cubic step is taken, otherwise
@@ -775,8 +775,8 @@ function cstep!(ws::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
             else
                stpf = stpq
             end
-            stpf = min(ws.stpmax, stpf)
-            stpf = max(ws.stpmin, stpf)
+            stpf = min(ls.stpmax, stpf)
+            stpf = max(ls.stpmin, stpf)
 
          end
 
@@ -787,7 +787,7 @@ function cstep!(ws::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
         # minimum is not bracketed, the step is either `stpmin` or `stpmax`,
         # otherwise the cubic step is taken.
 
-        if ws.brackt
+        if ls.brackt
             theta = THREE*(fp - fy)/(sty - stp) + dy + dp
             s = max(abs(theta), abs(dy), abs(dp))
             gamma = s*sqrt((theta/s)^2-(dy/s)*(dp/s))
@@ -798,26 +798,26 @@ function cstep!(ws::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
             stpc = stp + r*(sty - stp)
             stpf = stpc
         elseif stp > stx
-            stpf = ws.stpmax
+            stpf = ls.stpmax
         else
-            stpf = ws.stpmin
+            stpf = ls.stpmin
         end
     end
 
     # Update the interval which contains a minimizer.
     if fp > fx
-        ws.sty = stp
-        ws.fy = fp
-        ws.dy = dp
+        ls.sty = stp
+        ls.fy = fp
+        ls.dy = dp
     else
         if opposite
-            ws.sty = stx
-            ws.fy = fx
-            ws.dy = dx
+            ls.sty = stx
+            ls.fy = fx
+            ls.dy = dx
         end
-        ws.stx = stp
-        ws.fx = fp
-        ws.dx = dp
+        ls.stx = stp
+        ls.fx = fp
+        ls.dx = dp
     end
 
     # Return the new step.
