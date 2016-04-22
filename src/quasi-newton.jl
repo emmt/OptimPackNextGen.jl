@@ -12,10 +12,10 @@
 #------------------------------------------------------------------------------
 
 # Improvements:
-# - skip updates such that rho <= 0
-# - TODO: implement restarts
-# - TODO: add other convergence criteria
-# - TODO: better initial step
+# - skip updates such that rho <= 0;
+# - check for sufficient descent condition and implement restarts;
+# - TODO: add other convergence criteria;
+# - TODO: better initial step;
 
 module QuasiNewton
 
@@ -126,22 +126,25 @@ so far in `x`.
 function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                    fatol::Real=0.0, frtol::Real=1e-8,
                    gatol::Real=0.0, grtol::Real=1e-6,
+                   epsilon::Real=0.0,
                    verb::Bool=false,
                    printer::Function=print_iteration, output::IO=STDOUT,
                    lnsrch::AbstractLineSearch=MoreThuenteLineSearch(ftol=1e-3,
                                                                     gtol=0.9,
                                                                     xtol= 0.1))
-    @assert(mem ≥ 1)
-    @assert(fatol ≥ 0)
-    @assert(frtol ≥ 0)
-    @assert(gatol ≥ 0)
-    @assert(grtol ≥ 0)
+    @assert mem ≥ 1
+    @assert fatol ≥ 0
+    @assert frtol ≥ 0
+    @assert gatol ≥ 0
+    @assert grtol ≥ 0
+    @assert 0 ≤ epsilon < 1
 
     fmin = Float(fmin)
     fatol = Float(fatol)
     frtol = Float(frtol)
     gatol = Float(gatol)
     grtol = Float(grtol)
+    epsilon = Float(epsilon)
 
     reason::AbstractString = ""
     fminset::Bool = (! isnan(fmin) && fmin > -Inf)
@@ -150,6 +153,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     mark::Int = 1
     iter::Int = 0
     eval::Int = 0
+    restarts::Int = 0
 
     f::Float = 0
     f0::Float = 0
@@ -158,7 +162,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     stp::Float = 0
     stpmin::Float = 0
     stpmax::Float = 0
-    gamma::Float = 0    # initial scaling
+    gamma::Float = 0
     gtest::Float = 0
 
     # Allocate memory
@@ -172,12 +176,6 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     end
     rho = Array(Float, mem)
     alpha = Array(Float, mem)
-
-    # Setup line search method.
-    #sftol::Float = 1e-3
-    sgtol::Float = 0.9 # FIXME:
-    #sxtol::Float = 0.1
-    #lnsrch = MoreThuenteLineSearch(ftol=sftol, gtol=sgtol, xtol=sxtol)
 
     # Variable used to control the stage of the algorithm:
     #   * stage = 0 at start or restart
@@ -246,7 +244,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
 
             # Print some information if requested.
             if verb
-                printer(output, iter, eval, 0, f, gnorm, stp)
+                printer(output, iter, eval, restarts, f, gnorm, stp)
             end
             if stage ≥ 3
                 break
@@ -275,6 +273,13 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                     gd = -gnorm^2
                 else
                     gd = -inner(g, d)
+                    if ! sufficient_descent(gd, epsilon, norm2(d), gnorm)
+                        # Revert to the steepest descent.
+                        stage = 0
+                        copy!(d, g)
+                        gd = -gnorm^2
+                        restarts += 1
+                    end
                 end
                 mark = (mark < mem ? mark + 1 : 1)
             else
@@ -344,6 +349,27 @@ function check_status(lnsrch::AbstractLineSearch)
         end
     end
     return task
+end
+
+"""
+`sufficient_descent(epsilon, dtg, dnorm, gnorm)` checks whether `d` is a
+sufficient descent direction (Zoutenjdik condition).  Argument `epsilon` is a
+nonegative small value in the range `[0,1)`, `dtg` is the scalar product
+`inner(d,g)` between the direction `d` and the gradient and `dnorm` and `gnorm`
+are the Euclidean norms of `d` and `g`.
+"""
+sufficient_descent(dtg::Float, epsilon::Float, dnorm::Float,
+                   gnorm::Float) = (-dtg > epsilon*dnorm*gnorm)
+
+sufficient_ascent(dtg::Float, epsilon::Float, dnorm::Float,
+                  gnorm::Float) = (dtg > epsilon*dnorm*gnorm)
+
+for f in (:sufficient_descent, :sufficient_ascent)
+    @eval begin
+        function $f(dtg::Real, epsilon::Real, dnorm::Real, gnorm::Real)
+            $f(float(dtg), Float(epsilon), Float(dnorm), Float(gnorm))
+        end
+    end
 end
 
 function print_iteration(iter::Int, eval::Int, restart::Int,
