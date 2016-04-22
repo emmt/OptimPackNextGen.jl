@@ -13,7 +13,7 @@
 
 module LineSearch
 
-export start!, iterate!, get_task, get_reason, get_step,
+export start!, iterate!, get_task, get_reason, get_step, requires_derivative,
        AbstractLineSearch, BacktrackingLineSearch, MoreThuenteLineSearch
 
 # Use the same floating point type for scalars as in TiPi.
@@ -99,15 +99,15 @@ end
 `get_task(ls)` yields the current pending task for the line search instance
 `ls`.  The result is one of the following symbols:
 
-* `:START` if line search `ls` has not yet been started with `start!(ls, ...)`.
+* `:START` if line search has not yet been started with `start!(ls, ...)`.
 
-* `:SEARCH` if line search `ls` is in progress; the caller shall compute the
-  value of the function and its derivative at the current trial step and call
+* `:SEARCH` if line search is in progress; the caller shall compute the value
+  of the function and its derivative at the current trial step and then call
   `iterate!(ls, ...)`.
 
-* `:CONVERGENCE` if line search `ls` has converged.
+* `:CONVERGENCE` if line search has converged.
 
-* `:WARNING` if line search `ls` has been stopped with a warning; use
+* `:WARNING` if line search has been stopped with a warning; use
   `get_reason(ls)` to retrieve a textual explanation.
 
 * `:ERROR` if there are any errors; use `get_reason(ls)` to retrieve a textual
@@ -162,7 +162,6 @@ Arguments are:
 function start!(ls::AbstractLineSearch, stp::Real, f0::Real, g0::Real,
                 stpmin::Real, stpmax::Real)
     start!(ls, Float(stp), Float(f0), Float(g0), Float(stpmin), Float(stpmax))
-    #error("`start!` method not implemented for this line search method")
 end
 
 """
@@ -188,7 +187,6 @@ Arguments are:
 """
 function iterate!(ls::AbstractLineSearch, stp::Real, f::Real, g::Real)
     iterate!(ls, Float(stp), Float(f), Float(g))
-    #error("`iterate!` method not implemented for this line search method")
 end
 
 # Private method to check and instanciate common parameters when starting a new
@@ -333,6 +331,301 @@ function iterate!(ls::BacktrackingLineSearch, stp::Float, f::Float, g::Float)
 end
 
 #------------------------------------------------------------------------------
+# SAFEGUARDED CUBIC STEP
+
+"""
+Line search methods which need to compute a cubic step via `cstep!` need to
+store some parameters in an instance of `LineSearchInterval` which has the
+following members:
+
+* `lower` and `upper` contain respectively a lower and an upper bound for the
+  step;
+
+* `stx`, `fx`, `dx` contain the values of the step, function, and derivative at
+  the best step so far;
+
+* `sty`, `fy`, `dy` contain the value of the step, function, and derivative at
+  the other endpoint`sty`;
+
+* `brackt` indicates whether a minimum is bracketed in the interval
+  `(stx,sty)`.
+
+At the start of the line search, `brackt = false`, `stx = sty = 0` while `fx =
+fy = f0` and `dx = dy = g0` the value of the function and its derivative for
+the step `stp = 0`.  Then `cstep!` can be called (typically in the `iterate!`
+method) to compute a new step (based on cubic or quadratic interpolation) and
+to maintain the interval of search.
+"""
+type LineSearchInterval
+    lower::Float
+    upper::Float
+    stx::Float
+    fx::Float
+    dx::Float
+    sty::Float
+    fy::Float
+    dy::Float
+    brackt::Bool
+    LineSearchInterval() = new(0, 0, 0, 0, 0, 0, 0, 0, false)
+end
+
+function start!(it::LineSearchInterval, stp::Float, f0::Float, g0::Float,
+                lower::Float, upper::Float)
+    @assert 0 ≤ lower ≤ upper
+    @assert lower ≤ stp ≤ upper
+    @assert g0 < 0 "not a descent direction"
+    it.lower = lower
+    it.upper = upper
+    it.stx = 0
+    it.fx = f0
+    it.dx = g0
+    it.sty = 0
+    it.fy = f0
+    it.dy = g0
+    it.brackt = false
+end
+
+"""
+## Compute a safeguarded cubic step
+
+The call:
+
+     nextstep = cstep!(it, stp, fp, dp)
+
+computes a safeguarded step for a search procedure and updates an interval that
+contains a step that satisfies a sufficient decrease and a curvature condition.
+
+The argument `stp` is the current step, the argument `fp` and `dp` respectively
+give the function value and derivative at `stp`.  The returned value `nextstep`
+is the new trial step.
+
+The parameter `it.stx` contains the step with the least function value.  If
+`it.brackt` is set to true then a minimizer has been bracketed in an interval
+with endpoints `it.stx` and `it.sty`.  The subroutine assumes that if
+`it.brackt` is set to true then:
+
+    min(it.stx, it.sty) < stp < max(it.stx, it.sty),
+
+and that the derivative at `stx` is negative in the direction of the step.
+
+Workspace `it` is used as follows:
+
+* `it.stx` is the best step obtained so far and is an endpoint of the interval
+  that contains the minimizer.  On exit, `it.stx` is the updated best step.
+
+* `it.fx` is the function value at `it.stx`.  On exit, `it.fx` is the updated
+  function value at `it.stx`.
+
+* `it.dx` is derivative of the function at `it.stx`.  The derivative must be
+  negative in the direction of the step, that is, `it.dx` and `stp - it.stx`
+  must have opposite signs.  On exit, `it.dx` is the updated derivative of the
+  function at `it.stx`.
+
+* `it.sty` is the second endpoint of the interval that contains the minimizer.
+  On exit, `it.sty` is the updated endpoint of the interval that contains the
+  minimizer.
+
+* `it.fy` is the function value at `it.sty`.  On exit, `it.fy` is the updated
+  function value at `it.sty`.
+
+* `it.dy` is derivative of the function at `it.sty`.  On exit, `it.dy` is the
+  updated derivative of the function at `it.sty`.
+
+* `it.brackt` is a boolean variable which specifies if a minimizer has been
+  bracketed.  Initially `it.brackt` must be set to `false`.  On exit,
+  `it.brackt` specifies if a minimizer has been bracketed.
+
+* `it.lower` is a lower bound for the step.  Its value is left unchanged.
+
+* `it.upper` is an upper bound for the step.  Its value is left unchanged.
+
+
+### History
+
+* MINPACK-1 Project.  June 1983.  Argonne National Laboratory.
+  Jorge J. Moré and David J. Thuente.
+
+* MINPACK-2 Project.  November 1993.  Argonne National Laboratory and
+  University of Minnesota.  Brett M. Averick and Jorge J. Moré.
+
+* TiPi.jl Project.  April 2016.  Centre de Recherche Astrophysique de Lyon.
+  Conversion to Julia by Éric Thiébaut.
+
+"""
+function cstep!(it::LineSearchInterval, stp::Float, fp::Float, dp::Float)
+
+    const ZERO::Float = 0
+    const TWO::Float = 2
+    const THREE::Float = 3
+    const P66::Float = 0.66
+
+    stx::Float = it.stx
+    fx::Float  = it.fx
+    dx::Float  = it.dx
+    sty::Float = it.sty
+    fy::Float  = it.fy
+    dy::Float  = it.dy
+    lower::Float = it.lower
+    upper::Float = it.upper
+
+    opposite = (dx < ZERO < dp) || (dp < ZERO < dx)
+
+    if fp > fx
+
+        # First case: A higher function value.  The minimum is bracketed.  If
+        # the cubic step is closer to `stx` than the quadratic step, the cubic
+        # step is taken, otherwise the average of the cubic and quadratic steps
+        # is taken.
+
+        theta = THREE*(fx - fp)/(stp - stx) + dx + dp
+        s = max(abs(theta), abs(dx), abs(dp))
+        gamma = s*sqrt((theta/s)^2 - (dx/s)*(dp/s))
+        if stp < stx; gamma = -gamma; end
+        p = (gamma - dx) + theta
+        q = ((gamma - dx) + gamma) + dp
+        r = p/q
+        stpc = stx + r*(stp - stx)
+        stpq = stx + ((dx/((fx - fp)/(stp - stx) + dx))/TWO)*(stp - stx)
+        if abs(stpc - stx) < abs(stpq - stx)
+            stpf = stpc
+        else
+            stpf = stpc + (stpq - stpc)/TWO
+        end
+        it.brackt = true
+
+    elseif opposite
+
+        # Second case: A lower function value and derivatives of opposite sign.
+        # The minimum is bracketed.  If the cubic step is farther from `stp`
+        # than the secant step, the cubic step is taken, otherwise the secant
+        # step is taken.
+
+        theta = THREE*(fx - fp)/(stp - stx) + dx + dp
+        s = max(abs(theta), abs(dx), abs(dp))
+        gamma = s*sqrt((theta/s)^2 - (dx/s)*(dp/s))
+        if stp > stx; gamma = -gamma; end
+        p = (gamma - dp) + theta
+        q = ((gamma - dp) + gamma) + dx
+        r = p/q
+        stpc = stp + r*(stx - stp)
+        stpq = stp + (dp/(dp - dx))*(stx - stp)
+        if abs(stpc - stp) > abs(stpq - stp)
+            stpf = stpc
+        else
+            stpf = stpq
+        end
+        it.brackt = true
+
+      elseif abs(dp) < abs(dx)
+
+        # Third case: A lower function value, derivatives of the same sign, and
+        # the magnitude of the derivative decreases.
+        #
+        # The cubic step is computed only if the cubic tends to infinity in the
+        # direction of the step or if the minimum of the cubic is beyond
+        # stp. Otherwise the cubic step is defined to be the secant step.
+
+        theta = THREE*(fx - fp)/(stp - stx) + dx + dp
+        s = max(abs(theta), abs(dx), abs(dp))
+
+        # The case `gamma = 0` only arises if the cubic does not tend to
+        # infinity in the direction of the step.
+
+        gamma = s*sqrt(max(ZERO, (theta/s)^2 - (dx/s)*(dp/s)))
+        if stp > stx; gamma = -gamma; end
+        p = (gamma - dp) + theta
+        q = (gamma + (dx - dp)) + gamma
+        r = p/q
+        if r < ZERO && gamma != ZERO
+            stpc = stp + r*(stx - stp)
+        elseif stp > stx
+            stpc = upper
+        else
+            stpc = lower
+        end
+        stpq = stp + (dp/(dp - dx))*(stx - stp)
+
+        if it.brackt
+
+            # A minimizer has been bracketed.  If the cubic step is closer to
+            # `stp` than the secant step, the cubic step is taken, otherwise
+            # the secant step is taken.
+
+            if abs(stpc - stp) < abs(stpq - stp)
+               stpf = stpc
+            else
+               stpf = stpq
+            end
+            if stp > stx
+               stpf = min(stp + P66*(sty - stp), stpf)
+            else
+               stpf = max(stp + P66*(sty - stp), stpf)
+            end
+
+         else
+
+            # A minimizer has not been bracketed.  If the cubic step is farther
+            # from `stp` than the secant step, the cubic step is taken,
+            # otherwise the secant step is taken.
+
+            if abs(stpc - stp) > abs(stpq - stp)
+               stpf = stpc
+            else
+               stpf = stpq
+            end
+            stpf = min(upper, stpf)
+            stpf = max(lower, stpf)
+
+         end
+
+    else
+
+        # Fourth case: A lower function value, derivatives of the same sign,
+        # and the magnitude of the derivative does not decrease.  If the
+        # minimum is not bracketed, the step is either `lower` or `upper`,
+        # otherwise the cubic step is taken.
+
+        if it.brackt
+            theta = THREE*(fp - fy)/(sty - stp) + dy + dp
+            s = max(abs(theta), abs(dy), abs(dp))
+            gamma = s*sqrt((theta/s)^2-(dy/s)*(dp/s))
+            if stp > sty; gamma = -gamma; end
+            p = (gamma - dp) + theta
+            q = ((gamma - dp) + gamma) + dy
+            r = p/q
+            stpc = stp + r*(sty - stp)
+            stpf = stpc
+        elseif stp > stx
+            stpf = upper
+        else
+            stpf = lower
+        end
+    end
+
+    # Update the interval which contains a minimizer.
+    if fp > fx
+        it.sty = stp
+        it.fy = fp
+        it.dy = dp
+    else
+        if opposite
+            it.sty = stx
+            it.fy = fx
+            it.dy = dx
+        end
+        it.stx = stp
+        it.fx = fp
+        it.dx = dp
+    end
+
+    # Return the new step.
+    return stpf
+
+end
+
+#------------------------------------------------------------------------------
+# MORÉ & THUENTE LINE SEARCH METHOD
+
 """
 ## Moré & Thuente line search method
 
@@ -407,6 +700,9 @@ type MoreThuenteLineSearch <: AbstractLineSearch
     # Common to all line search instances.
     base::CommonData
 
+    # Parameters needed for `cstep!`.
+    interval::LineSearchInterval
+
     # Specific parameters.
     ftol::Float
     gtol::Float
@@ -416,24 +712,6 @@ type MoreThuenteLineSearch <: AbstractLineSearch
     width1::Float
     stage::Int
 
-    # Parameters shared with `cstep!`.
-    #
-    # The members `stx`, `fx`, `dx` contain the values of the step,
-    # function, and derivative at the best step.
-    #
-    # The members `sty`, `fy`, `dy` contain the value of the step,
-    # function, and derivative at `sty`.
-    #
-    smin::Float # minimum step in cstep!
-    smax::Float # maximum step in cstep!
-    stx::Float
-    fx::Float
-    dx::Float
-    sty::Float
-    fy::Float
-    dy::Float
-    brackt::Bool
-
     function MoreThuenteLineSearch(;
                                   ftol::Float=1e-3,
                                   gtol::Float=0.9,
@@ -442,7 +720,7 @@ type MoreThuenteLineSearch <: AbstractLineSearch
         @assert gtol ≥ 0
         @assert xtol ≥ 0
 
-        ls = new(CommonData())
+        ls = new(CommonData(), LineSearchInterval())
 
         ls.ftol = ftol
         ls.gtol = gtol
@@ -452,15 +730,6 @@ type MoreThuenteLineSearch <: AbstractLineSearch
         ls.width1 = 0
         ls.stage = 0
 
-        ls.smin = 0
-        ls.smax = 0
-        ls.stx = 0
-        ls.fx = 0
-        ls.dx = 0
-        ls.sty = 0
-        ls.fy = 0
-        ls.dy = 0
-        ls.brackt = false
         return ls
     end
 end
@@ -475,21 +744,12 @@ const xtrapu = Float(4.0)
 function start!(ls::MoreThuenteLineSearch, stp::Float, f0::Float, g0::Float,
                 stpmin::Float, stpmax::Float)
     start!(ls.base, stp, f0, g0, stpmin, stpmax)
-    ls.brackt = false
+    start!(ls.interval, stp, f0, g0, Float(0), stp + xtrapu*stp)
     ls.stage = 1
     ls.gtest = ls.ftol*ls.base.ginit
     ls.width = ls.base.stpmax - ls.base.stpmin
     ls.width1 = 2*ls.width
-    ls.stx = 0
-    ls.fx = ls.base.finit
-    ls.dx = ls.base.ginit
-    ls.sty = 0
-    ls.fy = ls.base.finit
-    ls.dy = ls.base.ginit
-    ls.smin = 0
-    ls.smax = stp + xtrapu*stp
     return true
-
 end
 
 function iterate!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
@@ -507,9 +767,9 @@ function iterate!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
         return warning!(ls.base, "stp = stpmin")
     elseif stp == ls.base.stpmax && f ≤ ftest && g ≤ ls.gtest
         return warning!(ls.base, "stp = stpmax")
-    elseif ls.brackt && ls.smax - ls.smin ≤ ls.xtol*ls.smax
+    elseif ls.interval.brackt && ls.interval.upper - ls.interval.lower ≤ ls.xtol*ls.interval.upper
         return warning!(ls.base, "xtol test satisfied")
-    elseif ls.brackt && (stp ≤ ls.smin || stp ≥ ls.smax)
+    elseif ls.interval.brackt && (stp ≤ ls.interval.lower || stp ≥ ls.interval.upper)
         return warning!(ls.base, "rounding errors prevent progress")
     end
 
@@ -517,46 +777,46 @@ function iterate!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
     # if a lower function value has been obtained but the decrease is not
     # sufficient.
 
-    if ls.stage == 1 && f ≤ ls.fx && f > ftest
+    if ls.stage == 1 && f ≤ ls.interval.fx && f > ftest
 
         # Define the modified function and derivative values.
-        ls.fx -= ls.stx*ls.gtest
-        ls.fy -= ls.sty*ls.gtest
-        ls.dx -= ls.gtest
-        ls.dy -= ls.gtest
+        ls.interval.fx -= ls.interval.stx*ls.gtest
+        ls.interval.fy -= ls.interval.sty*ls.gtest
+        ls.interval.dx -= ls.gtest
+        ls.interval.dy -= ls.gtest
 
         # Call `cstep!` to update `stx`, `sty`, and to compute the new step.
-        stp = cstep!(ls, stp, f - stp*ls.gtest, g - ls.gtest)
+        stp = cstep!(ls.interval, stp, f - stp*ls.gtest, g - ls.gtest)
 
         # Reset the function and derivative values for f.
-        ls.fx += ls.stx*ls.gtest
-        ls.fy += ls.sty*ls.gtest
-        ls.dx += ls.gtest
-        ls.dy += ls.gtest
+        ls.interval.fx += ls.interval.stx*ls.gtest
+        ls.interval.fy += ls.interval.sty*ls.gtest
+        ls.interval.dx += ls.gtest
+        ls.interval.dy += ls.gtest
 
     else
 
         # Call `cstep!` to update `stx`, `sty`, and to compute the new step.
-        stp = cstep!(ls, stp, f, g)
+        stp = cstep!(ls.interval, stp, f, g)
 
     end
 
     # Decide if a bisection step is needed.
-    if ls.brackt
-        if (abs(ls.sty - ls.stx) ≥ 0.66*ls.width1)
-            stp = ls.stx + 0.5*(ls.sty - ls.stx)
+    if ls.interval.brackt
+        if (abs(ls.interval.sty - ls.interval.stx) ≥ 0.66*ls.width1)
+            stp = ls.interval.stx + 0.5*(ls.interval.sty - ls.interval.stx)
         end
         ls.width1 = ls.width
-        ls.width = abs(ls.sty - ls.stx)
+        ls.width = abs(ls.interval.sty - ls.interval.stx)
     end
 
     # Set the minimum and maximum steps allowed for `stp`.
-    if ls.brackt
-        ls.smin = min(ls.stx, ls.sty)
-        ls.smax = max(ls.stx, ls.sty)
+    if ls.interval.brackt
+        ls.interval.lower = min(ls.interval.stx, ls.interval.sty)
+        ls.interval.upper = max(ls.interval.stx, ls.interval.sty)
     else
-        ls.smin = stp + xtrapl*(stp - ls.stx)
-        ls.smax = stp + xtrapu*(stp - ls.stx)
+        ls.interval.lower = stp + xtrapl*(stp - ls.interval.stx)
+        ls.interval.upper = stp + xtrapu*(stp - ls.interval.stx)
     end
 
     # Force the step to be within the bounds `stpmax` and `stpmin`.
@@ -565,252 +825,15 @@ function iterate!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
 
     # If further progress is not possible, let `stp` be the best point
     # obtained during the search.
-
-    if (ls.brackt && (stp ≤ ls.smin || stp ≥ ls.smax) ||
-        (ls.brackt && ls.smax - ls.smin ≤ ls.xtol*ls.smax))
-        stp = ls.stx
+    if ls.interval.brackt
+        if stp ≤ ls.interval.lower || stp ≥ ls.interval.upper ||
+            ls.interval.upper - ls.interval.lower ≤ ls.xtol*ls.interval.upper
+            stp = ls.interval.stx
+        end
     end
 
     # Obtain another function and derivative.
     return searching!(ls.base, stp)
-
-end
-
-"""
-## Compute a safeguarded cubic step
-
-The call:
-
-     nextstep = cstep!(ls, stp, fp, dp)
-
-computes a safeguarded step for a search procedure and updates an interval that
-contains a step that satisfies a sufficient decrease and a curvature condition.
-
-The argument `stp` is the current step, the argument `fp` and `dp` respectively
-give the function value and derivative at `stp`.  The returned value `nextstep`
-is the new trial step.
-
-The parameter `ls.stx` contains the step with the least function value.  If
-`ls.brackt` is set to true then a minimizer has been bracketed in an interval
-with endpoints `ls.stx` and `ls.sty`.  The subroutine assumes that if
-`ls.brackt` is set to true then:
-
-    min(ls.stx, ls.sty) < stp < max(ls.stx, ls.sty),
-
-and that the derivative at `stx` is negative in the direction of the step.
-
-Workspace `ls` is used as follows:
-
-* `ls.stx` is the best step obtained so far and is an endpoint of the interval
-  that contains the minimizer.  On exit, `ls.stx` is the updated best step.
-
-* `ls.fx` is the function value at `ls.stx`.  On exit, `ls.fx` is the updated
-  function value at `ls.stx`.
-
-* `ls.dx` is derivative of the function at `ls.stx`.  The derivative must be
-  negative in the direction of the step, that is, `ls.dx` and `stp - ls.stx`
-  must have opposite signs.  On exit, `ls.dx` is the updated derivative of the
-  function at `ls.stx`.
-
-* `ls.sty` is the second endpoint of the interval that contains the minimizer.
-  On exit, `ls.sty` is the updated endpoint of the interval that contains the
-  minimizer.
-
-* `ls.fy` is the function value at `ls.sty`.  On exit, `ls.fy` is the updated
-  function value at `ls.sty`.
-
-* `ls.dy` is derivative of the function at `ls.sty`.  On exit, `ls.dy` is the
-  updated derivative of the function at `ls.sty`.
-
-* `ls.brackt` is a boolean variable which specifies if a minimizer has been
-  bracketed.  Initially `ls.brackt` must be set to `false`.  On exit,
-  `ls.brackt` specifies if a minimizer has been bracketed.
-
-* `ls.smin` is a lower bound for the step.  Its value is left unchanged.
-
-* `ls.smax` is an upper bound for the step.  Its value is left unchanged.
-
-
-### History
-
-* MINPACK-1 Project.  June 1983.  Argonne National Laboratory.
-  Jorge J. Moré and David J. Thuente.
-
-* MINPACK-2 Project.  November 1993.  Argonne National Laboratory and
-  University of Minnesota.  Brett M. Averick and Jorge J. Moré.
-
-* TiPi.jl Project.  April 2016.  Centre de Recherche Astrophysique de Lyon.
-  Conversion to Julia by Éric Thiébaut.
-
-"""
-function cstep!(ls::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
-
-    const ZERO::Float = 0
-    const TWO::Float = 2
-    const THREE::Float = 3
-    const P66::Float = 0.66
-
-    stx::Float = ls.stx
-    fx::Float  = ls.fx
-    dx::Float  = ls.dx
-    sty::Float = ls.sty
-    fy::Float  = ls.fy
-    dy::Float  = ls.dy
-    stpmin::Float = ls.smin
-    stpmax::Float = ls.smax
-
-    opposite = (dx < ZERO < dp) || (dp < ZERO < dx)
-
-    if fp > fx
-
-        # First case: A higher function value.  The minimum is bracketed.  If
-        # the cubic step is closer to `stx` than the quadratic step, the cubic
-        # step is taken, otherwise the average of the cubic and quadratic steps
-        # is taken.
-
-        theta = THREE*(fx - fp)/(stp - stx) + dx + dp
-        s = max(abs(theta), abs(dx), abs(dp))
-        gamma = s*sqrt((theta/s)^2 - (dx/s)*(dp/s))
-        if stp < stx; gamma = -gamma; end
-        p = (gamma - dx) + theta
-        q = ((gamma - dx) + gamma) + dp
-        r = p/q
-        stpc = stx + r*(stp - stx)
-        stpq = stx + ((dx/((fx - fp)/(stp - stx) + dx))/TWO)*(stp - stx)
-        if abs(stpc - stx) < abs(stpq - stx)
-            stpf = stpc
-        else
-            stpf = stpc + (stpq - stpc)/TWO
-        end
-        ls.brackt = true
-
-    elseif opposite
-
-        # Second case: A lower function value and derivatives of opposite sign.
-        # The minimum is bracketed.  If the cubic step is farther from `stp`
-        # than the secant step, the cubic step is taken, otherwise the secant
-        # step is taken.
-
-        theta = THREE*(fx - fp)/(stp - stx) + dx + dp
-        s = max(abs(theta), abs(dx), abs(dp))
-        gamma = s*sqrt((theta/s)^2 - (dx/s)*(dp/s))
-        if stp > stx; gamma = -gamma; end
-        p = (gamma - dp) + theta
-        q = ((gamma - dp) + gamma) + dx
-        r = p/q
-        stpc = stp + r*(stx - stp)
-        stpq = stp + (dp/(dp - dx))*(stx - stp)
-        if abs(stpc - stp) > abs(stpq - stp)
-            stpf = stpc
-        else
-            stpf = stpq
-        end
-        ls.brackt = true
-
-      elseif abs(dp) < abs(dx)
-
-        # Third case: A lower function value, derivatives of the same sign, and
-        # the magnitude of the derivative decreases.
-        #
-        # The cubic step is computed only if the cubic tends to infinity in the
-        # direction of the step or if the minimum of the cubic is beyond
-        # stp. Otherwise the cubic step is defined to be the secant step.
-
-        theta = THREE*(fx - fp)/(stp - stx) + dx + dp
-        s = max(abs(theta), abs(dx), abs(dp))
-
-        # The case `gamma = 0` only arises if the cubic does not tend to
-        # infinity in the direction of the step.
-
-        gamma = s*sqrt(max(ZERO, (theta/s)^2 - (dx/s)*(dp/s)))
-        if stp > stx; gamma = -gamma; end
-        p = (gamma - dp) + theta
-        q = (gamma + (dx - dp)) + gamma
-        r = p/q
-        if r < ZERO && gamma != ZERO
-            stpc = stp + r*(stx - stp)
-        elseif stp > stx
-            stpc = stpmax
-        else
-            stpc = stpmin
-        end
-        stpq = stp + (dp/(dp - dx))*(stx - stp)
-
-        if ls.brackt
-
-            # A minimizer has been bracketed.  If the cubic step is closer to
-            # `stp` than the secant step, the cubic step is taken, otherwise
-            # the secant step is taken.
-
-            if abs(stpc - stp) < abs(stpq - stp)
-               stpf = stpc
-            else
-               stpf = stpq
-            end
-            if stp > stx
-               stpf = min(stp + P66*(sty - stp), stpf)
-            else
-               stpf = max(stp + P66*(sty - stp), stpf)
-            end
-
-         else
-
-            # A minimizer has not been bracketed.  If the cubic step is farther
-            # from `stp` than the secant step, the cubic step is taken,
-            # otherwise the secant step is taken.
-
-            if abs(stpc - stp) > abs(stpq - stp)
-               stpf = stpc
-            else
-               stpf = stpq
-            end
-            stpf = min(stpmax, stpf)
-            stpf = max(stpmin, stpf)
-
-         end
-
-    else
-
-        # Fourth case: A lower function value, derivatives of the same sign,
-        # and the magnitude of the derivative does not decrease.  If the
-        # minimum is not bracketed, the step is either `stpmin` or `stpmax`,
-        # otherwise the cubic step is taken.
-
-        if ls.brackt
-            theta = THREE*(fp - fy)/(sty - stp) + dy + dp
-            s = max(abs(theta), abs(dy), abs(dp))
-            gamma = s*sqrt((theta/s)^2-(dy/s)*(dp/s))
-            if stp > sty; gamma = -gamma; end
-            p = (gamma - dp) + theta
-            q = ((gamma - dp) + gamma) + dy
-            r = p/q
-            stpc = stp + r*(sty - stp)
-            stpf = stpc
-        elseif stp > stx
-            stpf = stpmax
-        else
-            stpf = stpmin
-        end
-    end
-
-    # Update the interval which contains a minimizer.
-    if fp > fx
-        ls.sty = stp
-        ls.fy = fp
-        ls.dy = dp
-    else
-        if opposite
-            ls.sty = stx
-            ls.fy = fx
-            ls.dy = dx
-        end
-        ls.stx = stp
-        ls.fx = fp
-        ls.dx = dp
-    end
-
-    # Return the new step.
-    return stpf
 
 end
 
