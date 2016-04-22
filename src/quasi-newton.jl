@@ -55,6 +55,14 @@ The following keywords are available:
    occurs if the estimate of the absolute error between `f(x)` and `f(xsol)`,
    where `xsol` is a local minimizer, is less than `fatol`.
 
+* `gatol` and `grtol` specify an absolute and a relative thresholds for the
+  norm of the gradient, convergence is assumed as soon as:
+
+      ||g(x)|| <= hypot(gatol, grtol*||g(x0)||)
+
+  where `||g(x)||` is the Euclidean norm of the gradient at the current
+  solution `x`, `||g(x0)||` is the Euclidean norm of the gradient at the
+  starting point `x0`.  Defaults are `gatol = 0.0` and `grtol = 1e-6`.
 
 * `fmin` specifies a lower bound for the function.  The subroutine exits with a
   warning if `f(x) < fmin`.
@@ -115,8 +123,10 @@ finds a local minimizer of `f(x)` starting at `x` and stores the best solution
 so far in `x`.
 
 """
-function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, frtol::Real=1e-7,
-                   fatol::Real=0, fmin::Real=-Inf, verb::Bool=false,
+function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
+                   fatol::Real=0.0, frtol::Real=1e-8,
+                   gatol::Real=0.0, grtol::Real=1e-6,
+                   verb::Bool=false,
                    printer::Function=print_iteration, output::IO=STDOUT,
                    lnsrch::AbstractLineSearch=MoreThuenteLineSearch(ftol=1e-3,
                                                                     gtol=0.9,
@@ -124,6 +134,14 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, frtol::Real=1e-7,
     @assert(mem ≥ 1)
     @assert(fatol ≥ 0)
     @assert(frtol ≥ 0)
+    @assert(gatol ≥ 0)
+    @assert(grtol ≥ 0)
+
+    fmin = Float(fmin)
+    fatol = Float(fatol)
+    frtol = Float(frtol)
+    gatol = Float(gatol)
+    grtol = Float(grtol)
 
     reason::AbstractString = ""
     fminset::Bool = (! isnan(fmin) && fmin > -Inf)
@@ -141,6 +159,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, frtol::Real=1e-7,
     stpmin::Float = 0
     stpmax::Float = 0
     gamma::Float = 0    # initial scaling
+    gtest::Float = 0
 
     # Allocate memory
     g = similar(x)
@@ -204,11 +223,15 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, frtol::Real=1e-7,
         if stage != 1
             # Initial step or line search has converged.
             gnorm = norm2(g)
+            if eval == 1
+                gtest = hypot(gatol, grtol*gnorm)
+            end
 
             # Check for global convergence.
-            if gnorm ≤ 0
+            if gnorm ≤ gtest
                 stage = 3
-                reason = "a stationary point has been found"
+                reason = (gnorm > 0 ? "gradient sufficiently small" :
+                          "a stationary point has been found!")
             end
             if stage == 2
                 delta = max(abs(f - f0), stp*abs(gd0))
