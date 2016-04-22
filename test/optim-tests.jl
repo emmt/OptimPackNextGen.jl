@@ -35,9 +35,9 @@ function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
 end
 
 # Run tests in double and single precisions.
+n = 20
 for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
-    const n = 20
     x0 = Array(T, n)
     rosenbrock_init!(x0)
 
@@ -45,10 +45,10 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     # warmup).
     backtrack = BacktrackingLineSearch(amin=0.01)
     @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
-    x = lbfgs(rosenbrock_fg!, x0, verb=true)
+    x = lbfgs(rosenbrock_fg!, x0, verb=true, fmin=0)
     #@test_approx_eq_eps x1 ones(T,n) 1e-3
     @printf("\nTesting L-BFGS in %s precision and with Armijo's line search\n", prec)
-    x = lbfgs(rosenbrock_fg!, x0, verb=true, lnsrch=backtrack)
+    x = lbfgs(rosenbrock_fg!, x0, verb=true, fmin=0, lnsrch=backtrack)
     #@test_approx_eq_eps x ones(T,n) 1e-3
 
     # First run tests for timings.
