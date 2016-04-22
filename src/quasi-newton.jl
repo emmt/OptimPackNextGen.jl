@@ -272,16 +272,20 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                 if ! apply_lbfgs!(S, Y, rho, gamma, mp, mark, d, alpha)
                     # The steepest descent is being used.
                     stage = 0
+                    gd = -gnorm^2
+                else
+                    gd = -inner(g, d)
                 end
                 mark = (mark < mem ? mark + 1 : 1)
             else
                 # Initial point or restarting, use the steepest descent.
                 copy!(d, g)
+                gd = -gnorm^2
             end
 
             # Initialize the line search.
             f0 = f
-            gd0 = -inner(g, d)
+            gd0 = gd
             if stage == 2
                 stp = 1
             else
@@ -291,15 +295,8 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                     stp = 1/gnorm # FIXME: use a better scale
                 end
             end
-            stpmin = 0
-            if fminset && fmin < f0
-                # FIXME: This was in the original MINPACK-2 version but it does
-                # not work so well.
-                stpmax = (fmin - f0)/(sgtol*gd0)
-                stp = min(stp, stpmax)
-            else
-                stpmax = 1e20*stp
-            end
+            stpmin = 1e-20*stp
+            stpmax = 1e+20*stp
             copy!(S[mark], x) # save x0
             copy!(Y[mark], g) # save g0
             search = start!(lnsrch, stp, f0, gd0, stpmin, stpmax)
