@@ -19,6 +19,18 @@ export start!, iterate!, get_task, get_reason, get_step,
 # Use the same floating point type for scalars as in TiPi.
 import ..Float
 
+# Common to all line search instances.
+type CommonData
+    step::Float            # current triel step
+    finit::Float           # function value at step = 0
+    ginit::Float           # derivative at step = 0
+    stpmin::Float          # minimum step length
+    stpmax::Float          # maximum step length
+    reason::AbstractString # information message
+    task::Symbol           # current pending task
+    CommonData() = new(0, 0, 0, 0, 0, "", :START)
+end
+
 """
 ## Line search methods
 
@@ -77,24 +89,25 @@ abstract AbstractLineSearch
 * `:ERROR` if there are any errors; use `get_reason(ls)` to retrieve a textual
   error message.
 """
-get_task(ls::AbstractLineSearch) = ls.task
+get_task(ls::AbstractLineSearch) = ls.base.task
 
 """
 `get_step(ls)` yields the current trial step for the line search instance `ls`.
 """
-get_step(ls::AbstractLineSearch) = ls.step
+get_step(ls::AbstractLineSearch) = ls.base.step
 
 
 """
 `get_reason(ls)` yields the error or warning message for the line search
 instance `ls`.
 """
-get_reason(ls::AbstractLineSearch) = ls.reason
+get_reason(ls::AbstractLineSearch) = ls.base.reason
 
 """
 `requires_derivative(ls)` indicates whether the line search instance `ls`
-requires the derivative of the function.  Alternatively `ls` can also be
-the line search type.
+requires the derivative of the function when calling `iterate!`.  Alternatively
+`ls` can also be the line search type.  Note that the derivative is always
+needed by the `start!` method.
 """
 requires_derivative{T<:AbstractLineSearch}(::T) = requires_derivative(T)
 
@@ -154,49 +167,49 @@ function iterate!(ls::AbstractLineSearch, stp::Real, f::Real, g::Real)
     #error("`iterate!` method not implemented for this line search method")
 end
 
-# Private method to initialize common members of line search instances.
-function initialize!(ls::AbstractLineSearch)
-    ls.step = 0
-    ls.task = :START
-    ls.reason = ""
-    return ls
-end
-
-# Private method for the starting.
-function starting!(ls::AbstractLineSearch, stp::Float)
-    ls.step = stp
-    ls.task = :SEARCH
-    ls.reason = ""
-    return true
+# Private method to check and instanciate common parameters when starting a new
+# line search.
+function start!(ws::CommonData, stp::Float, f0::Float, g0::Float,
+                stpmin::Float, stpmax::Float)
+    @assert 0 ≤ stpmin ≤ stpmax
+    @assert stpmin ≤ stp ≤ stpmax
+    @assert g0 < 0 "not a descent direction"
+    ws.step = stp
+    ws.finit = f0
+    ws.ginit = g0
+    ws.stpmin = stpmin
+    ws.stpmax = stpmax
+    ws.reason = ""
+    ws.task = :SEARCH
 end
 
 # Private method to provide the next trial step.
-function searching!(ls::AbstractLineSearch, stp::Float)
-    ls.step = stp
-    ls.task = :SEARCH
-    ls.reason = ""
-    return (ls.step, true)
+function searching!(ws::CommonData, stp::Float)
+    ws.step = stp
+    ws.task = :SEARCH
+    ws.reason = ""
+    return (ws.step, true)
 end
 
 # Private method to indicate that the line search has converged.
-function convergence!(ls::AbstractLineSearch, reason::AbstractString)
-    ls.task = :CONVERGENCE
-    ls.reason = reason
-    return (ls.step, false)
+function convergence!(ws::CommonData, reason::AbstractString)
+    ws.task = :CONVERGENCE
+    ws.reason = reason
+    return (ws.step, false)
 end
 
 # Private method to indicate that the line search is terminated with a warning.
-function warning!(ls::AbstractLineSearch, reason::AbstractString)
-    ls.task = :WARNING
-    ls.reason = reason
-    return (ls.step, false)
+function warning!(ws::CommonData, reason::AbstractString)
+    ws.task = :WARNING
+    ws.reason = reason
+    return (ws.step, false)
 end
 
 # Private method to indicate that the line search has failed for some reason.
-function failure!(ls::AbstractLineSearch, reason::AbstractString)
-    ls.task = :ERROR
-    ls.reason = reason
-    return (ls.step, false)
+function failure!(ws::CommonData, reason::AbstractString)
+    ws.task = :ERROR
+    ws.reason = reason
+    return (ws.step, false)
 end
 
 #------------------------------------------------------------------------------
@@ -229,18 +242,12 @@ Default values are `ftol = 1e-3` and `amin = 1/2`.
 type BacktrackingLineSearch <: AbstractLineSearch
 
     # Common to all line search instances.
-    reason::AbstractString
-    task::Symbol
-    step::Float
+    base::CommonData
 
-    # More & Thuente line search parameters.
+    # Specific parameters.
     ftol::Float
     amin::Float
-    finit::Float
-    ginit::Float
     gtest::Float
-    stpmin::Float
-    stpmax::Float
 
     # Constructor.
     function BacktrackingLineSearch(;
@@ -248,18 +255,7 @@ type BacktrackingLineSearch <: AbstractLineSearch
                                     amin::Float=0.5)
         @assert ftol ≥ 0
         @assert amin ≥ 0
-
-        ls = new()
-
-        ls.ftol = ftol
-        ls.amin = amin
-        ls.finit = 0
-        ls.ginit = 0
-        ls.gtest = 0
-        ls.stpmin = 0
-        ls.stpmax = 0
-
-        return initialize!(ls)
+        new(CommonData(), ftol, amin, 0)
     end
 end
 
@@ -267,19 +263,9 @@ requires_derivative(::Type{BacktrackingLineSearch}) = false
 
 function start!(ls::BacktrackingLineSearch, stp::Float, f0::Float, g0::Float,
                 stpmin::Float, stpmax::Float)
-
-    @assert 0 ≤ stpmin ≤ stpmax
-    @assert stpmin ≤ stp ≤ stpmax
-    @assert g0 < 0 "not a descent direction"
-
-    ls.stpmin = stpmin
-    ls.stpmax = stpmax
-    ls.finit = f0
-    ls.ginit = g0
-    ls.gtest = ls.ftol*ls.ginit
-
-    return starting!(ls, stp)
-
+    start!(ls.base, stp, f0, g0, stpmin, stpmax)
+    ls.gtest = ls.ftol*ls.base.ginit
+    return true
 end
 
 function iterate!(ls::BacktrackingLineSearch, stp::Float, f::Float, g::Float)
@@ -287,20 +273,20 @@ function iterate!(ls::BacktrackingLineSearch, stp::Float, f::Float, g::Float)
 
     # Check for convergence otherwise take a (safeguarded) bisection
     # step unless already at the lower bound.
-    if f ≤ ls.finit + stp*ls.gtest
+    if f ≤ ls.base.finit + stp*ls.gtest
         # First Wolfe (Armijo) condition satisfied.
-        return convergence!(ls, "Armijo's condition holds")
+        return convergence!(ls.base, "Armijo's condition holds")
     end
-    if stp ≤ ls.stpmin
-        stp = ls.stpmin
-        return warning!(ls, "stp ≤ stpmin")
+    if stp ≤ ls.base.stpmin
+        stp = ls.base.stpmin
+        return warning!(ls.base, "stp ≤ stpmin")
     end
     if ls.amin ≥ HALF
         # Bisection step.
         stp *= HALF
     else
-        q::Float = -stp*ls.ginit;
-        r::Float = (f - (ls.finit - q))*Float(2)
+        q::Float = -stp*ls.base.ginit;
+        r::Float = (f - (ls.base.finit - q))*Float(2)
         if r ≤ 0
             # Bisection step.
             stp *= HALF
@@ -312,13 +298,13 @@ function iterate!(ls::BacktrackingLineSearch, stp::Float, f::Float, g::Float)
             stp *= q/r
         end
     end
-    if stp < ls.stpmin
+    if stp < ls.base.stpmin
         # Safeguard the step.
-        stp = ls.stpmin
+        stp = ls.base.stpmin
     end
 
     # Obtain another function and derivative.
-    return searching!(ls, stp)
+    return searching!(ls.base, stp)
 
 end
 
@@ -395,18 +381,12 @@ which are suitable for quasi Newton line search.
 type MoreThuenteLineSearch <: AbstractLineSearch
 
     # Common to all line search instances.
-    reason::AbstractString
-    task::Symbol
-    step::Float
+    base::CommonData
 
-    # More & Thuente line search parameters.
+    # Specific parameters.
     ftol::Float
     gtol::Float
     xtol::Float
-    stpmin::Float
-    stpmax::Float
-    finit::Float
-    ginit::Float
     gtest::Float
     width::Float
     width1::Float
@@ -438,11 +418,16 @@ type MoreThuenteLineSearch <: AbstractLineSearch
         @assert gtol ≥ 0
         @assert xtol ≥ 0
 
-        ls = new()
+        ls = new(CommonData())
 
         ls.ftol = ftol
         ls.gtol = gtol
         ls.xtol = xtol
+        ls.gtest = 0
+        ls.width = 0
+        ls.width1 = 0
+        ls.stage = 0
+
         ls.smin = 0
         ls.smax = 0
         ls.stx = 0
@@ -451,18 +436,8 @@ type MoreThuenteLineSearch <: AbstractLineSearch
         ls.sty = 0
         ls.fy = 0
         ls.dy = 0
-
-        ls.stpmin = 0
-        ls.stpmax = 0
-        ls.finit = 0
-        ls.ginit = 0
-        ls.gtest = 0
-        ls.width = 0
-        ls.width1 = 0
         ls.brackt = false
-        ls.stage = 0
-
-        return initialize!(ls)
+        return ls
     end
 end
 
@@ -473,55 +448,45 @@ const xtrapu = Float(4.0)
 
 # The arguments `stp`, `f`, `g` contain the values of the step,
 # function, and directional derivative at `stp`.
-function start!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float,
+function start!(ls::MoreThuenteLineSearch, stp::Float, f0::Float, g0::Float,
                 stpmin::Float, stpmax::Float)
-
-    @assert 0 ≤ stpmin ≤ stpmax
-    @assert stpmin ≤ stp ≤ stpmax
-    @assert g < 0 "not a descent direction"
-
-    ls.stpmin = stpmin
-    ls.stpmax = stpmax
+    start!(ls.base, stp, f0, g0, stpmin, stpmax)
     ls.brackt = false
     ls.stage = 1
-    ls.finit = f
-    ls.ginit = g
-    ls.gtest = ls.ftol*ls.ginit
-    ls.width = ls.stpmax - ls.stpmin
+    ls.gtest = ls.ftol*ls.base.ginit
+    ls.width = ls.base.stpmax - ls.base.stpmin
     ls.width1 = 2*ls.width
-
     ls.stx = 0
-    ls.fx = ls.finit
-    ls.dx = ls.ginit
+    ls.fx = ls.base.finit
+    ls.dx = ls.base.ginit
     ls.sty = 0
-    ls.fy = ls.finit
-    ls.dy = ls.ginit
+    ls.fy = ls.base.finit
+    ls.dy = ls.base.ginit
     ls.smin = 0
     ls.smax = stp + xtrapu*stp
-
-    return starting!(ls, stp)
+    return true
 
 end
 
 function iterate!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
     # If psi(stp) ≤ 0 and f'(stp) ≥ 0 for some step, then the algorithm
     # enters the second stage.
-    ftest::Float = ls.finit + stp*ls.gtest
+    ftest::Float = ls.base.finit + stp*ls.gtest
     if ls.stage == 1 && f ≤ ftest && g ≥ 0
         ls.stage = 2
     end
 
     # Test for termination (convergence or warnings).
-    if f ≤ ftest && abs(g) ≤ -ls.gtol*ls.ginit
-        return convergence!(ls, "strong Wolfe conditions hold")
-    elseif stp == ls.stpmin && (f > ftest || g ≥ ls.gtest)
-        return warning!(ls, "stp = stpmin")
-    elseif stp == ls.stpmax && f ≤ ftest && g ≤ ls.gtest
-        return warning!(ls, "stp = stpmax")
+    if f ≤ ftest && abs(g) ≤ -ls.gtol*ls.base.ginit
+        return convergence!(ls.base, "strong Wolfe conditions hold")
+    elseif stp == ls.base.stpmin && (f > ftest || g ≥ ls.gtest)
+        return warning!(ls.base, "stp = stpmin")
+    elseif stp == ls.base.stpmax && f ≤ ftest && g ≤ ls.gtest
+        return warning!(ls.base, "stp = stpmax")
     elseif ls.brackt && ls.smax - ls.smin ≤ ls.xtol*ls.smax
-        return warning!(ls, "xtol test satisfied")
+        return warning!(ls.base, "xtol test satisfied")
     elseif ls.brackt && (stp ≤ ls.smin || stp ≥ ls.smax)
-        return warning!(ls, "rounding errors prevent progress")
+        return warning!(ls.base, "rounding errors prevent progress")
     end
 
     # A modified function is used to predict the step during the first stage
@@ -571,8 +536,8 @@ function iterate!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
     end
 
     # Force the step to be within the bounds `stpmax` and `stpmin`.
-    stp = max(stp, ls.stpmin)
-    stp = min(stp, ls.stpmax)
+    stp = max(stp, ls.base.stpmin)
+    stp = min(stp, ls.base.stpmax)
 
     # If further progress is not possible, let `stp` be the best point
     # obtained during the search.
@@ -583,7 +548,7 @@ function iterate!(ls::MoreThuenteLineSearch, stp::Float, f::Float, g::Float)
     end
 
     # Obtain another function and derivative.
-    return searching!(ls, stp)
+    return searching!(ls.base, stp)
 
 end
 
@@ -741,9 +706,9 @@ function cstep!(ls::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
         if r < ZERO && gamma != ZERO
             stpc = stp + r*(stx - stp)
         elseif stp > stx
-            stpc = ls.stpmax
+            stpc = stpmax
         else
-            stpc = ls.stpmin
+            stpc = stpmin
         end
         stpq = stp + (dp/(dp - dx))*(stx - stp)
 
@@ -775,8 +740,8 @@ function cstep!(ls::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
             else
                stpf = stpq
             end
-            stpf = min(ls.stpmax, stpf)
-            stpf = max(ls.stpmin, stpf)
+            stpf = min(stpmax, stpf)
+            stpf = max(stpmin, stpf)
 
          end
 
@@ -798,9 +763,9 @@ function cstep!(ls::MoreThuenteLineSearch, stp::Float, fp::Float, dp::Float)
             stpc = stp + r*(sty - stp)
             stpf = stpc
         elseif stp > stx
-            stpf = ls.stpmax
+            stpf = stpmax
         else
-            stpf = ls.stpmin
+            stpf = stpmin
         end
     end
 
