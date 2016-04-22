@@ -19,18 +19,6 @@ export start!, iterate!, get_task, get_reason, get_step,
 # Use the same floating point type for scalars as in TiPi.
 import ..Float
 
-# Common to all line search instances.
-type CommonData
-    step::Float            # current triel step
-    finit::Float           # function value at step = 0
-    ginit::Float           # derivative at step = 0
-    stpmin::Float          # minimum step length
-    stpmax::Float          # maximum step length
-    reason::AbstractString # information message
-    task::Symbol           # current pending task
-    CommonData() = new(0, 0, 0, 0, 0, "", :START)
-end
-
 """
 ## Line search methods
 
@@ -70,6 +58,42 @@ type, a typical line search is perfomred as follows:
 
 """
 abstract AbstractLineSearch
+
+"""
+Type `CommonData` stores parameters common to all line search instances.  Any
+concrete line search type, say `SomeLineSearch`, must have a `base` member of
+type `CommonData`.  Furthermore initialization is simplified if `base` is the
+first member.  For instance:
+
+    type SomeLineSearch <: AbstractLineSearch
+        # Common to all line search instances.
+        base::CommonData
+
+        # Specific parameters.
+        memb1::Type1
+        memb2::Type2
+        ...
+
+        function SomeLineSearch(...)
+            ls = new(CommonData())
+            ls.memb1 = ...
+            ls.memb2 = ...
+            ...
+            return ls
+        end
+    end
+
+"""
+type CommonData
+    step::Float            # current triel step
+    finit::Float           # function value at step = 0
+    ginit::Float           # derivative at step = 0
+    stpmin::Float          # minimum step length
+    stpmax::Float          # maximum step length
+    reason::AbstractString # information message
+    task::Symbol           # current pending task
+    CommonData() = new(0, 0, 0, 0, 0, "", :START)
+end
 
 """
 `get_task(ls)` yields the current pending task for the line search instance
