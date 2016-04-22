@@ -116,7 +116,7 @@ so far in `x`.
 
 """
 function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, frtol::Real=1e-7,
-                   fatol::Real=0, fmin::Real=0, verb::Bool=false,
+                   fatol::Real=0, fmin::Real=-Inf, verb::Bool=false,
                    printer::Function=print_iteration, output::IO=STDOUT,
                    lnsrch::AbstractLineSearch=MoreThuenteLineSearch(ftol=1e-3,
                                                                     gtol=0.9,
@@ -124,6 +124,9 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, frtol::Real=1e-7,
     @assert(mem ≥ 1)
     @assert(fatol ≥ 0)
     @assert(frtol ≥ 0)
+
+    reason::AbstractString = ""
+    fminset::Bool = (! isnan(fmin) && fmin > -Inf)
 
     mem = min(mem, length(x))
     mark::Int = 1
@@ -157,118 +160,167 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, frtol::Real=1e-7,
     #sxtol::Float = 0.1
     #lnsrch = MoreThuenteLineSearch(ftol=sftol, gtol=sgtol, xtol=sxtol)
 
-    task::Symbol = :START
+    # Variable used to control the stage of the algorithm:
+    #   * stage = 0 at start or restart
+    #   * stage = 1 during a line search
+    #   * stage = 2 if line search has converged
+    #   * stage = 3 if algorithm is finished (convergence or other reasons)
     stage::Int = 0
+
     while true
 
-        # Compute value of function and gradient.
-        f = fg!(x, g)
-        eval += 1
-        if f < fmin
-            warn("f < fmin")
-            break
-        end
-
-        if stage == 2
-            # Line search is in progress.
-            gd = -inner(g, d)
-            (stp, search) = iterate!(lnsrch, stp, f, gd)
-            if ! search
-                # Line search should have converged.
-                if check_convergence(lnsrch, verbose=true) != :CONVERGENCE
-                    break
-                end
-
-                # Check for global convergence.
-                delta = max(abs(f - f0), stp*abs(gd0))
-                if delta ≤ frtol*abs(f0)
-                    info("convergence: frtol test satisfied")
-                    break
-                end
-                if delta ≤ fatol
-                    info("convergence: fatol test satisfied")
-                    break
-                end
-
-                # Set stage to trigger computing a new search direction.
-                stage = 1
+        if stage ≤ 1
+            # Compute value of function and gradient.
+            f = fg!(x, g)
+            eval += 1
+            if fminset && f < fmin
+                stage = 4
+                reason = "f < fmin"
             end
         end
 
-        if stage < 2
-            # Initial step or line search has converged.
+        if stage == 1
+            # Line search is in progress.
+            if requires_derivative(lnsrch)
+                gd = -inner(g, d)
+            end
+            (stp, search) = iterate!(lnsrch, stp, f, gd)
+            if ! search
+                if check_status(lnsrch) == :CONVERGENCE
+                    # Line search has converged.  Set stage to trigger
+                    # computing a new search direction and increment iteration
+                    # counter.
+                    stage = 2
+                    iter += 1
+                else
+                    # Something wrong occured.
+                    # FIXME: revert to best solution so far
+                    stage = 4
+                    reason = get_reason(lnsrch)
+                end
+            end
+        end
 
-            if stage == 1
+        if stage != 1
+            # Initial step or line search has converged.
+            gnorm = norm2(g)
+
+            # Check for global convergence.
+            if gnorm ≤ 0
+                stage = 3
+                reason = "a stationary point has been found"
+            end
+            if stage == 2
+                delta = max(abs(f - f0), stp*abs(gd0))
+                if delta ≤ frtol*abs(f0)
+                    stage = 3
+                    reason = "frtol test satisfied"
+                elseif delta ≤ fatol
+                    stage = 3
+                    reason = "fatol test satisfied"
+                end
+            end
+
+            # Print some information if requested.
+            if verb
+                printer(output, iter, eval, 0, f, gnorm, stp)
+            end
+            if stage ≥ 3
+                break
+            end
+
+            # Compute next search direction.
+            if stage == 2
                 # Compute the step and gradient change.
-                iter += 1
                 update!(S[mark], -1, x)
                 update!(Y[mark], -1, g)
                 rho[mark] = inner(Y[mark], S[mark])
 
-                # Compute the scale. FIXME:
+                # Compute the scale.
                 if rho[mark] > 0
                     gamma = rho[mark]/inner(Y[mark], Y[mark])
                 else
-                    gamma = 1
+                    gamma = 1 # FIXME: keep previous value?
                 end
 
                 # Compute d = H*g.
                 copy!(d, g)
                 mp = min(mem, iter)
                 if ! apply_lbfgs!(S, Y, rho, gamma, mp, mark, d, alpha)
-                    # Use the steepest descent.
+                    # The steepest descent is being used.
                     stage = 0
                 end
                 mark = (mark < mem ? mark + 1 : 1)
+            else
+                # Initial point or restarting, use the steepest descent.
+                copy!(d, g)
             end
-
-            if stage == 0
-                # Use steepest descent.
-                gamma = norm2(g) # FIXME: use a better scale
-                combine!(d, 1/gamma, g)
-            end
-
-            if verb
-                printer(output, iter, eval, 0, f, norm2(g), stp)
-            end
-
 
             # Initialize the line search.
             f0 = f
             gd0 = -inner(g, d)
+            if stage == 2
+                stp = 1
+            else
+                if fminset && fmin < f0
+                    stp = 2*(fmin - f0)/gd0
+                else
+                    stp = 1/gnorm # FIXME: use a better scale
+                end
+            end
             stpmin = 0
-            stpmax = (fmin - f0)/(sgtol*gd0)
-            stp = min(Float(1), stpmax)
+            if fminset && fmin < f0
+                # FIXME: This was in the original MINPACK-2 version but it does
+                # not work so well.
+                stpmax = (fmin - f0)/(sgtol*gd0)
+                stp = min(stp, stpmax)
+            else
+                stpmax = 1e20*stp
+            end
             copy!(S[mark], x) # save x0
             copy!(Y[mark], g) # save g0
             search = start!(lnsrch, stp, f0, gd0, stpmin, stpmax)
-            if ! search && check_convergence(lnsrch, verbose=true) != :CONVERGENCE
-                break
+            if search
+                # Line search is in progress.
+                stage = 1
+            else
+                # Something wrong happens.
+                stage = 4
+                reason = get_reason(lnsrch)
             end
-            stage = 2
 
         end
 
-        # Compute the new iterate.
-        combine!(x, 1, S[mark], -stp, d)
+        if stage == 1
+            # Compute the new iterate.
+            combine!(x, 1, S[mark], -stp, d)
+        end
 
     end
 
+    # Algorithm finished.
+    if verb
+        color = (stage > 3 ? :red : :blue)
+        prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
+        print_with_color(color, output,
+                         "# ", prefix, reason)
+    elseif stage > 3
+        warn(reason)
+    end
 end
 
-function check_convergence(lnsrch::AbstractLineSearch; verbose::Bool=false)
+function check_status(lnsrch::AbstractLineSearch)
     # Check for errors.
     task = get_task(lnsrch)
     if task != :CONVERGENCE
         reason = get_reason(lnsrch)
-        # FIXME:
-        if task == :WARNING && reason == "rounding errors prevent progress"
-            verbose && info(reason)
-            task = :CONVERGENCE
-        elseif task == :ERROR
-            error(reason)
+        # FIXME: use a constant instead
+        if task == :WARNING
+            if reason == "rounding errors prevent progress"
+                task = :CONVERGENCE
+            end
         else
-            warn(reason)
+            error(reason)
         end
     end
     return task
