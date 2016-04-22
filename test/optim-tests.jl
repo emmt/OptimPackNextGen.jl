@@ -37,39 +37,25 @@ end
 # Run tests in double and single precisions.
 for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
-    x0 = Array(T, 20)
+    const n = 20
+    x0 = Array(T, n)
     rosenbrock_init!(x0)
 
+    # First run tests in verbose mode (also serve for pre-compilation and
+    # warmup).
+    backtrack = BacktrackingLineSearch(amin=0.01)
     @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
-    x1 = lbfgs(rosenbrock_fg!, x0, verb=true)
-    #@test_approx_eq_eps x1 ones(T,20) 1e-3
-
+    x = lbfgs(rosenbrock_fg!, x0, verb=true)
+    #@test_approx_eq_eps x1 ones(T,n) 1e-3
     @printf("\nTesting L-BFGS in %s precision and with Armijo's line search\n", prec)
-    x2 = lbfgs(rosenbrock_fg!, x0, verb=true, lnsrch=BacktrackingLineSearch(amin=0.01))
-    #@test_approx_eq_eps x1 ones(T,20) 1e-3
+    x = lbfgs(rosenbrock_fg!, x0, verb=true, lnsrch=backtrack)
+    #@test_approx_eq_eps x ones(T,n) 1e-3
 
-    #@printf("\nTesting NLCG in %s precision\n", prec)
-    #x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=true)
-    #@test_approx_eq_eps x1 ones(T,20) 1e-3
-    #
-    #@printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
-    #x2 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true)
-    #                    #scaling=OptimPack.SCALING_OREN_SPEDICATO)
-    #@test_approx_eq_eps x2 ones(T,20) 1e-3
-    #
-    #@printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
-    #x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true, mem=15)
-    #                    #scaling=OptimPack.SCALING_OREN_SPEDICATO)
-    #@test_approx_eq_eps x3 ones(T,20) 1e-3
-    #
-    #@printf("\nTesting VMLMB in %s precision with nonnegativity\n", prec)
-    #x4 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true, lower=0)
-    #@test_approx_eq_eps x4 ones(T,20) 1e-3
-
-    #@printf("\nTesting VMLM in %s precision with Barzilai & Borwein scaling\n", prec)
-    #x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=true,
-    #                     scaling=OptimPack.SCALING_BARZILAI_BORWEIN)
-    #@test_approx_eq_eps x3 ones(T,20) 1e-4
+    # First run tests for timings.
+    @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
+    @time x = lbfgs(rosenbrock_fg!, x0, verb=false)
+    @printf("\nTesting L-BFGS in %s precision and with Armijo's line search\n", prec)
+    @time x = lbfgs(rosenbrock_fg!, x0, verb=false, lnsrch=backtrack)
 
 end
 
