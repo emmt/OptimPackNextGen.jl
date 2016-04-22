@@ -296,9 +296,11 @@ end
 #------------------------------------------------------------------------------
 
 """
-The call:
+One of the calls:
 
     modif = apply_lbfgs!(S, Y, rho, gamma, m, mark, v, alpha)
+    modif = apply_lbfgs!(S, Y, rho, d,     m, mark, v, alpha)
+    modif = apply_lbfgs!(S, Y, rho, H0!,   m, mark, v, alpha)
 
 computes the matrix-vector product `H*v` where `H` is the limited memory
 inverse BFGS approximation.  Operation is done *in-place*: on entry, argument
@@ -308,20 +310,20 @@ indicating whether the initial vector was modified (BFGS updates are skipped if
 `rho[k] ≤ 0`).
 
 The linear operator `H` depends on an initial approximation of the inverse
-Hessian `H0`, `m` steps `S[...]` and `m` gradient differences `Y[...]`.  The
-most recent step and gradient difference are stored in `S[mark]` and `Y[mark]`,
-respectively.  The initial approximation of the inverse Hessian is assumed to
-be `H0 = gamma*I` where `gamma > 0` and `I` is the identity.
-
-* by a scalar `gamma > 0` to assume that the initial approximation of the
-  inverse Hessia is `gamma*I` where `I` is the identity;
-
+Hessian (see below), `m` steps `S[...]` and `m` gradient differences `Y[...]`.
+The most recent step and gradient difference are stored in `S[mark]` and
+`Y[mark]`, respectively.
 
 Argument `rho` contains the inner products of the steps and the gradient
 differences: `rho[k] = inner(S[k],Y[k])`.  On exit rho is unchanged.
 
 Argument `alpha` is a work vector of length at least `m`.
 
+The initial approximation of the inverse Hessian can be specified in several
+ways:
+
+* by a scalar `gamma > 0` to assume that the initial approximation of the
+  inverse Hessia is `gamma*I` where `I` is the identity;
 
 * by a some instance of the same type as `v` (whose components are all strictly
   positive) to assume that the initial approximation of the inverse Hessian is
@@ -354,6 +356,70 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             if gamma != 1
                 scale!(v, gamma)
             end
+            for i in 1:m
+                if rho[k] > 0
+                    beta::Float = inner(Y[k], v)/rho[k]
+                    update!(v, alpha[k] - beta, S[k])
+                end
+                k = (k < mem ? k + 1 : 1)
+            end
+        end
+    end
+    return modif
+end
+
+function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+                         d::T, m::Int, mark::Int, v::T,
+                         alpha::Vector{Float})
+    mem = min(length(S), length(Y), length(rho), length(alpha))
+    @assert gamma > 0
+    @assert 1 ≤ m ≤ mem
+    @assert 1 ≤ mark ≤ mem
+    modif::Bool = false
+    @inbounds begin
+        k::Int = mark + 1
+        for i in 1:m
+            k = (k > 1 ? k - 1 : mem)
+            if rho[k] > 0
+                alpha[k] = inner(S[k], v)/rho[k]
+                update!(v, -alpha[k], Y[k])
+                modif = true
+            end
+        end
+        if modif
+            multiply!(v, d, v)
+            for i in 1:m
+                if rho[k] > 0
+                    beta::Float = inner(Y[k], v)/rho[k]
+                    update!(v, alpha[k] - beta, S[k])
+                end
+                k = (k < mem ? k + 1 : 1)
+            end
+        end
+    end
+    return modif
+end
+
+function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+                         H0!::Function, m::Int, mark::Int, v::T,
+                         alpha::Vector{Float})
+    mem = min(length(S), length(Y), length(rho), length(alpha))
+    @assert gamma > 0
+    @assert 1 ≤ m ≤ mem
+    @assert 1 ≤ mark ≤ mem
+    modif::Bool = false
+    @inbounds begin
+        k::Int = mark + 1
+        for i in 1:m
+            k = (k > 1 ? k - 1 : mem)
+            if rho[k] > 0
+                alpha[k] = inner(S[k], v)/rho[k]
+                update!(v, -alpha[k], Y[k])
+                modif = true
+            end
+        end
+        if modif
+            H0!(v)
             for i in 1:m
                 if rho[k] > 0
                     beta::Float = inner(Y[k], v)/rho[k]
