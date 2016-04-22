@@ -1,7 +1,7 @@
 #
 # quasi-newton.jl --
 #
-# Limited memory quasi Newton methods for TiPi.
+# Limited memory quasi-Newton methods for TiPi.
 #
 #------------------------------------------------------------------------------
 #
@@ -11,11 +11,11 @@
 #
 #------------------------------------------------------------------------------
 
-# FIXME: implement restarts
-# FIXME: add other convergence criteria
-
 # Improvements:
 # - skip updates such that rho <= 0
+# - TODO: implement restarts
+# - TODO: add other convergence criteria
+# - TODO: better initial step
 
 module QuasiNewton
 
@@ -59,6 +59,27 @@ The following keywords are available:
 * `fmin` specifies a lower bound for the function.  The subroutine exits with a
   warning if `f(x) < fmin`.
 
+* `verb` specifies whether to print iteration information (`verb = false`, by
+  default).
+
+* `printer` can be set with a user defined function to print iteration
+  information, its signature is:
+  ```
+  printer(io::IO, iter::Integer, eval::Integer, restart::Integer,
+          f::Real, gnorm::Real, stp::Real)
+  ```
+  where `io` is the output stream, `iter` the iteration number (`iter = 0` for
+  the starting point), `eval` is the number of calls to `fg!`, `restart` is the
+  number or restarts of the method, `f` and `gnorm` are the value of the
+  function and norm of the gradient at the current point, `stp` is the length
+  of the step to the current point.
+
+* `output` specifies the output stream for printing information (`output =
+  STDOUT` by default).
+
+* `lnsrch` specifies the method to use for line searches (the default
+   line search is `MoreThuenteLineSearch`).
+
 
 ### History
 
@@ -97,10 +118,10 @@ so far in `x`.
 """
 function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, frtol::Real=1e-7,
                    fatol::Real=0, fmin::Real=0, verb::Bool=false,
+                   printer::Function=print_iteration, output::IO=STDOUT,
                    lnsrch::AbstractLineSearch=MoreThuenteLineSearch(ftol=1e-3,
                                                                     gtol=0.9,
                                                                     xtol= 0.1))
-
     @assert(mem ≥ 1)
     @assert(fatol ≥ 0)
     @assert(frtol ≥ 0)
@@ -209,13 +230,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, frtol::Real=1e-7,
             end
 
             if verb
-                if iter == 0
-                    @printf("%s\n%s\n",
-                            " ITER   EVAL  RESTARTS          F(X)           ||G(X)||    STEP",
-                            "-----------------------------------------------------------------")
-                end
-                @printf("%5d  %5d  %5d  %24.16E %9.2E %9.2E\n",
-                        iter, eval, 0, f, norm2(g), stp)
+                printer(output, iter, eval, 0, f, norm2(g), stp)
             end
 
 
@@ -259,6 +274,25 @@ function check_convergence(lnsrch::AbstractLineSearch; verbose::Bool=false)
     end
     return task
 end
+
+function print_iteration(iter::Int, eval::Int, restart::Int,
+                         f::Float, gnorm::Float, step::Float)
+    print_iteration(STDOUT, iter, eval, restart, f, gnorm, step)
+end
+
+function print_iteration(io::IO, iter::Int, eval::Int, restart::Int,
+                         f::Float, gnorm::Float, step::Float)
+    if iter == 0
+        @printf(io, "#%s%s\n#%s%s\n",
+                " ITER   EVAL  RESTARTS",
+                "          F(X)           ||G(X)||    STEP",
+                "----------------------",
+                "-------------------------------------------")
+    end
+    @printf(io, " %5d  %5d  %5d  %24.16E %9.2E %9.2E\n",
+            iter, eval, restart, f, gnorm, step)
+end
+
 #------------------------------------------------------------------------------
 
 """
