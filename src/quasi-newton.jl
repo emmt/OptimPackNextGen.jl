@@ -99,7 +99,6 @@ the FORTRAN code LBFGS.
 
 """
 function lbfgs{T}(fg!::Function, x0::T; keywords...)
-    println(keywords)
     x = similar(x0)
     copy!(x, x0)
     lbfgs!(fg!, x; keywords...)
