@@ -11,7 +11,7 @@
 #
 # This file is part of TiPi.jl licensed under the MIT "Expat" License.
 #
-# Copyright (C) 2015, Éric Thiébaut & Jonathan Léger.
+# Copyright (C) 2015-2016, Éric Thiébaut & Jonathan Léger.
 #
 #------------------------------------------------------------------------------
 
@@ -19,6 +19,9 @@ module Algebra
 
 export inner, norm1, norm2, normInf
 export swap!, update!, combine!
+
+# Use the same floating point type for scalars as in TiPi.
+import ..Float
 
 """
 ### Euclidean norm
@@ -33,7 +36,7 @@ function norm2{T<:AbstractFloat,N}(v::Array{T,N})
     @simd for i in 1:length(v)
         @inbounds s += v[i]*v[i]
     end
-    return sqrt(s)
+    return Float(sqrt(s))
 end
 
 """
@@ -49,7 +52,7 @@ function norm1{T<:AbstractFloat,N}(v::Array{T,N})
     @simd for i in 1:length(v)
         @inbounds s += abs(v[i])
     end
-    return s
+    return Float(s)
 end
 
 """
@@ -65,7 +68,7 @@ function normInf{T<:AbstractFloat,N}(v::Array{T,N})
     @simd for i in 1:length(v)
         @inbounds s = max(s, abs(v[i]))
     end
-    return s
+    return Float(s)
 end
 
 """
@@ -94,7 +97,7 @@ function inner{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
     @simd for i in 1:length(x)
         @inbounds s += x[i]*y[i]
     end
-    return s
+    return Float(s)
 end
 
 function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
@@ -104,7 +107,7 @@ function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
     @simd for i in 1:length(w)
         @inbounds s += w[i]*x[i]*y[i]
     end
-    return s
+    return Float(s)
 end
 
 function inner{T<:AbstractFloat,N}(sel::Vector{Int}, x::Array{T,N}, y::Array{T,N})
@@ -116,7 +119,7 @@ function inner{T<:AbstractFloat,N}(sel::Vector{Int}, x::Array{T,N}, y::Array{T,N
         1 <= j <= n || throw(BoundsError())
         @inbounds s += x[j]*y[j]
     end
-    return s
+    return Float(s)
 end
 
 """
@@ -153,9 +156,8 @@ increments the components of the destination *vector* `dst` by those of
 using `x`.
 """
 function update!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                     alpha::Real, x::Array{T,N})
+                                     a::T, x::Array{T,N})
     @assert(size(x) == size(dst))
-    const a::T = alpha
     const n = length(dst)
     @inbounds begin
         if a == one(T)
@@ -276,15 +278,20 @@ function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
     end
 end
 
+function update!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                     alpha::Real, x::Array{T,N})
+    update!(dst, T(alpha), x)
+end
+
 function combine!{T<:Real,N}(dst::Array{T,N},
                              alpha::Real, x::Array{T,N})
-    combine!(dst, convert(T, alpha), x)
+    combine!(dst, T(alpha), x)
 end
 
 function combine!{T<:Real,N}(dst::Array{T,N},
                              alpha::Real, x::Array{T,N},
                              beta::Real,  y::Array{T,N})
-    combine!(dst, convert(T, alpha), x, convert(T, beta), y)
+    combine!(dst, T(alpha), x, T(beta), y)
 end
 
 end # module
