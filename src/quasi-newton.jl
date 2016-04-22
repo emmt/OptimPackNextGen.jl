@@ -305,35 +305,45 @@ inverse BFGS approximation.  Operation is done *in-place*: on entry, argument
 `v` contains the input vector `v`; on exit, argument `v` contains the
 matrix-vector product `H*v`.  The returned value, `modif`, is a boolean
 indicating whether the initial vector was modified (BFGS updates are skipped if
-`rho[i] ≤ 0`).
+`rho[k] ≤ 0`).
 
-The linear operator `H` depends on an initial matrix `H0`, `m` steps
-`S[1]`,...,`S[m]`, and `m` gradient differences `Y[1]`,...,`Y[m]`.  The most
-recent step and gradient difference are stored in `S[mark]` and `Y[mark]`,
-respectively.  The initial matrix `H0` is assumed to be `gamma*I` where `gamma
-> 0` and `I` is the identity.
+The linear operator `H` depends on an initial approximation of the inverse
+Hessian `H0`, `m` steps `S[...]` and `m` gradient differences `Y[...]`.  The
+most recent step and gradient difference are stored in `S[mark]` and `Y[mark]`,
+respectively.  The initial approximation of the inverse Hessian is assumed to
+be `H0 = gamma*I` where `gamma > 0` and `I` is the identity.
+
+* by a scalar `gamma > 0` to assume that the initial approximation of the
+  inverse Hessia is `gamma*I` where `I` is the identity;
+
 
 Argument `rho` contains the inner products of the steps and the gradient
-differences: `rho[i] = inner(S[i],Y[i])`.  On exit rho is unchanged.
+differences: `rho[k] = inner(S[k],Y[k])`.  On exit rho is unchanged.
 
 Argument `alpha` is a work vector of length at least `m`.
 
-"""
 
+* by a some instance of the same type as `v` (whose components are all strictly
+  positive) to assume that the initial approximation of the inverse Hessian is
+  a diagonal matrix whose diagonal terms are given by `d`;
+
+* by a function `H0!` to assume that `H0!(u)` (for any instance `u` of the same
+  type as `v`) applies the initial approximation of the inverse Hessian to `u`
+  and stores the result in `u` (in-place operation).
+
+"""
 function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
                          gamma::Float, m::Int, mark::Int, v::T,
                          alpha::Vector{Float})
-    @assert(gamma > 0)
-    @assert(1 ≤ mark ≤ m)
-    @assert(length(S) ≥ m)
-    @assert(length(Y) ≥ m)
-    @assert(length(rho) ≥ m)
-    @assert(length(alpha) ≥ m)
+    mem = min(length(S), length(Y), length(rho), length(alpha))
+    @assert gamma > 0
+    @assert 1 ≤ m ≤ mem
+    @assert 1 ≤ mark ≤ mem
     modif::Bool = false
     @inbounds begin
         k::Int = mark + 1
         for i in 1:m
-            k = (k > 1 ? k - 1 : m)
+            k = (k > 1 ? k - 1 : mem)
             if rho[k] > 0
                 alpha[k] = inner(S[k], v)/rho[k]
                 update!(v, -alpha[k], Y[k])
@@ -346,10 +356,10 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             end
             for i in 1:m
                 if rho[k] > 0
-                    beta::Float = alpha[k] - inner(Y[k], v)/rho[k]
-                    update!(v, beta, S[k])
+                    beta::Float = inner(Y[k], v)/rho[k]
+                    update!(v, alpha[k] - beta, S[k])
                 end
-                k = (k < m ? k + 1 : 1)
+                k = (k < mem ? k + 1 : 1)
             end
         end
     end
