@@ -336,74 +336,20 @@ ways:
 function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
                          gamma::Float, m::Int, mark::Int, v::T,
                          alpha::Vector{Float})
-    mem = min(length(S), length(Y), length(rho), length(alpha))
     @assert gamma > 0
-    @assert 1 ≤ m ≤ mem
-    @assert 1 ≤ mark ≤ mem
-    modif::Bool = false
-    @inbounds begin
-        k::Int = mark + 1
-        for i in 1:m
-            k = (k > 1 ? k - 1 : mem)
-            if rho[k] > 0
-                alpha[k] = inner(S[k], v)/rho[k]
-                update!(v, -alpha[k], Y[k])
-                modif = true
-            end
-        end
-        if modif
-            if gamma != 1
-                scale!(v, gamma)
-            end
-            for i in 1:m
-                if rho[k] > 0
-                    beta::Float = inner(Y[k], v)/rho[k]
-                    update!(v, alpha[k] - beta, S[k])
-                end
-                k = (k < mem ? k + 1 : 1)
-            end
-        end
-    end
-    return modif
+    apply_lbfgs!(S, Y, rho, u -> scale!(u, gamma), m, mark, v, alpha)
 end
 
 function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
                          d::T, m::Int, mark::Int, v::T,
                          alpha::Vector{Float})
-    mem = min(length(S), length(Y), length(rho), length(alpha))
-    @assert gamma > 0
-    @assert 1 ≤ m ≤ mem
-    @assert 1 ≤ mark ≤ mem
-    modif::Bool = false
-    @inbounds begin
-        k::Int = mark + 1
-        for i in 1:m
-            k = (k > 1 ? k - 1 : mem)
-            if rho[k] > 0
-                alpha[k] = inner(S[k], v)/rho[k]
-                update!(v, -alpha[k], Y[k])
-                modif = true
-            end
-        end
-        if modif
-            multiply!(v, d, v)
-            for i in 1:m
-                if rho[k] > 0
-                    beta::Float = inner(Y[k], v)/rho[k]
-                    update!(v, alpha[k] - beta, S[k])
-                end
-                k = (k < mem ? k + 1 : 1)
-            end
-        end
-    end
-    return modif
+    apply_lbfgs!(S, Y, rho, u -> multiply!(u, d, u), m, mark, v, alpha)
 end
 
 function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
                          H0!::Function, m::Int, mark::Int, v::T,
                          alpha::Vector{Float})
     mem = min(length(S), length(Y), length(rho), length(alpha))
-    @assert gamma > 0
     @assert 1 ≤ m ≤ mem
     @assert 1 ≤ mark ≤ mem
     modif::Bool = false
