@@ -78,18 +78,18 @@ The following keywords are available:
 
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
-  ```
-  printer(io::IO, iter::Integer, eval::Integer, restart::Integer,
-          f::Real, gnorm::Real, stp::Real)
-  ```
+
+      printer(io::IO, iter::Integer, eval::Integer, restart::Integer,
+              f::Real, gnorm::Real, stp::Real)
+
   where `io` is the output stream, `iter` the iteration number (`iter = 0` for
   the starting point), `eval` is the number of calls to `fg!`, `restart` is the
   number or restarts of the method, `f` and `gnorm` are the value of the
   function and norm of the gradient at the current point, `stp` is the length
   of the step to the current point.
 
-* `output` specifies the output stream for printing information (`output =
-  STDOUT` by default).
+* `output` specifies the output stream for printing information (`STDOUT` is
+  used by default).
 
 * `lnsrch` specifies the method to use for line searches (the default
    line search is `MoreThuenteLineSearch`).
@@ -98,11 +98,12 @@ The following keywords are available:
 ### History
 
 The limited memory BFGS method (L-BFGS) was first described by Nocedal (1980)
-who dubbed it SQN.  In the MINPACK-2 project (1995), the FORTRAN routine VMLM
-implements this method.  The numerical performances of L-BFGS have been studied
+who dubbed it SQN.  The method is implemented in MINPACK-2 (1995) by the
+FORTRAN routine VMLM.  The numerical performances of L-BFGS have been studied
 by Liu and Nocedal (1989) who proved that it is globally convergent for
-unfiformly convex problmens with a R-linear rate of convergence.  They provided
-the FORTRAN code LBFGS.
+unfiformly convex problems with a R-linear rate of convergence.  They provided
+the FORTRAN code LBFGS.  The version in TiPi.jl provides a pure Julia
+implementation with some improvements.
 
 * Nocedal, J. "Updating Quasi-Newton Matrices with Limited Storage,"
   Mathematics of Computation, vol. 35, pp. 773-782 (1980).
@@ -140,6 +141,11 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                    lnsrch::AbstractLineSearch=MoreThuenteLineSearch(ftol=1e-3,
                                                                     gtol=0.9,
                                                                     xtol= 0.1))
+    maxiter = Int(maxiter)
+    maxeval = Int(maxeval)
+
+    @assert maxiter ≥ 0
+    @assert maxeval ≥ 1
     @assert mem ≥ 1
     @assert fatol ≥ 0
     @assert frtol ≥ 0
@@ -147,8 +153,6 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     @assert grtol ≥ 0
     @assert 0 ≤ epsilon < 1
 
-    maxiter = Int(maxiter)
-    maxeval = Int(maxeval)
     fmin = Float(fmin)
     fatol = Float(fatol)
     frtol = Float(frtol)
@@ -183,11 +187,12 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     bestgnorm::Float = 0
     best::Bool = false
 
-    # Allocate memory
-    g = similar(x)
-    d = similar(x)
-    S = Array(T, mem)
-    Y = Array(T, mem)
+    # Allocate memory for the limited memory BFGS approximation of the inverse
+    # Hessian.
+    g = similar(x)    # gradient
+    d = similar(x)    # search direction
+    S = Array(T, mem) # memorized steps
+    Y = Array(T, mem) # memorized gradient differences
     for k in 1:mem
         S[k] = similar(x)
         Y[k] = similar(x)
@@ -196,33 +201,30 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     alpha = Array(Float, mem)
 
     # Variable used to control the stage of the algorithm:
-    #   * stage = 0 at start or restart
-    #   * stage = 1 during a line search
-    #   * stage = 2 if line search has converged
-    #   * stage = 3 if algorithm has converged
-    #   * stage = 4 if algorithm is finished for other reasons
+    #   * stage = 0 at start or restart;
+    #   * stage = 1 during a line search;
+    #   * stage = 2 if line search has converged;
+    #   * stage = 3 if algorithm has converged;
+    #   * stage = 4 if algorithm is finished for other reasons.
     stage::Int = 0
 
     while true
 
-        if stage ≤ 1
-            # Compute value of function and gradient.
-            f = fg!(x, g)
-            eval += 1
-            best = (eval == 1 || f < bestf)
-            if best
-                beststp = stp
-                bestf = f
-                bestgnorm = norm2(g)
-            end
-            if fminset && f < fmin
-                stage = 4
-                reason = "f < fmin"
-            end
-            if eval ≥ maxeval
-                reason = "too many evaluations"
-                stage = 4
-            end
+        # Compute value of function and gradient.
+        f = fg!(x, g)
+        eval += 1
+        best = (eval == 1 || f < bestf)
+        if best
+            beststp = stp
+            bestf = f
+            bestgnorm = norm2(g)
+        end
+        if fminset && f < fmin
+            stage = 4
+            reason = "f < fmin"
+        elseif eval ≥ maxeval
+            reason = "too many evaluations"
+            stage = 4
         end
 
         if stage == 1
@@ -348,22 +350,18 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
             stpmax = 1e+20*stp
             copy!(S[mark], x) # save x0
             copy!(Y[mark], g) # save g0
-            search = start!(lnsrch, stp, f0, gd0, stpmin, stpmax)
-            if search
-                # Line search is in progress.
-                stage = 1
-            else
+            if ! start!(lnsrch, stp, f0, gd0, stpmin, stpmax)
                 # Something wrong happens.
                 stage = 4
                 reason = get_reason(lnsrch)
+                break
             end
+            stage = 1 # line search is in progress
 
         end
 
-        if stage == 1
-            # Compute the new iterate.
-            combine!(x, 1, S[mark], -stp, d)
-        end
+        # Compute the new iterate.
+        combine!(x, 1, S[mark], -stp, d)
 
     end
 
