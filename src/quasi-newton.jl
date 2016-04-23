@@ -14,8 +14,9 @@
 # Improvements:
 # - skip updates such that rho <= 0;
 # - check for sufficient descent condition and implement restarts;
-# - TODO: add other convergence criteria;
-# - TODO: better initial step;
+# - add other convergence criteria;
+# - in case of early stop, revert to best solution so far;
+# - better initial step than 1/norm2(g);
 
 module QuasiNewton
 
@@ -64,8 +65,13 @@ The following keywords are available:
   solution `x`, `||g(x0)||` is the Euclidean norm of the gradient at the
   starting point `x0`.  Defaults are `gatol = 0.0` and `grtol = 1e-6`.
 
-* `fmin` specifies a lower bound for the function.  The subroutine exits with a
-  warning if `f(x) < fmin`.
+* `fmin` specifies a lower bound for the function.  If provided, `fmin` is used
+  to estimate the steepest desxecnt step length this value.  The algorithm
+  exits with a warning if `f(x) < fmin`.
+
+* `maxiter` specifies the maximum number of iterations.
+
+* `maxeval` specifies the maximum number of calls to `fg!`.
 
 * `verb` specifies whether to print iteration information (`verb = false`, by
   default).
@@ -124,6 +130,8 @@ so far in `x`.
 
 """
 function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
+                   maxiter::Integer=typemax(Int),
+                   maxeval::Integer=typemax(Int),
                    fatol::Real=0.0, frtol::Real=1e-8,
                    gatol::Real=0.0, grtol::Real=1e-6,
                    epsilon::Real=0.0,
@@ -139,6 +147,8 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     @assert grtol ≥ 0
     @assert 0 ≤ epsilon < 1
 
+    maxiter = Int(maxiter)
+    maxeval = Int(maxeval)
     fmin = Float(fmin)
     fatol = Float(fatol)
     frtol = Float(frtol)
@@ -150,7 +160,8 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     fminset::Bool = (! isnan(fmin) && fmin > -Inf)
 
     mem = min(mem, length(x))
-    mark::Int = 1
+    mark::Int = 1  # index of most recent step and gradient difference
+    m::Int = 0     # number of memorized steps
     iter::Int = 0
     eval::Int = 0
     restarts::Int = 0
@@ -162,8 +173,15 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     stp::Float = 0
     stpmin::Float = 0
     stpmax::Float = 0
-    gamma::Float = 0
+    gamma::Float = 1
+    gnorm::Float = 0
     gtest::Float = 0
+
+    # Variables for saving information about best point so far.
+    beststp::Float = 0
+    bestf::Float = 0
+    bestgnorm::Float = 0
+    best::Bool = false
 
     # Allocate memory
     g = similar(x)
@@ -181,7 +199,8 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     #   * stage = 0 at start or restart
     #   * stage = 1 during a line search
     #   * stage = 2 if line search has converged
-    #   * stage = 3 if algorithm is finished (convergence or other reasons)
+    #   * stage = 3 if algorithm has converged
+    #   * stage = 4 if algorithm is finished for other reasons
     stage::Int = 0
 
     while true
@@ -190,9 +209,19 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
             # Compute value of function and gradient.
             f = fg!(x, g)
             eval += 1
+            best = (eval == 1 || f < bestf)
+            if best
+                beststp = stp
+                bestf = f
+                bestgnorm = norm2(g)
+            end
             if fminset && f < fmin
                 stage = 4
                 reason = "f < fmin"
+            end
+            if eval ≥ maxeval
+                reason = "too many evaluations"
+                stage = 4
             end
         end
 
@@ -207,11 +236,15 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                     # Line search has converged.  Set stage to trigger
                     # computing a new search direction and increment iteration
                     # counter.
-                    stage = 2
                     iter += 1
+                    if iter ≥ maxiter
+                        reason = "too many iterations"
+                        stage = 4
+                    else
+                        stage = 2
+                    end
                 else
-                    # Something wrong occured.
-                    # FIXME: revert to best solution so far
+                    # Line seach terminated with a warning.
                     stage = 4
                     reason = get_reason(lnsrch)
                 end
@@ -220,7 +253,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
 
         if stage != 1
             # Initial step or line search has converged.
-            gnorm = norm2(g)
+            gnorm = best ? bestgnorm : norm2(g)
             if eval == 1
                 gtest = hypot(gatol, grtol*gnorm)
             end
@@ -242,6 +275,14 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                 end
             end
 
+            # If something wrong occured, revert to best solution so far.
+            if stage > 3 && !best
+                stp = beststp
+                f = bestf
+                gnorm = bestgnorm
+                combine!(x, 1, S[mark], -stp, d)
+            end
+
             # Print some information if requested.
             if verb
                 printer(output, iter, eval, restarts, f, gnorm, stp)
@@ -252,10 +293,12 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
 
             # Compute next search direction.
             if stage == 2
-                # Compute the step and gradient change.
+                # Update limited memory BFGS approximation of the inverse
+                # Hessian with the effective step and gradient change.
                 update!(S[mark], -1, x)
                 update!(Y[mark], -1, g)
                 rho[mark] = inner(Y[mark], S[mark])
+                m = min(m + 1, mem)
 
                 # Compute the scale.
                 if rho[mark] > 0
@@ -266,8 +309,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
 
                 # Compute d = H*g.
                 copy!(d, g)
-                mp = min(mem, iter)
-                if ! apply_lbfgs!(S, Y, rho, gamma, mp, mark, d, alpha)
+                if ! apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
                     # The steepest descent is being used.
                     stage = 0
                     gd = -gnorm^2
@@ -281,9 +323,11 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                         restarts += 1
                     end
                 end
+
+                # Circularly Move the mark to the next slot.
                 mark = (mark < mem ? mark + 1 : 1)
             else
-                # Initial point or restarting, use the steepest descent.
+                # At the initial point use the steepest descent.
                 copy!(d, g)
                 gd = -gnorm^2
             end
