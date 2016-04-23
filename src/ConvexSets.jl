@@ -32,7 +32,7 @@ changed along the line search:
 
 where `d` is the search direction, 'x0` are the current variables and `α > 0`
 is the step length.  The orientation of the search direction can also be
-specified by a strictly positve value for a `Descent` direction or a strictly
+specified by a strictly positive value for a `Descent` direction or a strictly
 negative value for an `Ascent` direction.
 """
 abstract Orientation
