@@ -14,7 +14,8 @@
 module LineSearch
 
 export start!, iterate!, get_task, get_reason, get_step, requires_derivative,
-       AbstractLineSearch, BacktrackingLineSearch, MoreThuenteLineSearch
+       AbstractLineSearch, DefaultLineSearch, defaultlinesearch,
+       BacktrackingLineSearch, MoreThuenteLineSearch
 
 # Use the same floating point type for scalars as in TiPi.
 import ..Float
@@ -24,7 +25,7 @@ import ..Float
 
 Line search methods are instances of types derived from the abstract type
 `AbstractLineSearch`.  Assuming `SomeLineSearch` is a concrete line search
-type, a typical line search is perfomred as follows:
+type, a typical line search is performed as follows:
 
     # Create an instance of the line search method:
     ls = SomeLineSearch(...)
@@ -58,6 +59,18 @@ type, a typical line search is perfomred as follows:
 
 """
 abstract AbstractLineSearch
+
+"""
+`DefaultLineSearch` is a singleton type to signal that a default line search
+should be used by the optimization algorithm.  The only instance of this kind
+is `defaultlinesearch`.
+"""
+immutable DefaultLineSearch <: AbstractLineSearch; end
+
+const defaultlinesearch = DefaultLineSearch()
+
+@doc (@doc DefaultLineSearch) defaultlinesearch
+
 
 """
 Type `CommonData` stores parameters common to all line search instances.  Any
