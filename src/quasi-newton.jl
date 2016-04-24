@@ -215,9 +215,13 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
         eval += 1
         best = (eval == 1 || f < bestf)
         if best
+            gnorm = norm2(g)
+            if eval == 1
+                gtest = hypot(gatol, grtol*gnorm)
+            end
             beststp = stp
             bestf = f
-            bestgnorm = norm2(g)
+            bestgnorm = gnorm
         end
         if fminset && f < fmin
             stage = 4
@@ -255,12 +259,11 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
 
         if stage != 1
             # Initial step or line search has converged.
-            gnorm = best ? bestgnorm : norm2(g)
-            if eval == 1
-                gtest = hypot(gatol, grtol*gnorm)
-            end
 
             # Check for global convergence.
+            if !best
+                gnorm = norm2(g)
+            end
             if gnorm ≤ gtest
                 stage = 3
                 reason = (gnorm > 0 ? "gradient sufficiently small" :
@@ -317,7 +320,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                     gd = -gnorm^2
                 else
                     gd = -inner(g, d)
-                    if ! sufficient_descent(gd, epsilon, norm2(d), gnorm)
+                    if ! sufficient_descent(gd, epsilon, gnorm, d)
                         # Revert to the steepest descent.
                         stage = 0
                         copy!(d, g)
@@ -369,8 +372,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     if verb
         color = (stage > 3 ? :red : :blue)
         prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
-        print_with_color(color, output,
-                         "# ", prefix, reason)
+        print_with_color(color, output, "# ", prefix, reason)
     elseif stage > 3
         warn(reason)
     end
@@ -393,26 +395,28 @@ function check_status(lnsrch::AbstractLineSearch)
     return task
 end
 
-"""
-`sufficient_descent(epsilon, dtg, dnorm, gnorm)` checks whether `d` is a
-sufficient descent direction (Zoutenjdik condition).  Argument `epsilon` is a
-nonegative small value in the range `[0,1)`, `dtg` is the scalar product
-`inner(d,g)` between the direction `d` and the gradient and `dnorm` and `gnorm`
-are the Euclidean norms of `d` and `g`.
-"""
-sufficient_descent(dtg::Float, epsilon::Float, dnorm::Float,
-                   gnorm::Float) = (-dtg > epsilon*dnorm*gnorm)
-
-sufficient_ascent(dtg::Float, epsilon::Float, dnorm::Float,
-                  gnorm::Float) = (dtg > epsilon*dnorm*gnorm)
-
-for f in (:sufficient_descent, :sufficient_ascent)
-    @eval begin
-        function $f(dtg::Real, epsilon::Real, dnorm::Real, gnorm::Real)
-            $f(float(dtg), Float(epsilon), Float(dnorm), Float(gnorm))
-        end
-    end
+function sufficient_descent{T}(gd::Float, ε::Float, gnorm::Float, d::T)
+    ε > 0 ? (gd ≤ -ε*norm2(d)*gnorm) : gd < 0
 end
+
+function sufficient_descent(gd::Float, ε::Float, gnorm::Float, dnorm::Float)
+    ε > 0 ? (gd ≤ -ε*dnorm*gnorm) : gd < 0
+end
+
+@doc """
+    sufficient_descent(gd, ε, gnorm, d)
+
+checks whether `d` is a sufficient descent direction (Zoutenjdik condition).
+Argument `gd` is the scalar product `inner(g,d)` between the gradient `g` and
+the direction `d`, `ε` is a nonnegative small value in the range `[0,1)` and
+`gnorm` is the Euclidean norm of the gradient `g`.
+
+If the Euclidean norm of `d` has already been computed, then
+
+    sufficient_descent(gd, ε, gnorm, dnorm)
+
+should be used instead with `dnorm = norm2(d)`.
+""" sufficient_descent
 
 function print_iteration(iter::Int, eval::Int, restart::Int,
                          f::Float, gnorm::Float, step::Float)
