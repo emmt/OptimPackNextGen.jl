@@ -79,14 +79,14 @@ The following keywords are available:
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
 
-      printer(io::IO, iter::Integer, eval::Integer, restart::Integer,
+      printer(io::IO, iter::Integer, eval::Integer, rejects::Integer,
               f::Real, gnorm::Real, stp::Real)
 
   where `io` is the output stream, `iter` the iteration number (`iter = 0` for
-  the starting point), `eval` is the number of calls to `fg!`, `restart` is the
-  number or restarts of the method, `f` and `gnorm` are the value of the
-  function and norm of the gradient at the current point, `stp` is the length
-  of the step to the current point.
+  the starting point), `eval` is the number of calls to `fg!`, `rejects` is the
+  number of times the computed direction was rejected, `f` and `gnorm` are the
+  value of the function and norm of the gradient at the current point, `stp` is
+  the length of the step to the current point.
 
 * `output` specifies the output stream for printing information (`STDOUT` is
   used by default).
@@ -168,7 +168,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     m::Int = 0     # number of memorized steps
     iter::Int = 0
     eval::Int = 0
-    restarts::Int = 0
+    rejects::Int = 0
 
     f::Float = 0
     f0::Float = 0
@@ -290,7 +290,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
 
             # Print some information if requested.
             if verb
-                printer(output, iter, eval, restarts, f, gnorm, stp)
+                printer(output, iter, eval, rejects, f, gnorm, stp)
             end
             if stage ≥ 3
                 break
@@ -325,7 +325,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                         stage = 0
                         copy!(d, g)
                         gd = -gnorm^2
-                        restarts += 1
+                        rejects += 1
                     end
                 end
 
@@ -418,22 +418,22 @@ If the Euclidean norm of `d` has already been computed, then
 should be used instead with `dnorm = norm2(d)`.
 """ sufficient_descent
 
-function print_iteration(iter::Int, eval::Int, restart::Int,
+function print_iteration(iter::Int, eval::Int, rejects::Int,
                          f::Float, gnorm::Float, step::Float)
-    print_iteration(STDOUT, iter, eval, restart, f, gnorm, step)
+    print_iteration(STDOUT, iter, eval, rejects, f, gnorm, step)
 end
 
-function print_iteration(io::IO, iter::Int, eval::Int, restart::Int,
+function print_iteration(io::IO, iter::Int, eval::Int, rejects::Int,
                          f::Float, gnorm::Float, step::Float)
     if iter == 0
         @printf(io, "#%s%s\n#%s%s\n",
-                " ITER   EVAL  RESTARTS",
+                " ITER   EVAL   REJECTS",
                 "          F(X)           ||G(X)||    STEP",
                 "----------------------",
                 "-------------------------------------------")
     end
     @printf(io, " %5d  %5d  %5d  %24.16E %9.2E %9.2E\n",
-            iter, eval, restart, f, gnorm, step)
+            iter, eval, rejects, f, gnorm, step)
 end
 
 #------------------------------------------------------------------------------
