@@ -127,7 +127,7 @@ end
      lbfgs!(fg!, x; mem=..., frtol=..., fatol=..., fmin=...)
 
 finds a local minimizer of `f(x)` starting at `x` and stores the best solution
-so far in `x`.
+in `x`.
 
 """
 function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
@@ -159,16 +159,16 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     gatol = Float(gatol)
     grtol = Float(grtol)
     epsilon = Float(epsilon)
+    mem = min(mem, length(x))
 
     reason::AbstractString = ""
     fminset::Bool = (! isnan(fmin) && fmin > -Inf)
 
-    mem = min(mem, length(x))
-    mark::Int = 1  # index of most recent step and gradient difference
-    m::Int = 0     # number of memorized steps
-    iter::Int = 0
-    eval::Int = 0
-    rejects::Int = 0
+    mark::Int = 1    # index of most recent step and gradient difference
+    m::Int = 0       # number of memorized steps
+    iter::Int = 0    # number of algorithm iterations
+    eval::Int = 0    # number of objective function and gradient evaluations
+    rejects::Int = 0 # number of rejected search directions
 
     f::Float = 0
     f0::Float = 0
@@ -205,7 +205,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     #   * stage = 1 during a line search;
     #   * stage = 2 if line search has converged;
     #   * stage = 3 if algorithm has converged;
-    #   * stage = 4 if algorithm is finished for other reasons.
+    #   * stage = 4 if algorithm is terminated with a warning.
     stage::Int = 0
 
     while true
@@ -227,8 +227,8 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
             stage = 4
             reason = "f < fmin"
         elseif eval ≥ maxeval
-            reason = "too many evaluations"
             stage = 4
+            reason = "too many evaluations"
         end
 
         if stage == 1
@@ -239,13 +239,13 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
             (stp, search) = iterate!(lnsrch, stp, f, gd)
             if ! search
                 if check_status(lnsrch) == :CONVERGENCE
-                    # Line search has converged.  Set stage to trigger
-                    # computing a new search direction and increment iteration
-                    # counter.
+                    # Line search has converged.  Increment iteration counter
+                    # and set stage to trigger computing a new search
+                    # direction.
                     iter += 1
                     if iter ≥ maxiter
-                        reason = "too many iterations"
                         stage = 4
+                        reason = "too many iterations"
                     else
                         stage = 2
                     end
@@ -303,22 +303,15 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                 update!(S[mark], -1, x)
                 update!(Y[mark], -1, g)
                 rho[mark] = inner(Y[mark], S[mark])
-                m = min(m + 1, mem)
-
-                # Compute the scale.
                 if rho[mark] > 0
+                    # The update is acceptable, compute the scale.
                     gamma = rho[mark]/inner(Y[mark], Y[mark])
-                else
-                    gamma = 1 # FIXME: keep previous value?
                 end
+                m = min(m + 1, mem)
 
                 # Compute d = H*g.
                 copy!(d, g)
-                if ! apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
-                    # The steepest descent is being used.
-                    stage = 0
-                    gd = -gnorm^2
-                else
+                if apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
                     gd = -inner(g, d)
                     if ! sufficient_descent(gd, epsilon, gnorm, d)
                         # Revert to the steepest descent.
@@ -327,9 +320,13 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                         gd = -gnorm^2
                         rejects += 1
                     end
+                else
+                    # The steepest descent is being used.
+                    stage = 0
+                    gd = -gnorm^2
                 end
 
-                # Circularly Move the mark to the next slot.
+                # Circularly move the mark to the next slot.
                 mark = (mark < mem ? mark + 1 : 1)
             else
                 # At the initial point use the steepest descent.
