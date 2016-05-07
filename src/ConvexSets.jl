@@ -17,7 +17,8 @@ import Base.convert, Base.sign
 
 export project_variables!,  project_gradient!,  project_direction!
 export minimum_step, maximum_step, shortcut_step
-export ConvexSet, AbstractBoundedSet
+export ConvexSet, AbstractBoundedSet, ScalarLowerBound, ScalarUpperBound,
+       ScalarBounds, BoxedSet
 export Ascent, Descent
 
 
