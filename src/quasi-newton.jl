@@ -185,7 +185,6 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
     beststp::Float = 0
     bestf::Float = 0
     bestgnorm::Float = 0
-    best::Bool = false
 
     # Allocate memory for the limited memory BFGS approximation of the inverse
     # Hessian.
@@ -210,18 +209,26 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
 
     while true
 
-        # Compute value of function and gradient.
+        # Compute value of function and gradient, register best solution so far
+        # and check for convergence based on the gradient norm.
         f = fg!(x, g)
         eval += 1
-        best = (eval == 1 || f < bestf)
-        if best
+        if eval == 1 || f < bestf
             gnorm = norm2(g)
-            if eval == 1
-                gtest = hypot(gatol, grtol*gnorm)
-            end
             beststp = stp
             bestf = f
             bestgnorm = gnorm
+            if eval == 1
+                gtest = hypot(gatol, grtol*gnorm)
+            end
+            if gnorm ≤ gtest
+                stage = 3
+                reason = (gnorm > 0 ? "gradient sufficiently small" :
+                          "a stationary point has been found!")
+                if eval > 1
+                    iter += 1
+                end
+            end
         end
         if fminset && f < fmin
             stage = 4
@@ -261,14 +268,6 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
             # Initial step or line search has converged.
 
             # Check for global convergence.
-            if !best
-                gnorm = norm2(g)
-            end
-            if gnorm ≤ gtest
-                stage = 3
-                reason = (gnorm > 0 ? "gradient sufficiently small" :
-                          "a stationary point has been found!")
-            end
             if stage == 2
                 delta = max(abs(f - f0), stp*abs(gd0))
                 if delta ≤ frtol*abs(f0)
@@ -280,15 +279,21 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                 end
             end
 
-            # If something wrong occured, revert to best solution so far.
-            if stage > 3 && !best
-                stp = beststp
-                f = bestf
-                gnorm = bestgnorm
-                combine!(x, 1, S[mark], -stp, d)
+            # Make sure the gradient norm is correct or revert to best solution
+            # so far if something wrong occured.
+            if stp != beststp
+                if stage ≥ 3
+                    stp = beststp
+                    f = bestf
+                    gnorm = bestgnorm
+                    combine!(x, 1, S[mark], -stp, d)
+                else
+                    gnorm = norm2(g)
+                end
             end
 
-            # Print some information if requested.
+            # Print some information if requested and terminate algorithm if
+            # stage ≥ 3.
             if verb
                 printer(output, iter, eval, rejects, f, gnorm, stp)
             end
