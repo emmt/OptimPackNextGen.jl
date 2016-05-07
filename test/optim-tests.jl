@@ -5,6 +5,7 @@ using Base.Test
 include("../src/TiPi.jl")
 using .TiPi.LineSearch
 using .TiPi.QuasiNewton
+using .TiPi.ConvexSets
 
 function rosenbrock_init!{T<:Real}(x0::Array{T,1})
   x0[1:2:end] = -1.2
@@ -56,6 +57,14 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     @time x = lbfgs(rosenbrock_fg!, x0, verb=false)
     @printf("\nTesting L-BFGS in %s precision and with Armijo's line search\n", prec)
     @time x = lbfgs(rosenbrock_fg!, x0, verb=false, lnsrch=backtrack)
+
+    # First run tests in verbose mode (also serve for pre-compilation and
+    # warmup).
+    backtrack = BacktrackingLineSearch(amin=0.1)
+    dom = ScalarLowerBound(T(0))
+    @printf("\nTesting BLMVM in %s precision and with Armijo's line search\n", prec)
+    x = blmvm(rosenbrock_fg!, x0, dom, verb=true, fmin=0, lnsrch=backtrack)
+    #@test_approx_eq_eps x ones(T,n) 1e-3
 
 end
 
