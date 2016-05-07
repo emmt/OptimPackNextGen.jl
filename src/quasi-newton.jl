@@ -48,22 +48,21 @@ The following keywords are available:
 
 * `mem` specifies the amount of storage.
 
-* `frtol` specifies the relative error desired in the function.  Convergence
-  occurs if the estimate of the relative error between `f(x)` and `f(xsol)`,
-  where `xsol` is a local minimizer, is less than `frtol`.
+* `ftol` is a tuple of two nonnegative reals specifying respectively the
+  absolute and relative errors desired in the function.  Convergence occurs if
+  the estimate of the relative error between `f(x)` and `f(xsol)`, where `xsol`
+  is a local minimizer, is less than `ftol[1]` or if the absolute error between
+  `f(x)` and `f(xsol)` is less than `ftol[2]`.  By default, `ftol = (0.0,1e-8)`.
 
-* `fatol` specifies the absolute error desired in the function.  Convergence
-   occurs if the estimate of the absolute error between `f(x)` and `f(xsol)`,
-   where `xsol` is a local minimizer, is less than `fatol`.
+* `gtol` is a tuple of two nonnegative reals specifying the absolute and a
+  relative thresholds for the norm of the gradient, convergence is assumed as
+  soon as:
 
-* `gatol` and `grtol` specify an absolute and a relative thresholds for the
-  norm of the gradient, convergence is assumed as soon as:
-
-      ||g(x)|| <= hypot(gatol, grtol*||g(x0)||)
+      ||g(x)|| <= hypot(gtol[1], gtol[2]*||g(x0)||)
 
   where `||g(x)||` is the Euclidean norm of the gradient at the current
   solution `x`, `||g(x0)||` is the Euclidean norm of the gradient at the
-  starting point `x0`.  Defaults are `gatol = 0.0` and `grtol = 1e-6`.
+  starting point `x0`.  By default, `gtol = (0.0,1e-6)`.
 
 * `fmin` specifies a lower bound for the function.  If provided, `fmin` is used
   to estimate the steepest desxecnt step length this value.  The algorithm
@@ -133,34 +132,38 @@ in `x`.
 function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                    maxiter::Integer=typemax(Int),
                    maxeval::Integer=typemax(Int),
-                   fatol::Real=0.0, frtol::Real=1e-8,
-                   gatol::Real=0.0, grtol::Real=1e-6,
+                   ftol::NTuple{2,Real}=(0.0,1e-8),
+                   gtol::NTuple{2,Real}=(0.0,1e-6),
                    epsilon::Real=0.0,
                    verb::Bool=false,
                    printer::Function=print_iteration, output::IO=STDOUT,
                    lnsrch::AbstractLineSearch=MoreThuenteLineSearch(ftol=1e-3,
                                                                     gtol=0.9,
                                                                     xtol= 0.1))
-    maxiter = Int(maxiter)
-    maxeval = Int(maxeval)
+    lbfgs!(fg!, x, Int(mem), Float(fmin), Int(maxiter), Int(maxeval),
+           Float(ftol[1]), Float(ftol[2]), Float(gtol[1]), Float(gtol[2]),
+           Float(epsilon), verb, printer, output, lnsrch)
+end
 
+# The real worker.
+function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
+                   maxiter::Int, maxeval::Int,
+                   fatol::Float, frtol::Float,
+                   gatol::Float, grtol::Float,
+                   epsilon::Float,
+                   verb::Bool, printer::Function, output::IO,
+                   lnsrch::AbstractLineSearch)
+
+    @assert mem ≥ 1
     @assert maxiter ≥ 0
     @assert maxeval ≥ 1
-    @assert mem ≥ 1
     @assert fatol ≥ 0
     @assert frtol ≥ 0
     @assert gatol ≥ 0
     @assert grtol ≥ 0
     @assert 0 ≤ epsilon < 1
 
-    fmin = Float(fmin)
-    fatol = Float(fatol)
-    frtol = Float(frtol)
-    gatol = Float(gatol)
-    grtol = Float(grtol)
-    epsilon = Float(epsilon)
     mem = min(mem, length(x))
-
     reason::AbstractString = ""
     fminset::Bool = (! isnan(fmin) && fmin > -Inf)
 
@@ -372,7 +375,7 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
 
     # Algorithm finished.
     if verb
-        color = (stage > 3 ? :red : :blue)
+        color = (stage > 3 ? :red : :green)
         prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
         print_with_color(color, output, "# ", prefix, reason)
     elseif stage > 3
