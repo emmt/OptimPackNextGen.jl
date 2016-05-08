@@ -598,14 +598,17 @@ function blmvm!{T}(fg!::Function, x::T, dom::AbstractBoundedSet, mem::Int,
     stp::Float = 0
     stpmin::Float = 0
     stpmax::Float = 0
+    smin1::Float = 0
+    smin2::Float = 0
+    smax::Float = 0
     gamma::Float = 1
-    pnorm::Float = 0
+    gnorm::Float = 0
     gtest::Float = 0
 
     # Variables for saving information about best point so far.
     beststp::Float = 0
     bestf::Float = 0
-    bestpnorm::Float = 0
+    bestgnorm::Float = 0
 
     # Allocate memory for the limited memory BFGS approximation of the inverse
     # Hessian.
@@ -638,16 +641,16 @@ function blmvm!{T}(fg!::Function, x::T, dom::AbstractBoundedSet, mem::Int,
         project_direction!(p, dom, x, Ascent, g)
         eval += 1
         if eval == 1 || f < bestf
-            pnorm = norm2(p)
+            gnorm = norm2(p)
             beststp = stp
             bestf = f
-            bestpnorm = pnorm
+            bestgnorm = gnorm
             if eval == 1
-                gtest = hypot(gatol, grtol*pnorm)
+                gtest = hypot(gatol, grtol*gnorm)
             end
-            if pnorm ≤ gtest
+            if gnorm ≤ gtest
                 stage = 3
-                reason = (pnorm > 0 ? "projected gradient sufficiently small" :
+                reason = (gnorm > 0 ? "projected gradient sufficiently small" :
                           "a stationary point has been found!")
                 if eval > 1
                     iter += 1
@@ -665,7 +668,7 @@ function blmvm!{T}(fg!::Function, x::T, dom::AbstractBoundedSet, mem::Int,
         if stage == 1
             # Line search is in progress.
             if requires_derivative(lnsrch)
-                gd = -inner(g, d) # FIXME:
+                gd = (inner(g, x) - inner(g, S[mark]))/stp
             end
             (stp, search) = iterate!(lnsrch, stp, f, gd)
             if ! search
@@ -709,17 +712,17 @@ function blmvm!{T}(fg!::Function, x::T, dom::AbstractBoundedSet, mem::Int,
                 if stage ≥ 3
                     stp = beststp
                     f = bestf
-                    pnorm = bestpnorm
+                    gnorm = bestgnorm
                     combine!(x, 1, S[mark], -stp, d)
                 else
-                    pnorm = norm2(p)
+                    gnorm = norm2(p)
                 end
             end
 
             # Print some information if requested and terminate algorithm if
             # stage ≥ 3.
             if verb
-                printer(output, iter, eval, rejects, f, pnorm, stp)
+                printer(output, iter, eval, rejects, f, gnorm, stp)
             end
             if stage ≥ 3
                 break
@@ -738,12 +741,12 @@ function blmvm!{T}(fg!::Function, x::T, dom::AbstractBoundedSet, mem::Int,
                 end
                 m = min(m + 1, mem)
 
-                # Compute d = proj_dir(H*g).
+                # Compute search direction.
                 copy!(d, g)
                 if apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
                     project_direction!(d, dom, x, Ascent, d) # FIXME: in-place possible?
                     gd = -inner(g, d)
-                    reject = ! sufficient_descent(gd, epsilon, pnorm, d)
+                    reject = ! sufficient_descent(gd, epsilon, gnorm, d)
                 else
                     reject = true
                 end
@@ -760,26 +763,32 @@ function blmvm!{T}(fg!::Function, x::T, dom::AbstractBoundedSet, mem::Int,
                 # At the initial point or computed direction was rejected.  Use
                 # the steepest descent which is the projected gradient.
                 copy!(d, p)
-                gd = -pnorm^2
+                gd = -gnorm^2
             end
 
-            # Initialize the line search.
+            # Save function value, variables and (projected) gradient at start
+            # of line search.
             f0 = f
             gd0 = gd
+            copy!(S[mark], x)
+            copy!(Y[mark], p)
+
+            # Choose initial step length.
             if stage == 2
                 stp = 1
             else
                 if fminset && fmin < f0
                     stp = 2*(fmin - f0)/gd0
                 else
-                    stp = 1/pnorm # FIXME: use a better scale
+                    stp = 1/gnorm # FIXME: use a better scale
                 end
             end
-            # FIXME: check step bounds
+            (smin1, smin2, smax) = stepbounds(dom, x, Ascent, d)
+            stp = min(stp, smax)
             stpmin = 1e-20*stp
-            stpmax = 1e+20*stp
-            copy!(S[mark], x) # save x0
-            copy!(Y[mark], p) # save p0
+            stpmax = min(1e+20*stp, smax)
+
+            # Initialize the line search.
             if ! start!(lnsrch, stp, f0, gd0, stpmin, stpmax)
                 # Something wrong happens.
                 stage = 4
