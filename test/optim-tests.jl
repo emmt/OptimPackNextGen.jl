@@ -14,10 +14,10 @@ function rosenbrock_init!{T<:Real}(x0::Array{T,1})
 end
 
 function rosenbrock_fg!{T<:Real}(x::Array{T,1}, gx::Array{T,1})
-  const c1::T = 1
-  const c2::T = 2
-  const c10::T = 10
-  const c200::T = 200
+  const c1 = T(1)
+  const c2 = T(2)
+  const c10 = T(10)
+  const c200 = T(200)
   x1 = x[1:2:end]
   x2 = x[2:2:end]
   t1 = c1 - x1
@@ -32,7 +32,7 @@ function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
   T = (single ? Float32 : Float64)
   x0 = Array(T, n)
   rosenbrock_init!(x0)
-  lbfgs(rosenbrock_fg!, x0, m, verb=true)
+  vmlmb(rosenbrock_fg!, x0, m, verb=true)
 end
 
 # Run tests in double and single precisions.
@@ -46,25 +46,27 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     # warmup).
     backtrack = BacktrackingLineSearch(amin=0.01)
     @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
-    x = lbfgs(rosenbrock_fg!, x0, verb=true, fmin=0)
+    x = vmlmb(rosenbrock_fg!, x0, verb=true, fmin=0)
     #@test_approx_eq_eps x1 ones(T,n) 1e-3
     @printf("\nTesting L-BFGS in %s precision and with Armijo's line search\n", prec)
-    x = lbfgs(rosenbrock_fg!, x0, verb=true, fmin=0, lnsrch=backtrack)
+    x = vmlmb(rosenbrock_fg!, x0, verb=true, fmin=0, lnsrch=backtrack)
     #@test_approx_eq_eps x ones(T,n) 1e-3
-
-    # First run tests for timings.
-    @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
-    @time x = lbfgs(rosenbrock_fg!, x0, verb=false)
-    @printf("\nTesting L-BFGS in %s precision and with Armijo's line search\n", prec)
-    @time x = lbfgs(rosenbrock_fg!, x0, verb=false, lnsrch=backtrack)
-
-    # First run tests in verbose mode (also serve for pre-compilation and
-    # warmup).
-    backtrack = BacktrackingLineSearch(amin=0.1)
-    dom = ScalarLowerBound(T(0))
     @printf("\nTesting BLMVM in %s precision and with Armijo's line search\n", prec)
-    x = blmvm(rosenbrock_fg!, x0, dom, verb=true, fmin=0, lnsrch=backtrack)
+    x = vmlmb(rosenbrock_fg!, x0, verb=true, fmin=0, lower=0, blmvm=true)
     #@test_approx_eq_eps x ones(T,n) 1e-3
+    @printf("\nTesting VMLMB in %s precision and with Armijo's line search\n", prec)
+    x = vmlmb(rosenbrock_fg!, x0, verb=true, fmin=0, lower=0)
+    #@test_approx_eq_eps x ones(T,n) 1e-3
+
+    # Then run tests for timings.
+    @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
+    @time x = vmlmb(rosenbrock_fg!, x0, verb=false, fmin=0)
+    @printf("\nTesting L-BFGS in %s precision and with Armijo's line search\n", prec)
+    @time x = vmlmb(rosenbrock_fg!, x0, verb=false, fmin=0, lnsrch=backtrack)
+    @printf("\nTesting BLMVM in %s precision and with Armijo's line search\n", prec)
+    @time x = vmlmb(rosenbrock_fg!, x0, verb=false, fmin=0, lower=0, blmvm=true)
+    @printf("\nTesting VMLMB in %s precision and with Armijo's line search\n", prec)
+    @time x = vmlmb(rosenbrock_fg!, x0, verb=false, fmin=0, lower=0)
 
 end
 
