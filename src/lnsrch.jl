@@ -286,8 +286,8 @@ type BacktrackingLineSearch <: AbstractLineSearch
 
     # Constructor.
     function BacktrackingLineSearch(;
-                                    ftol::Float=1e-3,
-                                    amin::Float=0.5)
+                                    ftol::Real=1e-3,
+                                    amin::Real=0.5)
         @assert ftol ≥ 0
         @assert amin ≥ 0
         new(CommonData(), ftol, amin, 0)
@@ -726,9 +726,9 @@ type MoreThuenteLineSearch <: AbstractLineSearch
     stage::Int
 
     function MoreThuenteLineSearch(;
-                                  ftol::Float=1e-3,
-                                  gtol::Float=0.9,
-                                  xtol::Float=0.1)
+                                  ftol::Real=1e-3,
+                                  gtol::Real=0.9,
+                                  xtol::Real=0.1)
         @assert ftol ≥ 0
         @assert gtol ≥ 0
         @assert xtol ≥ 0
