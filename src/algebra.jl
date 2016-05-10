@@ -371,98 +371,103 @@ end
 #-------------------------------------------------------------------------------
 # PROJECTING VARIABLES
 
-@inline clamp{T<:Real}(x::T, xl::T, xu::T) = max(xl, min(x, xu))
-@inline clamp{T<:Real}(x::T, ::Type{Void}, xu::T) = min(x, xu)
-@inline clamp{T<:Real}(x::T, xl::T, ::Type{Void}) = max(xl, x)
+@inline clamp{T<:Real}(x::T, lo::T, hi::T) = max(lo, min(x, hi))
+@inline clamp{T<:Real}(x::T, ::Void, hi::T) = min(x, hi)
+@inline clamp{T<:Real}(x::T, lo::T, ::Void) = max(lo, x)
 
+"""
+    project_variables!(dst, lo, hi, x)
+
+stores in `dst` the projection of the variables `x` in the box whose lower
+bound is `lo` and upper bound is `hi`.
+
+This is the same as `dst = clamp(x, lo, hi)` except that the result is
+preallocated and that the operation is *much* faster (by a factor of 2-3).
+"""
 function project_variables!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Real, xu::Real,
+                                       lo::Real, hi::Real,
                                        x::Array{T,N})
-    project_variables!(dst, convert(T, xl), convert(T, xu), x)
+    project_variables!(dst, T(lo), T(hi), x)
 end
 
 function project_variables!{T<:Real,N}(dst::Array{T,N},
-                                       xl::T, xu::T,
+                                       lo::T, hi::T,
                                        x::Array{T,N})
     @assert size(dst) == size(x)
-    @assert xl ≤ xu # this also check for NaN
-    bounded_below = xl > convert(T, -Inf)
-    bounded_above = xu < convert(T, +Inf)
-    if bounded_below
-        if bounded_above
+    @assert lo ≤ hi # this also check for NaN
+    const bounded_below = lo > T(-Inf)
+    const bounded_above = hi < T(+Inf)
+    if bounded_below && bounded_above
             @simd for i in 1:length(x)
-                @inbounds dst[i] = clamp(x[i], xl, xu)
+                @inbounds dst[i] = clamp(x[i], lo, hi)
             end
-        else
-            @simd for i in 1:length(x)
-                @inbounds dst[i] = clamp(x[i], xl, nothing)
-            end
+    elseif bounded_below
+        @simd for i in 1:length(x)
+            @inbounds dst[i] = clamp(x[i], lo, nothing)
         end
-    else
-        if bounded_above
-            @simd for i in 1:length(x)
-                @inbounds dst[i] = clamp(x[i], nothing, xu)
-            end
-        elseif dst != x
-            copy!(dst, x)
+    elseif bounded_above
+        @simd for i in 1:length(x)
+            @inbounds dst[i] = clamp(x[i], nothing, hi)
         end
+    elseif dst != x
+        copy!(dst, x)
     end
 end
 
 function project_variables!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Array{T,N}, xu::Real,
+                                       lo::Array{T,N}, hi::Real,
                                        x::Array{T,N})
-    project_variables!(dst, xl, convert(T, xu), x)
+    project_variables!(dst, lo, T(hi), x)
 end
 
 function project_variables!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Array{T,N}, xu::T,
+                                       lo::Array{T,N}, hi::T,
                                        x::Array{T,N})
     @assert size(dst) == size(x)
-    @assert size(xl)  == size(x)
-    bounded_above = xu < convert(T, +Inf)
+    @assert size(lo)  == size(x)
+    const bounded_above = hi < T(+Inf)
     if bounded_above
         @simd for i in 1:length(x)
-            @inbounds dst[i] = clamp(x[i], xl[i], xu)
+            @inbounds dst[i] = clamp(x[i], lo[i], hi)
         end
     else
         @simd for i in 1:length(x)
-            @inbounds dst[i] = clamp(x[i], xl[i], nothing)
+            @inbounds dst[i] = clamp(x[i], lo[i], nothing)
         end
     end
 end
 
 function project_variables!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Real, xu::Array{T,N},
+                                       lo::Real, hi::Array{T,N},
                                        x::Array{T,N})
-    project_variables!(dst, convert(T, xl), xu, x)
+    project_variables!(dst, T(lo), hi, x)
 end
 
 function project_variables!{T<:Real,N}(dst::Array{T,N},
-                                       xl::T, xu::Array{T,N},
+                                       lo::T, hi::Array{T,N},
                                        x::Array{T,N})
     @assert size(dst) == size(x)
-    @assert size(xu)  == size(x)
-    bounded_below = xl > convert(T, -Inf)
+    @assert size(hi)  == size(x)
+    const bounded_below = lo > T(-Inf)
     if bounded_below
         @simd for i in 1:length(x)
-            @inbounds dst[i] = clamp(x[i], xl, xu[i])
+            @inbounds dst[i] = clamp(x[i], lo, hi[i])
         end
     else
         @simd for i in 1:length(x)
-            @inbounds dst[i] = clamp(x[i], nothing, xu[i])
+            @inbounds dst[i] = clamp(x[i], nothing, hi[i])
         end
     end
 end
 
 function project_variables!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Array{T,N}, xu::Array{T,N},
+                                       lo::Array{T,N}, hi::Array{T,N},
                                        x::Array{T,N})
     @assert size(dst) == size(x)
-    @assert size(xl)  == size(x)
-    @assert size(xu)  == size(x)
+    @assert size(lo)  == size(x)
+    @assert size(hi)  == size(x)
     @simd for i in 1:length(x)
-        @inbounds dst[i] = clamp(x[i], xl[i], xu[i])
+        @inbounds dst[i] = clamp(x[i], lo[i], hi[i])
     end
 end
 
@@ -473,146 +478,116 @@ abstract Orientation
 immutable Forward  <: Orientation; end
 immutable Backward <: Orientation; end
 
+convert{T<:Orientation}(::Type{T}, ::Union{Forward,Type{Forward}}) = Forward
+convert{T<:Orientation}(::Type{T}, ::Union{Backward,Type{Backward}}) = Backward
 convert{T<:Orientation}(::Type{T}, s::Real) = (s > 0 ? Forward :
                                                s < 0 ? Backward :
                                                error("invalid orientation"))
 sign(::Union{Forward,Type{Forward}}) = +1
 sign(::Union{Backward,Type{Backward}}) = -1
 
-
-function orientation(T::DataType, x)
-    s = sign(x)
-    s != 0 || error("invalid orientation")
-    convert(T, s)
-end
-
-Orientation(::Union{Forward,Type{Forward}}) = Forward
-Orientation(::Union{Backward,Type{Backward}}) = Backward
 Orientation(x) = convert(Orientation, x)
+orientation(T::DataType, x) = Orientation(x) == Forward ? +one(T) : -one(T)
 
-@inline function project_forward{T<:Real}(x::T, d::T, xl::T, xu::T)
-    (d > zero(T) ? x < xu : x > xl) ? d : zero(T)
+@inline function project_forward{T<:Real}(x::T, d::T, lo::T, hi::T)
+    (d > zero(T) ? x < hi : x > lo) ? d : zero(T)
 end
 
-@inline function project_forward{T<:Real}(x::T, d::T, ::Type{Void}, xu::T)
-    (d < zero(T) || x < xu) ? d : zero(T)
+@inline function project_backward{T<:Real}(x::T, d::T, lo::T, hi::T)
+    (d < zero(T) ? x < hi : x > lo) ? d : zero(T)
 end
 
-@inline function project_forward{T<:Real}(x::T, d::T, xl::T, ::Type{Void})
-    (d > zero(T) || x > xl) ? d : zero(T)
+@inline function project_forward{T<:Real}(x::T, d::T, ::Void, hi::T)
+    (d < zero(T) || x < hi) ? d : zero(T)
 end
 
-@inline function project_backward{T<:Real}(x::T, d::T, xl::T, xu::T)
-    (d < zero(T) ? x < xu : x > xl) ? d : zero(T)
+@inline function project_backward{T<:Real}(x::T, d::T, ::Void, hi::T)
+    (d > zero(T) || x < hi) ? d : zero(T)
 end
 
-@inline function project_backward{T<:Real}(x::T, d::T, ::Type{Void}, xu::T)
-    (d > zero(T) || x < xu) ? d : zero(T)
+@inline function project_forward{T<:Real}(x::T, d::T, lo::T, ::Void)
+    (d > zero(T) || x > lo) ? d : zero(T)
 end
 
-@inline function project_backward{T<:Real}(x::T, d::T, xl::T, ::Type{Void})
-    (d < zero(T) || x > xl) ? d : zero(T)
-end
-
-function project_gradient!{T<:Real,N}(dst::Array{T,N},
-                                      xl::Union{Real,Array{T,N}},
-                                      xu::Union{Real,Array{T,N}},
-                                      x::Array{T,N},
-                                      d::Array{T,N})
-    project_direction!(dst, xl, xu, x, -1, d)
+@inline function project_backward{T<:Real}(x::T, d::T, lo::T, ::Void)
+    (d < zero(T) || x > lo) ? d : zero(T)
 end
 
 function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Real, xu::Real,
-                                       x::Array{T,N},
-                                       orient, d::Array{T,N})
-    project_direction!(dst, convert(T, xl), convert(T, xu), x, orient, d)
-end
-
-function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       xl::T, xu::T,
+                                       lo::T, hi::T,
                                        x::Array{T,N},
                                        orient, d::Array{T,N})
     @assert size(dst) == size(x)
     @assert size(d)   == size(x)
-    @assert xl ≤ xu # this also check for NaN
+    @assert lo ≤ hi # this also check for NaN
     const forward = Orientation(orient) == Forward
-    const bounded_above = xu < convert(T, +Inf)
-    const bounded_below = xl > convert(T, -Inf)
+    const bounded_above = hi < T(+Inf)
+    const bounded_below = lo > T(-Inf)
     @inbounds begin
         if bounded_below && bounded_above
             if forward
                 @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], xl, xu)
+                    dst[i] = project_forward(x[i], d[i], lo, hi)
                 end
             else
                 @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], xl, xu)
+                    dst[i] = project_backward(x[i], d[i], lo, hi)
                 end
             end
         elseif bounded_below
             if forward
                 @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], xl, nothing)
+                    dst[i] = project_forward(x[i], d[i], lo, nothing)
                 end
             else
                 @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], xl, nothing)
+                    dst[i] = project_backward(x[i], d[i], lo, nothing)
                 end
             end
         elseif bounded_above
             if forward
                 @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], nothing, xu)
+                    dst[i] = project_forward(x[i], d[i], nothing, hi)
                 end
             else
                 @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], nothing, xu)
+                    dst[i] = project_backward(x[i], d[i], nothing, hi)
                 end
             end
-        else
-            if dst != d
-                copy!(dst, d)
-            end
+        elseif dst != d
+            copy!(dst, d)
         end
     end
 end
 
 function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Array{T,N}, xu::Real,
-                                       x::Array{T,N},
-                                       orient, d::Array{T,N})
-    project_direction!(dst, xl, convert(T, xu), x, orient, d)
-end
-
-function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Array{T,N}, xu::T,
+                                       lo::Array{T,N}, hi::T,
                                        x::Array{T,N},
                                        orient, d::Array{T,N})
     @assert size(dst) == size(x)
-    @assert size(xl)  == size(x)
+    @assert size(lo)  == size(x)
     @assert size(d)   == size(x)
     const forward = Orientation(orient) == Forward
-    const bounded_above = xu < convert(T, +Inf)
+    const bounded_above = hi < T(+Inf)
     @inbounds begin
         if bounded_above
             if forward
                 @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], xl[i], xu)
+                    dst[i] = project_forward(x[i], d[i], lo[i], hi)
                 end
             else
                 @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], xl[i], xu)
+                    dst[i] = project_backward(x[i], d[i], lo[i], hi)
                 end
             end
         else
             if forward
                 @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], xl[i], nothing)
+                    dst[i] = project_forward(x[i], d[i], lo[i], nothing)
                 end
             else
                 @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], xl[i], nothing)
+                    dst[i] = project_backward(x[i], d[i], lo[i], nothing)
                 end
             end
         end
@@ -620,40 +595,33 @@ function project_direction!{T<:Real,N}(dst::Array{T,N},
 end
 
 function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Real, xu::Array{T,N},
-                                       x::Array{T,N},
-                                       orient, d::Array{T,N})
-    project_direction!(dst, convert(T, xl), xu, x, orient, d)
-end
-
-function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       xl::T, xu::Array{T,N},
+                                       lo::T, hi::Array{T,N},
                                        x::Array{T,N},
                                        orient, d::Array{T,N})
     @assert size(dst) == size(x)
-    @assert size(xu)  == size(x)
+    @assert size(hi)  == size(x)
     @assert size(d)   == size(x)
     const forward = Orientation(orient) == Forward
-    const bounded_below = xl > convert(T, -Inf)
+    const bounded_below = lo > T(-Inf)
     @inbounds begin
         if bounded_below
             if forward
                 @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], xl, xu[i])
+                    dst[i] = project_forward(x[i], d[i], lo, hi[i])
                 end
             else
                 @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], xl, xu[i])
+                    dst[i] = project_backward(x[i], d[i], lo, hi[i])
                 end
             end
         else
             if forward
                 @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], nothing, xu[i])
+                    dst[i] = project_forward(x[i], d[i], nothing, hi[i])
                 end
             else
                 @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], nothing, xu[i])
+                    dst[i] = project_backward(x[i], d[i], nothing, hi[i])
                 end
             end
         end
@@ -661,25 +629,54 @@ function project_direction!{T<:Real,N}(dst::Array{T,N},
 end
 
 function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       xl::Array{T,N}, xu::Array{T,N},
+                                       lo::Array{T,N}, hi::Array{T,N},
                                        x::Array{T,N},
                                        orient, d::Array{T,N})
     @assert size(dst) == size(x)
-    @assert size(xl)  == size(x)
-    @assert size(xu)  == size(x)
+    @assert size(lo)  == size(x)
+    @assert size(hi)  == size(x)
     @assert size(d)   == size(x)
     const forward = Orientation(orient) == Forward
     @inbounds begin
         if forward
             @simd for i in 1:length(x)
-                dst[i] = project_forward(x[i], d[i], xl[i], xu[i])
+                dst[i] = project_forward(x[i], d[i], lo[i], hi[i])
             end
         else
             @simd for i in 1:length(x)
-                dst[i] = project_backward(x[i], d[i], xl[i], xu[i])
+                dst[i] = project_backward(x[i], d[i], lo[i], hi[i])
             end
         end
     end
+end
+
+function project_direction!{T<:Real,N}(dst::Array{T,N},
+                                       lo::Real, hi::Real,
+                                       x::Array{T,N},
+                                       orient, d::Array{T,N})
+    project_direction!(dst, T(lo), T(hi), x, orient, d)
+end
+
+function project_direction!{T<:Real,N}(dst::Array{T,N},
+                                       lo::Array{T,N}, hi::Real,
+                                       x::Array{T,N},
+                                       orient, d::Array{T,N})
+    project_direction!(dst, lo, T(hi), x, orient, d)
+end
+
+function project_direction!{T<:Real,N}(dst::Array{T,N},
+                                       lo::Real, hi::Array{T,N},
+                                       x::Array{T,N},
+                                       orient, d::Array{T,N})
+    project_direction!(dst, T(lo), hi, x, orient, d)
+end
+
+function project_gradient!{T<:Real,N}(dst::Array{T,N},
+                                      lo::Union{Real,Array{T,N}},
+                                      hi::Union{Real,Array{T,N}},
+                                      x::Array{T,N},
+                                      d::Array{T,N})
+    project_direction!(dst, lo, hi, x, -1, d)
 end
 
 #------------------------------------------------------------------------------
@@ -692,36 +689,32 @@ When there are separable bound constraints on the variables, the step `smin` to
 the closest not yet reached bound and the step `smax` to the farthest bound are
 computed by the call:
 ```
-    (smin, smax) = step_limits(xl, xu, x, s, d)
+    (smin, smax) = step_limits(lo, hi, x, s, d)
 ```
-where `xl` is the lower bound, `xu` is the upper bound, `x` are the current
+where `lo` is the lower bound, `hi` is the upper bound, `x` are the current
 variables and `sign(s)*d` is the search direction.
 
 In orther words, `smin` is the smallest step which will bring at least one more
 variable "out of bounds" and `smax` is the smallest step which will bring all
 variables "out of bounds".  As a consequence, `0 < smin` and `0 ≤ smax`.
 """
-function step_limits{T<:Real,N}(xl::Real, xu::Real, x::Array{T,N},
-                                orient, d::Array{T,N})
-    step_limits(convert(T, xl), convert(T, xu), x, orient, d)
-end
-
-function step_limits{T<:Real,N}(xl::T, xu::T, x::Array{T,N},
+function step_limits{T<:Real,N}(lo::T, hi::T, x::Array{T,N},
                                 orient, d::Array{T,N})
     @assert size(d) == size(x)
-    @assert xl ≤ xu # this also check for NaN
+    @assert lo ≤ hi # this also check for NaN
     const ZERO = zero(T)
+    const INFINITY = T(Inf)
     const s = orientation(T, orient)
-    const bounded_below = xl > convert(T, -Inf)
-    const bounded_above = xu < convert(T, +Inf)
-    smin = convert(T, Inf)
-    smax = ZERO
+    const bounded_below = lo > -INFINITY
+    const bounded_above = hi < +INFINITY
+    smin = INFINITY
     @inbounds begin
         if bounded_below && bounded_above
+            smax = ZERO
             @simd for i in 1:length(x)
                 p = s*d[i]
                 if p != ZERO
-                    a = (p > ZERO ? xu - x[i] : xl - x[i])/p
+                    a = (p > ZERO ? hi - x[i] : lo - x[i])/p
                     if 0 < a < smin
                         smin = a
                     end
@@ -731,10 +724,13 @@ function step_limits{T<:Real,N}(xl::T, xu::T, x::Array{T,N},
                 end
             end
         elseif bounded_below
+            smax = ZERO
             @simd for i in 1:length(x)
                 p = s*d[i]
-                if p < ZERO
-                    a = (xl - x[i])/p
+                if p > ZERO
+                    smax = INFINITY
+                elseif p < ZERO
+                    a = (lo - x[i])/p
                     if 0 < a < smin
                         smin = a
                     end
@@ -744,90 +740,45 @@ function step_limits{T<:Real,N}(xl::T, xu::T, x::Array{T,N},
                 end
             end
         elseif bounded_above
+            smax = ZERO
             @simd for i in 1:length(x)
                 p = s*d[i]
                 if p > ZERO
-                    a = (xu - x[i])/p
+                    a = (hi - x[i])/p
                     if 0 < a < smin
                         smin = a
                     end
                     if a > smax
                         smax = a
                     end
+                elseif p < ZERO
+                    smax = INFINITY
                 end
             end
+        else
+            smax = INFINITY
         end
     end
     return (smin, smax)
 end
 
-function step_limits{T<:Real,N}(xl::Array{T,N}, xu::Real, x::Array{T,N},
-                                orient, d::Array{T,N})
-    step_limits(xl, convert(T, xu), x, orient, d)
-end
-
-function step_limits{T<:Real,N}(xl::Array{T,N}, xu::T,
+function step_limits{T<:Real,N}(lo::Array{T,N}, hi::T,
                                 x::Array{T,N},
                                 orient, d::Array{T,N})
-    @assert size(xl) == size(x)
+    @assert size(lo) == size(x)
     @assert size(d)  == size(x)
     const ZERO = zero(T)
+    const INFINITY = T(Inf)
     const s = orientation(T, orient)
-    const bounded_above = xu < convert(T, +Inf)
-    smin = convert(T, Inf)
+    const bounded_above = hi < +INFINITY
+    smin = INFINITY
     smax = ZERO
     @inbounds begin
         if bounded_above
             @simd for i in 1:length(x)
                 p = s*d[i]
                 if p != ZERO
-                    a = (p > ZERO ? xu - x[i] : xl[i] - x[i])/p
-                    if 0 < a < smin
-                        smin = a
-                    end
-                    if a > smax
-                        smax = a
-                    end
-                end
-            end
-        else
-            @simd for i in 1:length(x)
-                p = s*d[i]
-                if p < ZERO
-                    a = (xl[i] - x[i])/p
-                    if 0 < a < smin
-                        smin = a
-                    end
-                    if a > smax
-                        smax = a
-                    end
-                end
-            end
-        end
-    end
-    return (smin, smax)
-end
-
-function step_limits{T<:Real,N}(xl::Real, xu::Array{T,N}, x::Array{T,N},
-                                orient, d::Array{T,N})
-    step_limits(convert(T, xl), xu, x, orient, d)
-end
-
-function step_limits{T<:Real,N}(xl::T, xu::Array{T,N}, x::Array{T,N},
-                                orient, d::Array{T,N})
-    @assert size(xu) == size(x)
-    @assert size(d)  == size(x)
-    const ZERO = zero(T)
-    const s = orientation(T, orient)
-    const bounded_below = xl > convert(T, -Inf)
-    smin = convert(T, Inf)
-    smax = ZERO
-    @inbounds begin
-        if bounded_below
-            @simd for i in 1:length(x)
-                p = s*d[i]
-                if p != ZERO
-                    a = (p > ZERO ? xu[i] - x[i] : xl - x[i])/p
+                    a = (p > ZERO ? hi - x[i] : lo[i] - x[i])/p
                     if 0 < a < smin
                         smin = a
                     end
@@ -840,7 +791,9 @@ function step_limits{T<:Real,N}(xl::T, xu::Array{T,N}, x::Array{T,N},
             @simd for i in 1:length(x)
                 p = s*d[i]
                 if p > ZERO
-                    a = (xu[i] - x[i])/p
+                    smax = INFINITY
+                elseif p < ZERO
+                    a = (lo[i] - x[i])/p
                     if 0 < a < smin
                         smin = a
                     end
@@ -854,21 +807,65 @@ function step_limits{T<:Real,N}(xl::T, xu::Array{T,N}, x::Array{T,N},
     return (smin, smax)
 end
 
-function step_limits{T<:Real,N}(xl::Array{T,N}, xu::Array{T,N}, x::Array{T,N},
+function step_limits{T<:Real,N}(lo::T, hi::Array{T,N}, x::Array{T,N},
                                 orient, d::Array{T,N})
-    @assert size(xl) == size(x)
-    @assert size(xu) == size(x)
+    @assert size(hi) == size(x)
+    @assert size(d)  == size(x)
+    const ZERO = zero(T)
+    const INFINITY = T(Inf)
+    const s = orientation(T, orient)
+    const bounded_below = lo > -INFINITY
+    smin = INFINITY
+    smax = ZERO
+    @inbounds begin
+        if bounded_below
+            @simd for i in 1:length(x)
+                p = s*d[i]
+                if p != ZERO
+                    a = (p > ZERO ? hi[i] - x[i] : lo - x[i])/p
+                    if 0 < a < smin
+                        smin = a
+                    end
+                    if a > smax
+                        smax = a
+                    end
+                end
+            end
+        else
+            @simd for i in 1:length(x)
+                p = s*d[i]
+                if p > ZERO
+                    a = (hi[i] - x[i])/p
+                    if 0 < a < smin
+                        smin = a
+                    end
+                    if a > smax
+                        smax = a
+                    end
+                elseif p < ZERO
+                    smax = INFINITY
+                end
+            end
+        end
+    end
+    return (smin, smax)
+end
+
+function step_limits{T<:Real,N}(lo::Array{T,N}, hi::Array{T,N}, x::Array{T,N},
+                                orient, d::Array{T,N})
+    @assert size(lo) == size(x)
+    @assert size(hi) == size(x)
     @assert size(d)  == size(x)
     const ZERO = zero(T)
     const s = orientation(T, orient)
-    smin = convert(T, Inf)
+    smin = T(Inf)
     smax = ZERO
     @inbounds begin
         @simd for i in 1:length(x)
             p = s*d[i]
             if p != ZERO
                 # Step length to reach the upper/lower bound:
-                a = (p > ZERO ? xu[i] - x[i] : xl[i] - x[i])/p
+                a = (p > ZERO ? hi[i] - x[i] : lo[i] - x[i])/p
                 if 0 < a < smin
                     smin = a
                 end
@@ -881,31 +878,46 @@ function step_limits{T<:Real,N}(xl::Array{T,N}, xu::Array{T,N}, x::Array{T,N},
     return (smin, smax)
 end
 
+function step_limits{T<:Real,N}(lo::Real, hi::Real, x::Array{T,N},
+                                orient, d::Array{T,N})
+    step_limits(T(lo), T(hi), x, orient, d)
+end
+
+function step_limits{T<:Real,N}(lo::Array{T,N}, hi::Real, x::Array{T,N},
+                                orient, d::Array{T,N})
+    step_limits(lo, T(hi), x, orient, d)
+end
+
+function step_limits{T<:Real,N}(lo::Real, hi::Array{T,N}, x::Array{T,N},
+                                orient, d::Array{T,N})
+    step_limits(T(lo), hi, x, orient, d)
+end
+
 #------------------------------------------------------------------------------
 # GETTING FREE VARIABLES
 
-@inline function may_move_forward{T<:Real}(x::T, d::T, xl::T, ::Type{Void})
-    d > zero(T) || (d != zero(T) && x > xl)
+@inline function may_move_forward{T<:Real}(x::T, d::T, lo::T, ::Void)
+    d > zero(T) || (d != zero(T) && x > lo)
 end
 
-@inline function may_move_backward{T<:Real}(x::T, d::T, xl::T, ::Type{Void})
-    d < zero(T) || (d != zero(T) && x > xl)
+@inline function may_move_backward{T<:Real}(x::T, d::T, lo::T, ::Void)
+    d < zero(T) || (d != zero(T) && x > lo)
 end
 
-@inline function may_move_forward{T<:Real}(x::T, d::T, ::Type{Void}, xu::T)
-    d < zero(T) || (d != zero(T) && x < xu)
+@inline function may_move_forward{T<:Real}(x::T, d::T, ::Void, hi::T)
+    d < zero(T) || (d != zero(T) && x < hi)
 end
 
-@inline function may_move_backward{T<:Real}(x::T, d::T, ::Type{Void}, xu::T)
-    d > zero(T) || (d != zero(T) && x < xu)
+@inline function may_move_backward{T<:Real}(x::T, d::T, ::Void, hi::T)
+    d > zero(T) || (d != zero(T) && x < hi)
 end
 
-@inline function may_move_forward{T<:Real}(x::T, d::T, xl::T, xu::T)
-    d != zero(T) && (d < zero(T) ? x > xl : x < xu)
+@inline function may_move_forward{T<:Real}(x::T, d::T, lo::T, hi::T)
+    d != zero(T) && (d < zero(T) ? x > lo : x < hi)
 end
 
-@inline function may_move_backward{T<:Real}(x::T, d::T, xl::T, xu::T)
-    d != zero(T) && (d > zero(T) ? x > xl : x < xu)
+@inline function may_move_backward{T<:Real}(x::T, d::T, lo::T, hi::T)
+    d != zero(T) && (d > zero(T) ? x > lo : x < hi)
 end
 
 """
@@ -914,18 +926,13 @@ Get free variables when following a direction.
 
 """
 
-function get_free_variables{T<:Real,N}(xl::Real, xu::Real, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    get_free_variables(convert(T, xl), convert(T, xu), x, orient, d)
-end
-
-function get_free_variables{T<:Real,N}(xl::T, xu::T, x::Array{T,N},
+function get_free_variables{T<:Real,N}(lo::T, hi::T, x::Array{T,N},
                                        orient, d::Array{T,N})
     @assert size(d)  == size(x)
-    @assert xl ≤ xu # this also check for NaN
+    @assert lo ≤ hi # this also check for NaN
     const forward = Orientation(orient) == Forward
-    const bounded_below = xl > convert(T, -Inf)
-    const bounded_above = xu < convert(T, +Inf)
+    const bounded_below = lo > T(-Inf)
+    const bounded_above = hi < T(+Inf)
     const n = length(x)
     sel = Array(Int, n)
     j = 0
@@ -933,14 +940,14 @@ function get_free_variables{T<:Real,N}(xl::T, xu::T, x::Array{T,N},
         if bounded_below && bounded_above
             if forward
                 @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], xl, xu)
+                    if may_move_forward(x[i], d[i], lo, hi)
                         j += 1
                         sel[j] = i
                     end
                 end
             else
                 @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], xl, xu)
+                    if may_move_backward(x[i], d[i], lo, hi)
                         j += 1
                         sel[j] = i
                     end
@@ -949,14 +956,14 @@ function get_free_variables{T<:Real,N}(xl::T, xu::T, x::Array{T,N},
         elseif bounded_below
             if forward
                 @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], xl, nothing)
+                    if may_move_forward(x[i], d[i], lo, nothing)
                         j += 1
                         sel[j] = i
                     end
                 end
             else
                 @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], xl, nothing)
+                    if may_move_backward(x[i], d[i], lo, nothing)
                         j += 1
                         sel[j] = i
                     end
@@ -965,14 +972,14 @@ function get_free_variables{T<:Real,N}(xl::T, xu::T, x::Array{T,N},
         elseif bounded_above
             if forward
                 @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], nothing, xu)
+                    if may_move_forward(x[i], d[i], nothing, hi)
                         j += 1
                         sel[j] = i
                     end
                 end
             else
                 @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], nothing, xu)
+                    if may_move_backward(x[i], d[i], nothing, hi)
                         j += 1
                         sel[j] = i
                     end
@@ -988,17 +995,12 @@ function get_free_variables{T<:Real,N}(xl::T, xu::T, x::Array{T,N},
     return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
 end
 
-function get_free_variables{T<:Real,N}(xl::Array{T,N}, xu::Real, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    get_free_variables(xl, convert(T, xu), x, orient, d)
-end
-
-function get_free_variables{T<:Real,N}(xl::Array{T,N}, xu::T, x::Array{T,N},
+function get_free_variables{T<:Real,N}(lo::Array{T,N}, hi::T, x::Array{T,N},
                                        orient, d::Array{T,N})
     @assert size(d)  == size(x)
-    @assert size(xl) == size(x)
+    @assert size(lo) == size(x)
     const forward = Orientation(orient) == Forward
-    const bounded_above = xu < convert(T, +Inf)
+    const bounded_above = hi < T(+Inf)
     const n = length(x)
     sel = Array(Int, n)
     j = 0
@@ -1006,14 +1008,14 @@ function get_free_variables{T<:Real,N}(xl::Array{T,N}, xu::T, x::Array{T,N},
         if bounded_above
             if forward
                 @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], xl[i], xu)
+                    if may_move_forward(x[i], d[i], lo[i], hi)
                         j += 1
                         sel[j] = i
                     end
                 end
             else
                 @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], xl[i], xu)
+                    if may_move_backward(x[i], d[i], lo[i], hi)
                         j += 1
                         sel[j] = i
                     end
@@ -1022,14 +1024,14 @@ function get_free_variables{T<:Real,N}(xl::Array{T,N}, xu::T, x::Array{T,N},
         else
             if forward
                 @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], xl[i], nothing)
+                    if may_move_forward(x[i], d[i], lo[i], nothing)
                         j += 1
                         sel[j] = i
                     end
                 end
             else
                 @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], xl[i], nothing)
+                    if may_move_backward(x[i], d[i], lo[i], nothing)
                         j += 1
                         sel[j] = i
                     end
@@ -1040,17 +1042,12 @@ function get_free_variables{T<:Real,N}(xl::Array{T,N}, xu::T, x::Array{T,N},
     return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
 end
 
-function get_free_variables{T<:Real,N}(xl::Real, xu::Real, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    get_free_variables(convert(T, xl), convert(T, xu), x, orient, d)
-end
-
-function get_free_variables{T<:Real,N}(xl::T, xu::Array{T,N}, x::Array{T,N},
+function get_free_variables{T<:Real,N}(lo::T, hi::Array{T,N}, x::Array{T,N},
                                        orient, d::Array{T,N})
     @assert size(d)  == size(x)
-    @assert size(xu) == size(x)
+    @assert size(hi) == size(x)
     const forward = Orientation(orient) == Forward
-    const bounded_below = xl > convert(T, -Inf)
+    const bounded_below = lo > T(-Inf)
     const n = length(x)
     sel = Array(Int, n)
     j = 0
@@ -1058,14 +1055,14 @@ function get_free_variables{T<:Real,N}(xl::T, xu::Array{T,N}, x::Array{T,N},
         if bounded_below
             if forward
                 @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], xl, xu[i])
+                    if may_move_forward(x[i], d[i], lo, hi[i])
                         j += 1
                         sel[j] = i
                     end
                 end
             else
                 @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], xl, xu[i])
+                    if may_move_backward(x[i], d[i], lo, hi[i])
                         j += 1
                         sel[j] = i
                     end
@@ -1074,14 +1071,14 @@ function get_free_variables{T<:Real,N}(xl::T, xu::Array{T,N}, x::Array{T,N},
         else
             if forward
                 @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], nothing, xu[i])
+                    if may_move_forward(x[i], d[i], nothing, hi[i])
                         j += 1
                         sel[j] = i
                     end
                 end
             else
                 @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], nothing, xu[i])
+                    if may_move_backward(x[i], d[i], nothing, hi[i])
                         j += 1
                         sel[j] = i
                     end
@@ -1092,11 +1089,11 @@ function get_free_variables{T<:Real,N}(xl::T, xu::Array{T,N}, x::Array{T,N},
     return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
 end
 
-function get_free_variables{T<:Real,N}(xl::Array{T,N}, xu::Array{T,N}, x::Array{T,N},
+function get_free_variables{T<:Real,N}(lo::Array{T,N}, hi::Array{T,N}, x::Array{T,N},
                                        orient, d::Array{T,N})
     @assert size(d)  == size(x)
-    @assert size(xl) == size(x)
-    @assert size(xu) == size(x)
+    @assert size(lo) == size(x)
+    @assert size(hi) == size(x)
     const forward = Orientation(orient) == Forward
     const n = length(x)
     sel = Array(Int, n)
@@ -1104,14 +1101,14 @@ function get_free_variables{T<:Real,N}(xl::Array{T,N}, xu::Array{T,N}, x::Array{
     @inbounds begin
         if forward
             @simd for i in 1:n
-                if may_move_forward(x[i], d[i], xl[i], xu[i])
+                if may_move_forward(x[i], d[i], lo[i], hi[i])
                     j += 1
                     sel[j] = i
                 end
             end
         else
             @simd for i in 1:n
-                if may_move_backward(x[i], d[i], xl[i], xu[i])
+                if may_move_backward(x[i], d[i], lo[i], hi[i])
                     j += 1
                     sel[j] = i
                 end
@@ -1119,6 +1116,21 @@ function get_free_variables{T<:Real,N}(xl::Array{T,N}, xu::Array{T,N}, x::Array{
         end
     end
     return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
+end
+
+function get_free_variables{T<:Real,N}(lo::Real, hi::Real, x::Array{T,N},
+                                       orient, d::Array{T,N})
+    get_free_variables(T(lo), T(hi), x, orient, d)
+end
+
+function get_free_variables{T<:Real,N}(lo::Array{T,N}, hi::Real, x::Array{T,N},
+                                       orient, d::Array{T,N})
+    get_free_variables(lo, T(hi), x, orient, d)
+end
+
+function get_free_variables{T<:Real,N}(lo::Real, hi::Array{T,N}, x::Array{T,N},
+                                       orient, d::Array{T,N})
+    get_free_variables(T(lo), hi, x, orient, d)
 end
 
 end # module
