@@ -92,7 +92,7 @@ computes the sum of the product of the elements of `x` and `y` whose indices
 are given by the `sel` argument.
 """
 function inner{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
-    @assert(size(x) == size(y))
+    @assert size(x) == size(y)
     s::T = 0
     @simd for i in 1:length(x)
         @inbounds s += x[i]*y[i]
@@ -101,8 +101,8 @@ function inner{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
 end
 
 function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
-    @assert(size(x) == size(w))
-    @assert(size(y) == size(w))
+    @assert size(x) == size(w)
+    @assert size(y) == size(w)
     s::T = 0
     @simd for i in 1:length(w)
         @inbounds s += w[i]*x[i]*y[i]
@@ -111,7 +111,7 @@ function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
 end
 
 function inner{T<:AbstractFloat,N}(sel::Vector{Int}, x::Array{T,N}, y::Array{T,N})
-    @assert(size(y) == size(x))
+    @assert size(y) == size(x)
     s::T = 0
     const n = length(x)
     @simd for i in 1:length(sel)
@@ -132,7 +132,7 @@ The call:
 exchanges the contents of `x` and `y` (which must have the same size).
 """
 function swap!{T,N}(x::Array{T,N}, y::Array{T,N})
-    @assert(size(x) == size(y))
+    @assert size(x) == size(y)
     temp::T
     @inbounds begin
         @simd for i in 1:length(x)
@@ -209,6 +209,16 @@ function update!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
     end
 end
 
+function update!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                     alpha::Real, x::Array{T,N})
+    update!(dst, T(alpha), x)
+end
+
+function update!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
+                                     alpha::Real, x::Array{T,N})
+    update!(dst, sel, T(alpha), x)
+end
+
 """
 ### Elementwise multiplication
 
@@ -267,7 +277,7 @@ following lines of code produce the same result:
 """
 
 function combine!{T<:Real,N}(dst::Array{T,N}, a::T, x::Array{T,N})
-    @assert(size(x) == size(dst))
+    @assert size(x) == size(dst)
     const n = length(dst)
     @inbounds begin
         if a == zero(T)
@@ -293,8 +303,8 @@ end
 function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
                                       a::T, x::Array{T,N},
                                       b::T, y::Array{T,N})
-    @assert(size(x) == size(dst))
-    @assert(size(y) == size(dst))
+    @assert size(x) == size(dst)
+    @assert size(y) == size(dst)
     const n = length(dst)
     @inbounds begin
         if a == zero(T)
@@ -345,11 +355,6 @@ function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
             end
         end
     end
-end
-
-function update!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                     alpha::Real, x::Array{T,N})
-    update!(dst, T(alpha), x)
 end
 
 function combine!{T<:Real,N}(dst::Array{T,N},
