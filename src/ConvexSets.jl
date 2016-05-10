@@ -13,7 +13,8 @@
 
 module ConvexSets
 
-import Base.convert, Base.sign
+import Base: convert, sign
+import ..Algebra: project_variables!, project_direction!
 
 export project_variables!,  project_gradient!,  project_direction!
 export minimum_step, maximum_step, shortcut_step
