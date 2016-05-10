@@ -5,7 +5,6 @@ using Base.Test
 include("../src/TiPi.jl")
 using .TiPi.LineSearch
 using .TiPi.QuasiNewton
-using .TiPi.ConvexSets
 
 function rosenbrock_init!{T<:Real}(x0::Array{T,1})
   x0[1:2:end] = -1.2

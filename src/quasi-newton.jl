@@ -22,7 +22,6 @@ module QuasiNewton
 
 using ..Algebra
 using ..LineSearch
-using ..ConvexSets
 
 # Use the same floating point type for scalars as in TiPi.
 import ..Float
