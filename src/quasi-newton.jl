@@ -27,12 +27,14 @@ using ..ConvexSets
 # Use the same floating point type for scalars as in TiPi.
 import ..Float
 
-export lbfgs, lbfgs!, blmvm, blmvm!
+export vmlmb, vmlmb!, EMULATE_BLMVM
+
+const EMULATE_BLMVM = UInt(1)
 
 """
-## L-BFGS: limited memory BFGS method
+## VMLMB: limited memory BFGS method with optional bounds
 
-    x = lbfgs(fg!, x0; mem=..., frtol=..., fatol=..., fmin=...)
+    x = vmlmb(fg!, x0; mem=..., lower=..., upper=..., ftol=..., fmin=...)
 
 computes a local minimizer of a function of several variables by a limited
 memory variable metric method.  The caller provides a function `fg!` to compute
@@ -94,16 +96,31 @@ The following keywords are available:
 * `lnsrch` specifies the method to use for line searches (the default
    line search is `MoreThuenteLineSearch`).
 
+* `lower` and `upper` specify the lower and upper bounds for the variables.
+   The bound can be a scalar to indicate that all variables gave the same bound
+   value.  If the lower (resp. upper) bound is unspecified or set to `±∞`, the
+   variables are assumed to be unbounded below (resp. above).  If no bounds are
+   set, VMLMB amounts to an unconstrained limited memory BFGS method (L-BFGS).
+
+* `blmvm` can be set true to emulate the BLMVM algorithm of Benson and Moré.
+  This option has no effects for an uncostrained problem.
+
 
 ### History
+
+The VMLMB algorithm in TiPi.jl provides a pure Julia implementation of the
+original method with some improvements and the capability to emulate L-BFGS and
+BLMVM methods.
 
 The limited memory BFGS method (L-BFGS) was first described by Nocedal (1980)
 who dubbed it SQN.  The method is implemented in MINPACK-2 (1995) by the
 FORTRAN routine VMLM.  The numerical performances of L-BFGS have been studied
 by Liu and Nocedal (1989) who proved that it is globally convergent for
 unfiformly convex problems with a R-linear rate of convergence.  They provided
-the FORTRAN code LBFGS.  The version in TiPi.jl provides a pure Julia
-implementation with some improvements.
+the FORTRAN code LBFGS.  The BLMVM and VMLMB algorithms were proposed by Benson
+and Moré (2001) and Thiébaut (2002) to account for separable bound constraints
+on the variables.  These two latter methods are rather different than L-BFGS-B
+by Byrd at al. (1995) which has more overheads and is slower.
 
 * Nocedal, J. "Updating Quasi-Newton Matrices with Limited Storage,"
   Mathematics of Computation, vol. 35, pp. 773-782 (1980).
@@ -112,25 +129,38 @@ implementation with some improvements.
   optimization," Mathematical programming, Springer, vol. 45, pp. 503-528
   (1989).
 
+* Byrd, R. H., Lu, P., Nocedal, J. & Zhu, C. "A limited memory algorithm for
+  bound constrained optimization," SIAM Journal on Scientific Computing, SIAM,
+  vol. 16, pp. 1190-1208 (1995).
+
+* Benson, S. J. & Moré, J. J. "A limited memory variable metric method in
+  subspaces and bound constrained optimization problems," in Subspaces and
+  Bound Constrained Optimization Problems, (2001).
+
+* Thiébaut, É. "Optimization issues in blind deconvolution algorithms,"
+  Astronomical Data Analysis II, Proc. SPIE 4847, 174-183 (2002).
+
 """
-function lbfgs{T}(fg!::Function, x0::T; keywords...)
+function vmlmb{T}(fg!::Function, x0::T; keywords...)
     x = similar(x0)
     copy!(x, x0)
-    lbfgs!(fg!, x; keywords...)
+    vmlmb!(fg!, x; keywords...)
     return x
 end
 
 """
+`vmlmb!` is the in-place version of `vmlmb` (which to see):
 
-`lbfgs!` is the in-place version of `lbfgs` (which to see):
-
-     lbfgs!(fg!, x; mem=..., frtol=..., fatol=..., fmin=...)
+     vmlmb!(fg!, x; mem=..., lower=..., upper=..., ftol=..., fmin=...)
 
 finds a local minimizer of `f(x)` starting at `x` and stores the best solution
 in `x`.
-
 """
-function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
+function vmlmb!{T}(fg!::Function, x::T;
+                   mem::Integer=5,
+                   lower=-Inf, upper=+Inf,
+                   blmvm::Bool=false,
+                   fmin::Real=-Inf,
                    maxiter::Integer=typemax(Int),
                    maxeval::Integer=typemax(Int),
                    ftol::NTuple{2,Real}=(0.0,1e-8),
@@ -138,17 +168,19 @@ function lbfgs!{T}(fg!::Function, x::T; mem::Integer=5, fmin::Real=-Inf,
                    epsilon::Real=0.0,
                    verb::Bool=false,
                    printer::Function=print_iteration, output::IO=STDOUT,
-                   lnsrch::AbstractLineSearch=MoreThuenteLineSearch(ftol=1e-3,
-                                                                    gtol=0.9,
-                                                                    xtol= 0.1))
-    lbfgs!(fg!, x, Int(mem), Float(fmin), Int(maxiter), Int(maxeval),
-           Float(ftol[1]), Float(ftol[2]), Float(gtol[1]), Float(gtol[2]),
+                   lnsrch::AbstractLineSearch=defaultlinesearch)
+    flags::UInt = (blmvm ? EMULATE_BLMVM : 0)
+    vmlmb!(fg!, x, Int(mem), flags, lower, upper,
+           Float(fmin), Int(maxiter), Int(maxeval),
+           Float(ftol[1]), Float(ftol[2]),
+           Float(gtol[1]), Float(gtol[2]),
            Float(epsilon), verb, printer, output, lnsrch)
 end
 
 # The real worker.
-function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
-                   maxiter::Int, maxeval::Int,
+function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
+                   lower, upper,
+                   fmin::Float, maxiter::Int, maxeval::Int,
                    fatol::Float, frtol::Float,
                    gatol::Float, grtol::Float,
                    epsilon::Float,
@@ -163,6 +195,44 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
     @assert gatol ≥ 0
     @assert grtol ≥ 0
     @assert 0 ≤ epsilon < 1
+
+    const STPMIN = Float(1e-20)
+    const STPMAX = Float(1e+20)
+
+    # Determine the type of bounds and the emulated optimization method (0 for
+    # L-BFGS, 1 for BLMVM or 2 for VMLMB).
+    bounds::UInt = 0
+    if isa(lower, Real)
+        lo = Float(lower)
+        if lower > -Inf
+            bounds |= 1
+        end
+    elseif isa(lower, T)
+        lo = lower
+        bounds |= 1
+    else
+        error("invalid lower bound type")
+    end
+    if isa(upper, Real)
+        hi = Float(upper)
+        if upper < +Inf
+            bounds |= 2
+        end
+    elseif isa(upper, T)
+        hi = upper
+        bounds |= 2
+    else
+        error("invalid upper bound type")
+    end
+    method = (bounds == 0 ? 0 : (flags & EMULATE_BLMVM) != 0 ? 1 : 2)
+    if lnsrch == defaultlinesearch
+        # Provide a suitable line search.
+        if method == 0
+            lnsrch = MoreThuenteLineSearch(ftol=1e-3, gtol=0.9, xtol= 0.1)
+        else
+            lnsrch = BacktrackingLineSearch(ftol=0.1, amin=1)
+        end
+    end
 
     mem = min(mem, length(x))
     reason::AbstractString = ""
@@ -181,6 +251,8 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
     stp::Float = 0
     stpmin::Float = 0
     stpmax::Float = 0
+    smin::Float = 0
+    smax::Float = 0
     gamma::Float = 1
     gnorm::Float = 0
     gtest::Float = 0
@@ -192,10 +264,13 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
 
     # Allocate memory for the limited memory BFGS approximation of the inverse
     # Hessian.
-    g = similar(x)    # gradient
-    d = similar(x)    # search direction
-    S = Array(T, mem) # memorized steps
-    Y = Array(T, mem) # memorized gradient differences
+    g = similar(x)     # gradient
+    if method > 0
+        p = similar(x) # projected gradient
+    end
+    d = similar(x)     # search direction
+    S = Array(T, mem)  # memorized steps
+    Y = Array(T, mem)  # memorized gradient differences
     for k in 1:mem
         S[k] = similar(x)
         Y[k] = similar(x)
@@ -215,10 +290,16 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
 
         # Compute value of function and gradient, register best solution so far
         # and check for convergence based on the gradient norm.
+        if method > 0
+            project_variables!(x, lo, hi, x)
+        end
         f = fg!(x, g)
         eval += 1
+        if method > 0
+            project_direction!(p, lo, hi, x, -1, g)
+        end
         if eval == 1 || f < bestf
-            gnorm = norm2(g)
+            gnorm = norm2((method > 0 ? p : g))
             beststp = stp
             bestf = f
             bestgnorm = gnorm
@@ -227,8 +308,13 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
             end
             if gnorm ≤ gtest
                 stage = 3
-                reason = (gnorm > 0 ? "gradient sufficiently small" :
-                          "a stationary point has been found!")
+                if gnorm == 0
+                    reason = "a stationary point has been found!"
+                elseif method > 0
+                    reason = "projected gradient sufficiently small"
+                else
+                    reason = "gradient sufficiently small"
+                end
                 if eval > 1
                     iter += 1
                 end
@@ -237,26 +323,36 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
         if fminset && f < fmin
             stage = 4
             reason = "f < fmin"
-        elseif eval ≥ maxeval
-            stage = 4
-            reason = "too many evaluations"
         end
 
         if stage == 1
             # Line search is in progress.
             if requires_derivative(lnsrch)
-                gd = -inner(g, d)
+                if method > 0
+                    gd = (inner(g, x) - inner(g, S[mark]))/stp
+                else
+                    gd = -inner(g, d)
+                end
             end
             (stp, search) = iterate!(lnsrch, stp, f, gd)
             if ! search
                 if check_status(lnsrch) == :CONVERGENCE
                     # Line search has converged.  Increment iteration counter
-                    # and set stage to trigger computing a new search
-                    # direction.
+                    # and check for stopping condition.
                     iter += 1
-                    if iter ≥ maxiter
+                    delta = max(abs(f - f0), stp*abs(gd0))
+                    if delta ≤ frtol*abs(f0)
+                        stage = 3
+                        reason = "frtol test satisfied"
+                    elseif delta ≤ fatol
+                        stage = 3
+                        reason = "fatol test satisfied"
+                    elseif iter ≥ maxiter
                         stage = 4
                         reason = "too many iterations"
+                    elseif eval ≥ maxeval
+                        stage = 4
+                        reason = "too many evaluations"
                     else
                         stage = 2
                     end
@@ -267,21 +363,13 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
                 end
             end
         end
+        if stage < 2 && eval ≥ maxeval
+            stage = 4
+            reason = "too many evaluations"
+        end
 
         if stage != 1
             # Initial step or line search has converged.
-
-            # Check for global convergence.
-            if stage == 2
-                delta = max(abs(f - f0), stp*abs(gd0))
-                if delta ≤ frtol*abs(f0)
-                    stage = 3
-                    reason = "frtol test satisfied"
-                elseif delta ≤ fatol
-                    stage = 3
-                    reason = "fatol test satisfied"
-                end
-            end
 
             # Make sure the gradient norm is correct or revert to best solution
             # so far if something wrong occured.
@@ -291,8 +379,11 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
                     f = bestf
                     gnorm = bestgnorm
                     combine!(x, 1, S[mark], -stp, d)
+                    if method > 0
+                        project_variables!(x, lo, hi, x)
+                    end
                 else
-                    gnorm = norm2(g)
+                    gnorm = norm2((method > 0 ? p : g))
                 end
             end
 
@@ -310,42 +401,57 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
                 # Update limited memory BFGS approximation of the inverse
                 # Hessian with the effective step and gradient change.
                 update!(S[mark], -1, x)
-                update!(Y[mark], -1, g)
-                rho[mark] = inner(Y[mark], S[mark])
-                if rho[mark] > 0
-                    # The update is acceptable, compute the scale.
-                    gamma = rho[mark]/inner(Y[mark], Y[mark])
+                update!(Y[mark], -1, (method == 1 ? p : g))
+                if method < 2
+                    rho[mark] = inner(Y[mark], S[mark])
+                    if rho[mark] > 0
+                        # The update is acceptable, compute the scale.
+                        gamma = rho[mark]/inner(Y[mark], Y[mark])
+                    end
                 end
                 m = min(m + 1, mem)
 
-                # Compute d = H*g.
+                # Compute search direction.
                 copy!(d, g)
-                if apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
-                    gd = -inner(g, d)
-                    if ! sufficient_descent(gd, epsilon, gnorm, d)
-                        # Revert to the steepest descent.
-                        stage = 0
-                        copy!(d, g)
-                        gd = -gnorm^2
-                        rejects += 1
-                    end
+                if method < 2
+                    change = apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
                 else
-                    # The steepest descent is being used.
+                    change = apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha,
+                                          get_free_variables(lo, hi, x, -1, d))
+                end
+                if change
+                    if method > 0
+                        project_direction!(d, lo, hi, x, -1, d)
+                    end
+                    gd = -inner(g, d)
+                    reject = ! sufficient_descent(gd, epsilon, gnorm, d)
+                else
+                    reject = true
+                end
+                if reject
+                    # The steepest descent will be used.
                     stage = 0
-                    gd = -gnorm^2
+                    rejects += 1
                 end
 
                 # Circularly move the mark to the next slot.
                 mark = (mark < mem ? mark + 1 : 1)
-            else
-                # At the initial point use the steepest descent.
-                copy!(d, g)
+            end
+            if stage == 0
+                # At the initial point or computed direction was rejected.  Use
+                # the steepest descent which is the projected gradient.
+                copy!(d, (method > 0 ? p : g))
                 gd = -gnorm^2
             end
 
-            # Initialize the line search.
+            # Save function value, variables and (projected) gradient at start
+            # of line search.
             f0 = f
             gd0 = gd
+            copy!(S[mark], x)
+            copy!(Y[mark], (method == 1 ? p : g))
+
+            # Choose initial step length.
             if stage == 2
                 stp = 1
             else
@@ -355,10 +461,18 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
                     stp = 1/gnorm # FIXME: use a better scale
                 end
             end
-            stpmin = 1e-20*stp
-            stpmax = 1e+20*stp
-            copy!(S[mark], x) # save x0
-            copy!(Y[mark], g) # save g0
+            if method > 0
+                # Make sure the step is not longer than necessary.
+                (smin, smax) = step_limits(lo, hi, x, -1, d)
+                stp = min(stp, smax)
+                stpmin = STPMIN*stp
+                stpmax = min(STPMAX*stp, smax)
+            else
+                stpmin = STPMIN*stp
+                stpmax = STPMAX*stp
+            end
+
+            # Initialize the line search.
             if ! start!(lnsrch, stp, f0, gd0, stpmin, stpmax)
                 # Something wrong happens.
                 stage = 4
@@ -378,7 +492,7 @@ function lbfgs!{T}(fg!::Function, x::T, mem::Int, fmin::Float,
     if verb
         color = (stage > 3 ? :red : :green)
         prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
-        print_with_color(color, output, "# ", prefix, reason)
+        print_with_color(color, output, "# ", prefix, reason, "\n")
     elseif stage > 3
         warn(reason)
     end
@@ -527,291 +641,49 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
     return modif
 end
 
-#------------------------------------------------------------------------------
-# BLMVM
-
-function blmvm{T}(fg!::Function, x0::T, dom::AbstractBoundedSet; keywords...)
-    x = similar(x0)
-    copy!(x, x0)
-    blmvm!(fg!, x, dom; keywords...)
-    return x
+function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+                         gamma::Float, m::Int, mark::Int, v::T,
+                         alpha::Vector{Float}, sel)
+    @assert gamma > 0
+    apply_lbfgs!(S, Y, rho, u -> scale!(u, gamma), m, mark, v, alpha, sel)
 end
 
-"""
-
-`blmvm!` is the in-place version of `blmvm` (which to see):
-
-     blmvm!(fg!, x; mem=..., frtol=..., fatol=..., fmin=...)
-
-finds a local minimizer of `f(x)` starting at `x` and stores the best solution
-in `x`.
-
-"""
-function blmvm!{T}(fg!::Function, x::T, dom::AbstractBoundedSet;
-                   mem::Integer=5, fmin::Real=-Inf,
-                   maxiter::Integer=typemax(Int),
-                   maxeval::Integer=typemax(Int),
-                   ftol::NTuple{2,Real}=(0.0,1e-8),
-                   gtol::NTuple{2,Real}=(0.0,1e-6),
-                   epsilon::Real=0.0,
-                   verb::Bool=false,
-                   printer::Function=print_iteration, output::IO=STDOUT,
-                   lnsrch::AbstractLineSearch=BacktrackingLineSearch(ftol=1e-3,
-                                                                     amin=1))
-    blmvm!(fg!, x, dom, Int(mem), Float(fmin), Int(maxiter), Int(maxeval),
-           Float(ftol[1]), Float(ftol[2]), Float(gtol[1]), Float(gtol[2]),
-           Float(epsilon), verb, printer, output, lnsrch)
+function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+                         d::T, m::Int, mark::Int, v::T,
+                         alpha::Vector{Float}, sel)
+    apply_lbfgs!(S, Y, rho, u -> multiply!(u, d, u), m, mark, v, alpha)
 end
 
-# The real worker.
-function blmvm!{T}(fg!::Function, x::T, dom::AbstractBoundedSet, mem::Int,
-                   fmin::Float, maxiter::Int, maxeval::Int,
-                   fatol::Float, frtol::Float,
-                   gatol::Float, grtol::Float,
-                   epsilon::Float,
-                   verb::Bool, printer::Function, output::IO,
-                   lnsrch::AbstractLineSearch)
-
-    @assert mem ≥ 1
-    @assert maxiter ≥ 0
-    @assert maxeval ≥ 1
-    @assert fatol ≥ 0
-    @assert frtol ≥ 0
-    @assert gatol ≥ 0
-    @assert grtol ≥ 0
-    @assert 0 ≤ epsilon < 1
-
-    mem = min(mem, length(x))
-    reason::AbstractString = ""
-    fminset::Bool = (! isnan(fmin) && fmin > -Inf)
-
-    mark::Int = 1    # index of most recent step and gradient difference
-    m::Int = 0       # number of memorized steps
-    iter::Int = 0    # number of algorithm iterations
-    eval::Int = 0    # number of objective function and gradient evaluations
-    rejects::Int = 0 # number of rejected search directions
-
-    f::Float = 0
-    f0::Float = 0
-    gd::Float = 0
-    gd0::Float = 0
-    stp::Float = 0
-    stpmin::Float = 0
-    stpmax::Float = 0
-    smin1::Float = 0
-    smin2::Float = 0
-    smax::Float = 0
-    gamma::Float = 1
-    gnorm::Float = 0
-    gtest::Float = 0
-
-    # Variables for saving information about best point so far.
-    beststp::Float = 0
-    bestf::Float = 0
-    bestgnorm::Float = 0
-
-    # Allocate memory for the limited memory BFGS approximation of the inverse
-    # Hessian.
-    g = similar(x)    # gradient
-    p = similar(x)    # projected gradient (FIXME: g and p can share same array)
-    d = similar(x)    # search direction
-    S = Array(T, mem) # memorized steps
-    Y = Array(T, mem) # memorized gradient differences
-    for k in 1:mem
-        S[k] = similar(x)
-        Y[k] = similar(x)
+function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+                         H0!::Function, m::Int, mark::Int, v::T,
+                         alpha::Vector{Float}, sel)
+    mem = min(length(S), length(Y), length(rho), length(alpha))
+    @assert 1 ≤ m ≤ mem
+    @assert 1 ≤ mark ≤ mem
+    modif::Bool = false
+    @inbounds begin
+        k::Int = mark + 1
+        for i in 1:m
+            k = (k > 1 ? k - 1 : mem)
+            rho[k] = inner(sel, Y[k], S[k])
+            if rho[k] > 0
+                alpha[k] = inner(sel, S[k], v)/rho[k]
+                update!(v, sel, -alpha[k], Y[k])
+                modif = true
+            end
+        end
+        if modif
+            H0!(v)
+            for i in 1:m
+                if rho[k] > 0
+                    beta::Float = inner(sel, Y[k], v)/rho[k]
+                    update!(v, sel, alpha[k] - beta, S[k])
+                end
+                k = (k < mem ? k + 1 : 1)
+            end
+        end
     end
-    rho = Array(Float, mem)
-    alpha = Array(Float, mem)
-
-    # Variable used to control the stage of the algorithm:
-    #   * stage = 0 at start or restart;
-    #   * stage = 1 during a line search;
-    #   * stage = 2 if line search has converged;
-    #   * stage = 3 if algorithm has converged;
-    #   * stage = 4 if algorithm is terminated with a warning.
-    stage::Int = 0
-
-    while true
-
-        # Compute value of function and gradient, register best solution so far
-        # and check for convergence based on the gradient norm.
-        project_variables!(x, dom, x)
-        f = fg!(x, g)
-        project_direction!(p, dom, x, Ascent, g)
-        eval += 1
-        if eval == 1 || f < bestf
-            gnorm = norm2(p)
-            beststp = stp
-            bestf = f
-            bestgnorm = gnorm
-            if eval == 1
-                gtest = hypot(gatol, grtol*gnorm)
-            end
-            if gnorm ≤ gtest
-                stage = 3
-                reason = (gnorm > 0 ? "projected gradient sufficiently small" :
-                          "a stationary point has been found!")
-                if eval > 1
-                    iter += 1
-                end
-            end
-        end
-        if fminset && f < fmin
-            stage = 4
-            reason = "f < fmin"
-        elseif eval ≥ maxeval
-            stage = 4
-            reason = "too many evaluations"
-        end
-
-        if stage == 1
-            # Line search is in progress.
-            if requires_derivative(lnsrch)
-                gd = (inner(g, x) - inner(g, S[mark]))/stp
-            end
-            (stp, search) = iterate!(lnsrch, stp, f, gd)
-            if ! search
-                if check_status(lnsrch) == :CONVERGENCE
-                    # Line search has converged.  Increment iteration counter
-                    # and set stage to trigger computing a new search
-                    # direction.
-                    iter += 1
-                    if iter ≥ maxiter
-                        stage = 4
-                        reason = "too many iterations"
-                    else
-                        stage = 2
-                    end
-                else
-                    # Line seach terminated with a warning.
-                    stage = 4
-                    reason = get_reason(lnsrch)
-                end
-            end
-        end
-
-        if stage != 1
-            # Initial step or line search has converged.
-
-            # Check for global convergence.
-            if stage == 2
-                delta = max(abs(f - f0), stp*abs(gd0))
-                if delta ≤ frtol*abs(f0)
-                    stage = 3
-                    reason = "frtol test satisfied"
-                elseif delta ≤ fatol
-                    stage = 3
-                    reason = "fatol test satisfied"
-                end
-            end
-
-            # Make sure the gradient norm is correct or revert to best solution
-            # so far if something wrong occured.
-            if stp != beststp
-                if stage ≥ 3
-                    stp = beststp
-                    f = bestf
-                    gnorm = bestgnorm
-                    combine!(x, 1, S[mark], -stp, d)
-                else
-                    gnorm = norm2(p)
-                end
-            end
-
-            # Print some information if requested and terminate algorithm if
-            # stage ≥ 3.
-            if verb
-                printer(output, iter, eval, rejects, f, gnorm, stp)
-            end
-            if stage ≥ 3
-                break
-            end
-
-            # Compute next search direction.
-            if stage == 2
-                # Update limited memory BFGS approximation of the inverse
-                # Hessian with the effective step and gradient change.
-                update!(S[mark], -1, x)
-                update!(Y[mark], -1, p)
-                rho[mark] = inner(Y[mark], S[mark])
-                if rho[mark] > 0
-                    # The update is acceptable, compute the scale.
-                    gamma = rho[mark]/inner(Y[mark], Y[mark])
-                end
-                m = min(m + 1, mem)
-
-                # Compute search direction.
-                copy!(d, g)
-                if apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
-                    project_direction!(d, dom, x, Ascent, d) # FIXME: in-place possible?
-                    gd = -inner(g, d)
-                    reject = ! sufficient_descent(gd, epsilon, gnorm, d)
-                else
-                    reject = true
-                end
-                if reject
-                    # The steepest descent will be used.
-                    stage = 0
-                    rejects += 1
-                end
-
-                # Circularly move the mark to the next slot.
-                mark = (mark < mem ? mark + 1 : 1)
-            end
-            if stage == 0
-                # At the initial point or computed direction was rejected.  Use
-                # the steepest descent which is the projected gradient.
-                copy!(d, p)
-                gd = -gnorm^2
-            end
-
-            # Save function value, variables and (projected) gradient at start
-            # of line search.
-            f0 = f
-            gd0 = gd
-            copy!(S[mark], x)
-            copy!(Y[mark], p)
-
-            # Choose initial step length.
-            if stage == 2
-                stp = 1
-            else
-                if fminset && fmin < f0
-                    stp = 2*(fmin - f0)/gd0
-                else
-                    stp = 1/gnorm # FIXME: use a better scale
-                end
-            end
-            (smin1, smin2, smax) = stepbounds(dom, x, Ascent, d)
-            stp = min(stp, smax)
-            stpmin = 1e-20*stp
-            stpmax = min(1e+20*stp, smax)
-
-            # Initialize the line search.
-            if ! start!(lnsrch, stp, f0, gd0, stpmin, stpmax)
-                # Something wrong happens.
-                stage = 4
-                reason = get_reason(lnsrch)
-                break
-            end
-            stage = 1 # line search is in progress
-
-        end
-
-        # Compute the new iterate.
-        combine!(x, 1, S[mark], -stp, d)
-
-    end
-
-    # Algorithm finished.
-    if verb
-        color = (stage > 3 ? :red : :green)
-        prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
-        print_with_color(color, output, "# ", prefix, reason, "\n")
-    elseif stage > 3
-        warn(reason)
-    end
+    return modif
 end
 
 #------------------------------------------------------------------------------
