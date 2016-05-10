@@ -76,13 +76,13 @@ end
 
 The call:
 ```
-    inner(x,y)
+    inner(x, y)
 ```
 computes the inner product (a.k.a. scalar product) between `x` and `y` (which
 must have the same size).  The triple inner product between `w`, `x` and `y`
 can be computed by:
 ```
-    inner(w,x,y)
+    inner(w, x, y)
 ```
 Finally:
 ```
@@ -154,6 +154,13 @@ increments the components of the destination *vector* `dst` by those of
 `alpha*x`.  The code is optimized for some specific values of the multiplier
 `alpha`.  For instance, if `alpha` is zero, then `dst` left unchanged without
 using `x`.
+
+Another possibility is:
+```
+    update!(dst, sel, alpha, x)
+```
+with `sel` a selection of indices to which apply the operation.
+
 """
 function update!{T<:AbstractFloat,N}(dst::Array{T,N},
                                      a::T, x::Array{T,N})
@@ -172,6 +179,32 @@ function update!{T<:AbstractFloat,N}(dst::Array{T,N},
             @simd for i in 1:n
                 dst[i] += a*x[i]
             end
+        end
+    end
+end
+
+function update!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
+                                     a::T, x::Array{T,N})
+    @assert(size(x) == size(dst))
+    const m = length(sel)
+    const n = length(dst)
+    if a == one(T)
+        @simd for i in 1:m
+            j = sel[i]
+            1 <= j <= n || throw(BoundsError())
+            @inbounds dst[j] += x[j]
+        end
+    elseif a == -one(T)
+        @simd for i in 1:m
+            j = sel[i]
+            1 <= j <= n || throw(BoundsError())
+            @inbounds dst[j] -= x[j]
+        end
+    elseif a != zero(T)
+        @simd for i in 1:m
+            j = sel[i]
+            1 <= j <= n || throw(BoundsError())
+            @inbounds dst[j] += a*x[j]
         end
     end
 end
