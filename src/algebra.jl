@@ -147,24 +147,25 @@ end
 ### Increment an array by a scaled step
 
 The call:
-```
+
     update!(dst, alpha, x)
-```
+
 increments the components of the destination *vector* `dst` by those of
 `alpha*x`.  The code is optimized for some specific values of the multiplier
 `alpha`.  For instance, if `alpha` is zero, then `dst` left unchanged without
 using `x`.
 
 Another possibility is:
-```
-    update!(dst, sel, alpha, x)
-```
-with `sel` a selection of indices to which apply the operation.
 
+    update!(dst, sel, alpha, x)
+
+with `sel` a selection of indices to which apply the operation.  Note that if
+an indice is repeated, the operation will be performed several times at this
+location.
 """
 function update!{T<:AbstractFloat,N}(dst::Array{T,N},
                                      a::T, x::Array{T,N})
-    @assert(size(x) == size(dst))
+    @assert size(dst) == size(x)
     const n = length(dst)
     @inbounds begin
         if a == one(T)
@@ -185,27 +186,62 @@ end
 
 function update!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
                                      a::T, x::Array{T,N})
-    @assert(size(x) == size(dst))
-    const m = length(sel)
+    @assert size(dst) == size(x)
     const n = length(dst)
     if a == one(T)
-        @simd for i in 1:m
+        @simd for i in 1:length(sel)
             j = sel[i]
             1 <= j <= n || throw(BoundsError())
             @inbounds dst[j] += x[j]
         end
     elseif a == -one(T)
-        @simd for i in 1:m
+        @simd for i in 1:length(sel)
             j = sel[i]
             1 <= j <= n || throw(BoundsError())
             @inbounds dst[j] -= x[j]
         end
     elseif a != zero(T)
-        @simd for i in 1:m
+        @simd for i in 1:length(sel)
             j = sel[i]
             1 <= j <= n || throw(BoundsError())
             @inbounds dst[j] += a*x[j]
         end
+    end
+end
+
+"""
+### Elementwise multiplication
+
+The call:
+
+    multiply!(dst, x, y)
+
+stores the elementwise multiplication of `x` by `y` in `dst`.
+
+Another possibility is:
+
+    multiply!(dst, sel, x, y)
+
+with `sel` a selection of indices to which apply the operation.
+"""
+function multiply!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                       x::Array{T,N}, y::Array{T,N})
+    @assert size(dst) == size(x)
+    @assert size(y) == size(x)
+    @simd for i in 1:length(dst)
+        @inbounds dst[i] = x[i]*y[i]
+    end
+end
+
+function multiply!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
+                                       x::Array{T,N}, y::Array{T,N})
+    @assert size(dst) == size(x)
+    @assert size(y) == size(x)
+    const n = length(dst)
+    @simd for i in 1:length(sel)
+        j = sel[i]
+        1 <= j <= n || throw(BoundsError())
+        @inbounds dst[j] = x[j]*y[j]
     end
 end
 
