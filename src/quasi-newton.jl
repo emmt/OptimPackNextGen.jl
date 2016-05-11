@@ -229,7 +229,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
         if method == 0
             lnsrch = MoreThuenteLineSearch(ftol=1e-3, gtol=0.9, xtol= 0.1)
         else
-            lnsrch = BacktrackingLineSearch(ftol=0.1, amin=1)
+            lnsrch = BacktrackingLineSearch(ftol=0.1, amin=0.1)
         end
     end
 
@@ -411,12 +411,13 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                 m = min(m + 1, mem)
 
                 # Compute search direction.
-                copy!(d, g)
                 if method < 2
+                    copy!(d, g)
                     change = apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
                 else
+                    copy!(d, p)
                     change = apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha,
-                                          get_free_variables(lo, hi, x, -1, d))
+                                          get_free_variables(d))
                 end
                 if change
                     if method > 0

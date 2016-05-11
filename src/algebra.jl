@@ -921,10 +921,42 @@ end
 end
 
 """
+## Get free variables when following a direction
 
-Get free variables when following a direction.
+    sel =  get_free_variables(lo, hi, x, orient, d)
+
+yields the list of components of the variables `x` which are allowed to vary
+along the search direction `sign(orient)*d` under box constraints with `lo` and
+`hi` the lower and upper bounds.
+
+If the projected gradient `p` of the objective function is available, the free
+variables can be obtained by:
+
+    sel =  get_free_variables(p)
+
+where the projected gradient `p` has been computed as:
+
+    project_direction!(p, lo, hi, x, -1, g)
+
+with `g` the gradient of the objective function at `x`.
 
 """
+
+function get_free_variables{T<:Real,N}(p::Array{T,N})
+    const ZERO = zero(T)
+    const n = length(p)
+    sel = Array(Int, n)
+    j = 0
+    @inbounds begin
+        @simd for i in 1:n
+            if p[i] != ZERO
+                j += 1
+                sel[j] = i
+            end
+        end
+    end
+    return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
+end
 
 function get_free_variables{T<:Real,N}(lo::T, hi::T, x::Array{T,N},
                                        orient, d::Array{T,N})
