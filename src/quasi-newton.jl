@@ -416,7 +416,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                     change = apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
                 else
                     copy!(d, p)
-                    change = apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha,
+                    change = apply_lbfgs!(S, Y, rho, m, mark, d, alpha,
                                           get_free_variables(d))
                 end
                 if change
@@ -642,25 +642,12 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
 end
 
 function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
-                         gamma::Float, m::Int, mark::Int, v::T,
-                         alpha::Vector{Float}, sel)
-    @assert gamma > 0
-    apply_lbfgs!(S, Y, rho, u -> scale!(u, gamma), m, mark, v, alpha, sel)
-end
-
-function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
-                         d::T, m::Int, mark::Int, v::T,
-                         alpha::Vector{Float}, sel)
-    apply_lbfgs!(S, Y, rho, u -> multiply!(u, d, u), m, mark, v, alpha)
-end
-
-function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
-                         H0!::Function, m::Int, mark::Int, v::T,
+                         m::Int, mark::Int, v::T,
                          alpha::Vector{Float}, sel)
     mem = min(length(S), length(Y), length(rho), length(alpha))
     @assert 1 ≤ m ≤ mem
     @assert 1 ≤ mark ≤ mem
-    modif::Bool = false
+    gamma::Float = 0
     @inbounds begin
         k::Int = mark + 1
         for i in 1:m
@@ -669,11 +656,13 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             if rho[k] > 0
                 alpha[k] = inner(sel, S[k], v)/rho[k]
                 update!(v, sel, -alpha[k], Y[k])
-                modif = true
+                if gamma == 0
+                    gamma = rho[k]/inner(sel, Y[k], Y[k])
+                end
             end
         end
-        if modif
-            H0!(v)
+        if gamma != 0
+            scale!(v, gamma)
             for i in 1:m
                 if rho[k] > 0
                     beta::Float = inner(sel, Y[k], v)/rho[k]
@@ -683,7 +672,7 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             end
         end
     end
-    return modif
+    return (gamma != 0)
 end
 
 #------------------------------------------------------------------------------
