@@ -1,0 +1,260 @@
+# step.jl --
+#
+# Implement the STEP method for global univariate optimization [1].
+#
+# [1] Swarzberg, S., Seront, G. & Bersini, H., "S.T.E.P.: the easiest way
+#     to optimize a function," in IEEE World Congress on Computational
+#     Intelligence, Proceedings of the First IEEE Conference on
+#     Evolutionary Computation,vol. 1, pp. 519-524 (1994).
+#
+#------------------------------------------------------------------------------
+#
+# Copyright (c) 2016, Éric Thiébaut <eric.thiebaut@univ-lyon1.fr>
+# All rights reserved.
+#
+
+module Step
+
+export globmin, globmax
+
+typealias Float Cdouble
+# Use the same floating point type for scalars as in TiPi.
+
+
+"""
+# Cyclic singly linked list
+"""
+type Item{T}
+    next::Item{T}
+    data::T
+    Item(next::Item{T}, data::T) = new(next, data)
+    function Item(data::T)
+        newitem = new()
+        newitem.next = newitem
+        newitem.data = data
+        return newitem
+    end
+end
+Item{T}(data::T) = Item{T}(data)
+
+"""
+Append a new item after a given item of a cyclic singly linked list.
+"""
+function append!{T}(item::Item{T}, data::T)
+    newitem = Item{T}(item.next, data)
+    item.next = newitem
+    return newitem
+end
+
+type NodeData
+    x::Float # position
+    y::Float # function value
+    q::Float # "quality" factor
+end
+
+# Default absolute and relative tolerances:
+const TOL = (realmin(Float), sqrt(eps(Float)))
+
+@inline sqrtdifmin(lvl,val) = sqrt(val - lvl)
+@inline sqrtdifmax(lvl,val) = sqrt(lvl - val)
+
+for (func, cmp, incr, wgt) in ((:globmin, <, -, :sqrtdifmin),
+                               (:globmax, >, +, :sqrtdifmax))
+    @eval begin
+
+        function $func(f::Function, a::Float, b::Float;
+                       maxeval::Int=100000,
+                       tol::NTuple{2,Float}=TOL,
+                       alpha::Float=0.0, beta::Float=0.0,
+                       verb::Bool=false)
+
+            maxeval >= 2 || error("parameter `maxeval` must be at least 2")
+            tol[1] >= 0 || error("absolute tolerance `tol[1]` must be nonnegative")
+            0 <= tol[2] <= 1 || error("relative tolerance `tol[2]` must be in [0,1]")
+            alpha >= 0 || error("parameter `alpha` must be nonnegative")
+            beta >= 0 || error("parameter `beta` must be nonnegative")
+
+            if a > b
+                (a, b) = (b, a)
+            elseif a == b
+                return (a, f(a), zero(Float), 1)
+            end
+
+            fa = f(a)
+            fb = f(b)
+            list = Item(NodeData(a, fa, 0))
+            append!(list, NodeData(b, fb, 0))
+            evaluations::Int = 2
+
+            if $cmp(fa, fb)
+                xbest = a
+                fbest = fa
+            else
+                xbest = b
+                fbest = fb
+            end
+            xtol::Float = (b - a)/2
+            rehash::Bool = true
+            c = xbest
+            while true
+                if verb
+                    println("n = ", evaluations,", x = ", xbest, " ± ", xtol,
+                            ", f(x) = ", fbest)
+                end
+                if xtol <= hypot(tol[1], xbest*tol[2])
+                    break
+                end
+                if evaluations >= maxeval
+                    warn("too many evaluations")
+                    break
+                end
+
+                # Find where to split.
+                split = list
+                if rehash
+                    qmin = Float(Inf)
+                    t = hypot(alpha*fbest, beta)
+                    level = $incr(fbest, t)
+                    n2 = list
+                    x2 = n2.data.x
+                    w2 = $wgt(level, n2.data.y)
+                    while true
+                        n1 = n2
+                        n2 = n2.next
+                        x1 = x2
+                        x2 = n2.data.x
+                        x2 > x1 || break
+                        w1 = w2
+                        w2 = $wgt(level, n2.data.y)
+                        q = (w1 + w2)/(x2 - x1)
+                        n1.data.q = q
+                        if q < qmin
+                            qmin = q
+                            split = n1
+                        end
+                    end
+                    rehash = false
+                else
+                    qmin = split.data.q
+                    n1 = list
+                    x1 = n1.data.x
+                    while true
+                        n2 = n1.next
+                        x2 = n2.data.x
+                        x2 > x1 || break
+                        q = n1.data.q
+                        if q < qmin
+                            qmin = q
+                            split = n1
+                        end
+                        n1, x1 = n2, x2
+                    end
+                end
+
+                # Split the chosen interval.
+                evaluations += 1
+                x0 = split.data.x
+                x1 = split.next.data.x
+                c = (x0 + x1)/2
+                fc = f(c)
+                if $cmp(fc, fbest)
+                    xbest = c
+                    fbest = fc
+                    xtol = (x1 - x0)/2
+                    rehash = true
+                end
+                if rehash
+                    # All Q factors have to be recomputed.
+                    q = zero(Float)
+                else
+                    # Compute the Q factors for the split interval and for the
+                    # new one.
+                    w1 = $wgt(level, split.data.y)
+                    w2 = $wgt(level, fc)
+                    w3 = $wgt(level, split.next.data.y)
+                    e = (x1 - x0)/2
+                    split.data.q = (w1 + w2)/e
+                    q = (w2 + w3)/e
+                end
+                append!(split, NodeData(c, fc, q))
+            end
+
+            # Return best point found so far.
+            (xbest, fbest, xtol, evaluations)
+        end
+
+        function $func(f::Function, a::Real, b::Real;
+                       maxeval::Integer=10000,
+                       tol::NTuple{2,Real}=TOL,
+                       alpha::Real=0.0, beta::Real=0.0,
+                       verb::Bool=false)
+            $func(f, Float(a), Float(b);
+                  maxeval = Int(maxeval),
+                  tol = (Float(tol[1]), Float(tol[2])),
+                  alpha = Float(alpha),
+                  beta = Float(beta),
+                  verb = verb)
+        end
+
+    end
+end
+
+@doc """
+# Find a global minimum or maximum
+
+    (xbest, fbest, xtol, n) = globmin(f, a, b)
+    (xbest, fbest, xtol, n) = globmax(f, a, b)
+
+finds a global minimum (resp. maximum) of `f(x)` in the interval `[a,b]` and
+returns its position `xbest`, the corresponding function value `fbest =
+f(xbest)`, the uncertainty `xtol` and the number of function evaluations needed
+to find it.
+
+The algorithm is based on the STEP method described in:
+
+> Swarzberg, S., Seront, G. & Bersini, H., "S.T.E.P.: the easiest way to
+> optimize a function," in IEEE World Congress on Computational Intelligence,
+> Proceedings of the First IEEE Conference on Evolutionary Computation, vol. 1,
+> pp. 519-524 (1994).
+
+""" globmin
+
+@doc @doc(globmin) globmax
+
+# Simple parabola.  To be minimized over [-1,2].
+testParabola(x) = x*x
+
+# Brent's 5th function.  To be minimized over [-10,10].
+testBrent5(x) = (x - sin(x))*exp(-x*x)
+
+# Michalewicz's 1st function.  To be minimized over [-1,2].
+testMichalewicz1(x) = x*sin(10.0*x)
+
+# Michalewicz's 2nd function.  To be maximized over [0,pi].
+function testMichalewicz2(x)
+    s = 0.0
+    a = sin(x)
+    b = x*x/pi
+    for i in 1:10
+        s += a*(sin(b*i)^20)
+    end
+    return s
+end
+
+function runtests()
+    (xbest, fbest, xtol, n) = globmin(testParabola, -1, 2, verb=false,
+                                      maxeval=100, alpha=0, beta=0)
+    println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
+    (xbest, fbest, xtol, n) = globmin(testBrent5, -10, 10, verb=false,
+                                      maxeval=100, alpha=0, beta=0)
+    println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
+    (xbest, fbest, xtol, n) = globmin(testMichalewicz1, -1, 2, verb=false,
+                                      maxeval=100, alpha=0, beta=0)
+    println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
+    (xbest, fbest, xtol, n) = globmax(testMichalewicz2, 0, pi, verb=false,
+                                      maxeval=500, tol=(1e-12,0))
+    println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
+end
+
+
+end # module
