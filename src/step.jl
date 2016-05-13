@@ -13,13 +13,16 @@
 # All rights reserved.
 #
 
+# FIXME: fix estimation of precision (compared to Yorick version)
+# FIXME: make sure no other minima exist when precision test is satisfied
+
 module Step
 
 export globmin, globmax
 
-typealias Float Cdouble
 # Use the same floating point type for scalars as in TiPi.
-
+import ..Float
+#typealias Float Cdouble
 
 """
 # Cyclic singly linked list
@@ -66,7 +69,8 @@ for (func, cmp, incr, wgt) in ((:globmin, <, -, :sqrtdifmin),
                        maxeval::Int=100000,
                        tol::NTuple{2,Float}=TOL,
                        alpha::Float=0.0, beta::Float=0.0,
-                       verb::Bool=false)
+                       verb::Bool=false,
+                       printer::Function=default_printer, output::IO=STDOUT)
 
             maxeval >= 2 || error("parameter `maxeval` must be at least 2")
             tol[1] >= 0 || error("absolute tolerance `tol[1]` must be nonnegative")
@@ -95,12 +99,9 @@ for (func, cmp, incr, wgt) in ((:globmin, <, -, :sqrtdifmin),
             end
             xtol::Float = (b - a)/2
             rehash::Bool = true
+            verb && printer(output, evaluations, xbest, fbest, xtol)
             c = xbest
             while true
-                if verb
-                    println("n = ", evaluations,", x = ", xbest, " ± ", xtol,
-                            ", f(x) = ", fbest)
-                end
                 if xtol <= hypot(tol[1], xbest*tol[2])
                     break
                 end
@@ -162,6 +163,7 @@ for (func, cmp, incr, wgt) in ((:globmin, <, -, :sqrtdifmin),
                     fbest = fc
                     xtol = (x1 - x0)/2
                     rehash = true
+                    verb && printer(output, evaluations, xbest, fbest, xtol)
                 end
                 if rehash
                     # All Q factors have to be recomputed.
@@ -187,13 +189,13 @@ for (func, cmp, incr, wgt) in ((:globmin, <, -, :sqrtdifmin),
                        maxeval::Integer=10000,
                        tol::NTuple{2,Real}=TOL,
                        alpha::Real=0.0, beta::Real=0.0,
-                       verb::Bool=false)
+                       keywords...)
             $func(f, Float(a), Float(b);
                   maxeval = Int(maxeval),
                   tol = (Float(tol[1]), Float(tol[2])),
                   alpha = Float(alpha),
                   beta = Float(beta),
-                  verb = verb)
+                  keywords...)
         end
 
     end
@@ -217,9 +219,43 @@ The algorithm is based on the STEP method described in:
 > Proceedings of the First IEEE Conference on Evolutionary Computation, vol. 1,
 > pp. 519-524 (1994).
 
+The following optinal keywords can be used:
+
+* `printer` can be set with a user defined function to print iteration
+  information, its signature is:
+
+      printer(io::IO, iter::Integer, eval::Integer, rejects::Integer,
+              f::Real, gnorm::Real, stp::Real)
+
+  where `io` is the output stream, `iter` the iteration number (`iter = 0` for
+  the starting point), `eval` is the number of calls to `fg!`, `rejects` is the
+  number of times the computed direction was rejected, `f` and `gnorm` are the
+  value of the function and norm of the gradient at the current point, `stp` is
+  the length of the step to the current point.
+
+* `output` specifies the output stream for printing information (`STDOUT` is
+  used by default).
+
+
+
 """ globmin
 
 @doc @doc(globmin) globmax
+
+function default_printer(eval::Int, xm::Float, fm::Float, prec::Float)
+    default_printer(STDOUT, eval, xm, fm, prec)
+end
+
+function default_printer(io::IO, eval::Int, xm::Float, fm::Float, prec::Float)
+    if eval < 3
+        @printf(io, "# %s%s\n# %s%s\n",
+                "EVALS              X                      F(X)        ",
+                "       PREC",
+                "------------------------------------------------------",
+                "-------------")
+    end
+    @printf(io, "%7d  %23.15e  %23.15e  %10.2e\n", eval, xm, fm, prec)
+end
 
 # Simple parabola.  To be minimized over [-1,2].
 testParabola(x) = x*x
@@ -242,17 +278,24 @@ function testMichalewicz2(x)
 end
 
 function runtests()
-    (xbest, fbest, xtol, n) = globmin(testParabola, -1, 2, verb=false,
-                                      maxeval=100, alpha=0, beta=0)
+    println("\n# Simple parabola:")
+    (xbest, fbest, xtol, n) = globmin(testParabola, -1, 2, verb=true,
+                                      maxeval=50, alpha=0, beta=0)
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
-    (xbest, fbest, xtol, n) = globmin(testBrent5, -10, 10, verb=false,
-                                      maxeval=100, alpha=0, beta=0)
+
+    println("\n# Brent's 5th function:")
+    (xbest, fbest, xtol, n) = globmin(testBrent5, -10, 10, verb=true,
+                                      maxeval=1000, alpha=0, beta=0)
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
-    (xbest, fbest, xtol, n) = globmin(testMichalewicz1, -1, 2, verb=false,
-                                      maxeval=100, alpha=0, beta=0)
+
+    println("\n# Michalewicz's 1st function:")
+    (xbest, fbest, xtol, n) = globmin(testMichalewicz1, -1, 2, verb=true,
+                                      maxeval=1000, alpha=0, beta=0)
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
-    (xbest, fbest, xtol, n) = globmax(testMichalewicz2, 0, pi, verb=false,
-                                      maxeval=500, tol=(1e-12,0))
+
+    println("\n# Michalewicz's 2nd function:")
+    (xbest, fbest, xtol, n) = globmax(testMichalewicz2, 0, pi, verb=true,
+                                      maxeval=1000, tol=(1e-12,0))
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
 end
 
