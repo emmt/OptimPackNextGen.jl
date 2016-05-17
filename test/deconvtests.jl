@@ -37,20 +37,18 @@ function deconvtest(test::ASCIIString="conjgrad"; single::Bool=false)
                         TiPi.cost!(5e-3, rgl2, x, g, false))
             end
         end
-        dom = TiPi.ConvexSets.ScalarLowerBound(zero(T))
         if test == "vmlmb"
-            f = TiPi.Optimization.vmlmb!(fg!, x, 3, dom, maxeval=500, verb=1,
-                                         gtol=(0.0,0.0))
+            TiPi.QuasiNewton.vmlmb!(fg!, x, mem=3, lower=0, maxeval=500,
+                                    verb=true, gtol=(0.0,0.0))
             TiPi.MDA.write(x,"/tmp/tipideconvtest-vmlmb.mda")
-        elseif test == "vmlmc"
-            f = TiPi.Optimization.vmlmc!(fg!, x, 3, dom, maxeval=500, verb=1,
-                                         gtol=(0.0,0.0))
-            TiPi.MDA.write(x,"/tmp/tipideconvtest-vmlmc.mda")
         elseif test == "blmvm"
-            f = TiPi.Optimization.blmvm!(fg!, x, 3, dom, maxeval=500, verb=1,
-                                         gtol=(0.0,0.0))
-            #x = vmlm(fg!, x, 5, verb=true, maxiter=100)
+            TiPi.QuasiNewton.vmlmb!(fg!, x, mem=3, lower=0, maxeval=500,
+                                    verb=true, gtol=(0.0,0.0), blmvm=true)
             TiPi.MDA.write(x,"/tmp/tipideconvtest-blmvm.mda")
+        elseif test == "lbfgs"
+            TiPi.QuasiNewton.vmlmb!(fg!, x, mem=3, maxeval=500,
+                                    verb=true, gtol=(0.0,0.0))
+            TiPi.MDA.write(x,"/tmp/tipideconvtest-lbfgs.mda")
         end
     end
 end
