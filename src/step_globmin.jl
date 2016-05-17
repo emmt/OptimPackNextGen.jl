@@ -1,4 +1,4 @@
-# step.jl --
+# step_globmin.jl --
 #
 # Implement the STEP method for global univariate optimization [1].
 #
