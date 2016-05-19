@@ -5,11 +5,9 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 #
-# Copyright (C) 2015, Éric Thiébaut & Jonathan Léger.
-#
-#------------------------------------------------------------------------------
 
 import Base.call
 
@@ -42,7 +40,7 @@ function cost!{T<:AbstractFloat}(alpha::Real,
                                  g::Array{T,2},
                                  clr::Bool)
     @assert(size(g) == size(x))
-    clr && fill!(g, zero(T))
+    clr && vfill!(g, zero(T))
     alpha == 0 && return zero(Cdouble)
     err::Cdouble = 0
     const dims = size(x)

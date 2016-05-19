@@ -111,7 +111,7 @@ function testcost!{T}(alpha::Real, param::HyperbolicEdgePreserving,
     gx = Array(T, dims)
     gxref = Array(T, dims)
     res = @xtime(cost!(alpha, param, x, gx, true))
-    fill!(gxref, 0)
+    vfill!(gxref, 0)
     rank = length(dims)
     if rank == 1
         ref = @xtime begin

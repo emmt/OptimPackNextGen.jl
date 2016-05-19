@@ -5,16 +5,17 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 #
-# Copyright (C) 2015, Éric Thiébaut & Jonathan Léger.
-#
-#------------------------------------------------------------------------------
 
 # FIXME: use real-complex FFT
 module Deconv
 
-import TiPi: apply!, cost, cost!, LinearOperator, LinearProblem, AbstractCost
+using ..Algebra
+import ..Algebra: apply_direct, apply_adjoint, apply_direct!
+
+import TiPi: cost, cost!, AbstractCost
 import TiPi: defaultweights, pad, zeropad
 import TiPi.MDA
 
@@ -31,8 +32,8 @@ type DeconvolutionParam{T<:AbstractFloat,N} <: AbstractCost
                                 y::Array{T,N},
                                 wgt::Array{T,N},
                                 mtf::Array{Complex{T},N})
-        @assert(size(msk) == size(mtf))
-        @assert(size(wgt) == size(y))
+        @assert size(msk) == size(mtf)
+        @assert size(wgt) == size(y)
         # FIXME: we may ensure that there are as many true values in the mask
         # as the length of wgt and y
         new(msk, y, wgt, mtf)
@@ -40,7 +41,7 @@ type DeconvolutionParam{T<:AbstractFloat,N} <: AbstractCost
 end
 
 function buildmask{T<:AbstractFloat,N}(y::Array{T,N}, w::Array{T,N})
-    @assert(size(w) == size(y))
+    @assert size(w) == size(y)
     msk = Array(Bool, size(y))
     cnt = 0
     for i in 1:length(y)
@@ -189,7 +190,7 @@ function cost!{T,N}(alpha::Real, param::DeconvolutionParam{T,N},
     @assert(size(x) == size(g))
 
     # Clear gradient if requested.
-    clr && fill!(g, 0)
+    clr && vfill!(g, 0)
 
     # Short circuit if weight is zero.
     alpha == 0 && return 0.0
@@ -250,7 +251,7 @@ function cost!{T,N}(alpha::Real, param::DeconvolutionParam{T,N},
     return alpha*err
 end
 
-type DeconvolutionHessian{T<:AbstractFloat,N} <: LinearOperator
+type DeconvolutionHessian{T<:AbstractFloat,N} <: SelfAdjointOperator{Array{T,N}}
 
     # Settings from the data.
     msk::Array{Bool,N}             # mask of valid data, same size as X
@@ -353,12 +354,14 @@ function init{S<:Real,T<:AbstractFloat,N}(h::Array{T,N},
     msk = pad(false, msk, xdims)
 
     A = DeconvolutionHessian(msk, w, a, other, mtf, z)
-    LinearProblem(A, b)
+    NormalEquations(A, b)
 end
 
-function apply!{T<:AbstractFloat,N}(op::DeconvolutionHessian,
-                                    q::Array{T,N}, p::Array{T,N})
-    @assert(size(p) == size(q))
+function apply_direct!{T,N}(dst::Array{T,N},
+                            op::DeconvolutionHessian{T,N},
+                            src::Array{T,N})
+
+    @assert size(src) == size(dst)
 
     msk = op.msk
     wgt = op.wgt
@@ -366,13 +369,13 @@ function apply!{T<:AbstractFloat,N}(op::DeconvolutionHessian,
     h = op.mtf
 
     #########################
-    # Compute q = H'.W.H.p
+    # Compute dst = H'.W.H.src
     #########################
 
     # Every FFT if done in-place in the workspace z
     const n = length(z)
     for i in 1:n
-        z[i] = p[i]
+        z[i] = src[i]
     end
     fft!(z)
     for i in 1:n
@@ -405,14 +408,14 @@ function apply!{T<:AbstractFloat,N}(op::DeconvolutionHessian,
     end
     bfft!(z)
     for i in 1:n
-        q[i] = z[i].re
+        dst[i] = z[i].re
     end
 
 
     #########################
-    # Do q += mu*R.p
+    # Do dst += mu*R.src
     #########################
-    DtD!(op.alpha, op.other, q, p)
+    DtD!(op.alpha, op.other, dst, src)
 
 end
 
@@ -422,7 +425,7 @@ function DtD!{S<:Real, T<:AbstractFloat}(alpha::Vector{S},
                                          p::Array{T,1})
     @assert(length(alpha) == 1)
     @assert(length(other) == 1)
-    #fill!(q, zero(T))
+    #vfill!(q, zero(T))
     alpha1::T = alpha[1]
     other1 = other[1]
     for i in 1:length(p) # for each input element
@@ -438,7 +441,7 @@ function DtD!{S<:Real, T<:AbstractFloat}(alpha::Vector{S},
                                          q::Array{T,2}, p::Array{T,2})
     @assert(length(alpha) == 2)
     @assert(length(other) == 2)
-    #fill!(q, zero(T))
+    #vfill!(q, zero(T))
     dim1 = size(p, 1)
     dim2 = size(p, 2)
     alpha1 = alpha[1]

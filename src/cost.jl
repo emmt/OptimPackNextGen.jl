@@ -5,11 +5,9 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 #
-# Copyright (C) 2015, Éric Thiébaut & Jonathan Léger.
-#
-#------------------------------------------------------------------------------
 
 import Base.call
 
@@ -28,7 +26,7 @@ function prox!{T}(alpha::Real, param::AbstractCost, x::T, xp::T)
 end
 
 function prox(alpha::Real, param::AbstractCost, x)
-   xp = similar(x)
+   xp = vcreate(x)
    prox!(alpha, param, x, xp)
    return xp
 end
@@ -55,7 +53,7 @@ end
 function cost!{T}(alpha::Real, param::MAPCost, x::T, gx::T,
                   clr::Bool=false)
     if alpha == 0
-        clr && fill!(gx, 0)
+        clr && vfill!(gx, 0)
         return 0.0
     else
         return (cost(alpha,          param.lkl, x, gx, clr) +

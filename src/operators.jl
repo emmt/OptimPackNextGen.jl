@@ -122,4 +122,22 @@ immutable Identity{T} <: SelfAdjointOperator{T}; end
 Identity{T}(::Type{T}) = Identity{T}()
 apply_direct{T}(::Identity{T}, x::T) = x
 
+@doc """
+
+    apply_direct!(dst, A, src)
+
+stores in the destination "vector" `dst` the result of applying the linear
+operator `A` to the source "vector" `src`.
+"""
+apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) = vcopy!(dst, A(src))
+
+@doc """
+
+    apply_adjoint!(dst, A, src)
+
+stores in the destination "vector" `dst` the result of applying the adjoint of
+the linear operator `A` to the source "vector" `src`.
+"""
+apply_adjoint{E,F}(dst::F, A::LinearOperator{E,F}, src::E) = vcopy!(dst, A'(src))
+
 #------------------------------------------------------------------------------

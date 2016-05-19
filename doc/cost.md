@@ -100,12 +100,12 @@ Typically, only the `prox!` method has to be implemented.  A default
 definition for the `prox` method is provided:
 ```julia
 function prox(alpha::Real, param::AbstractCost, x)
-   xp = similar(x)
+   xp = vcreate(x)
    prox!(alpha, param, x, xp)
    return xp
 end
 ```
-which assumes that `similar(x)` is implemented for the type of `x` and yields
+which assumes that `vcreate(x)` is implemented for the type of `x` and yields
 a new instance of the same type (and with the same size as `x`).
 
 

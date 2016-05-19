@@ -23,23 +23,24 @@ types).  Vector spaces implement the following methods:
 
 * `length{T}(x::T)` to give the number of components in variable `x`;
 
-* `similar{T}(x::T)` to create a new variable of the same space as `x`;
+* `vcreate{T}(x::T)` to create a new variable of the same space as `x`;
 
-* `copy!{T}(dst::T, src::T)` to copy the contents of `src` into `dst`;
+* `vcopy!{T}(dst::T, src::T)` to copy the contents of `src` into `dst`;
 
 * `swap!{T}(x::T, y::T)` to exchange the contents of `x` and `y`;
 
-* `fill!{T}(x::T, alpha::Float)` to set all values of `x` with `alpha`;
+* `vfill!{T}(x::T, alpha::Float)` to set all values of `x` with `alpha`;
 
-* `scale!{T}(x::T, alpha::Float)` to scale all values of `x` by `alpha`;
+* `vscale!{T}(x::T, alpha::Float)` to scale all values of `x` by `alpha`;
 
 * `inner{T}(x::T, y::{T})::Float` to compute the inner product of `x` and `y`,
   the result is expected to be a `Float`;
 
-* `combine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T)` to perform
+* `vcombine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T)` to perform
   `dst = alpha*x + beta*y`;
 
-* `multiply!{T}(dst::T, x::T, y::T)`
+* `vproduct!{T}(dst::T, x::T, y::T)` stores the elementwise multiplication
+  of `x` by `y` in `dst`.
 
 The following methods may optionally be implemented:
 
@@ -53,23 +54,30 @@ The following methods may optionally be implemented:
 * `update!{T}(dst::T, alpha::Float, x::T)` to perform `dst += alpha*x`, the
   default implementation is:
   ```julia
-  update!{T}(dst::T, alpha::Float, x::T) = combine!(dst, 1.0, dst, alpha, x)`
+  update!{T}(dst::T, alpha::Float, x::T) = vcombine!(dst, 1.0, dst, alpha, x)`
   ```
 
-* `combine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T, gamma::Float, z::T)` to perform `dst = alpha*x + beta*y + gamma*z` the default implementation is:
+* `vcombine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T, gamma::Float, z::T)` to perform `dst = alpha*x + beta*y + gamma*z` the default implementation is:
   ```julia
-  function combine!{T}(dst::T, alpha::Float, x::T,
-                       beta::Float, y::T, gamma::Float, z::T)
-        combine!(dst, alpha, x, beta, y)
+  function vcombine!{T}(dst::T, alpha::Float, x::T,
+                        beta::Float, y::T, gamma::Float, z::T)
+        vcombine!(dst, alpha, x, beta, y)
         update!(dst, gamma, z)
   end
   ```
 
-TiPi provides reasonnably optimized implementations of these methods for Julia
-`Array` types (note that `length`, `similar`, `copy!`, `scale!` and `fill!` are
-already provided by Julia for its arrays).  So TiPi can be used out-of-the box
-if your unknowns are stored in the form of Julia arrays.  Otherwise, you'll
-have to implement the above methods.
+TiPi provides reasonably optimized implementations of these methods for Julia
+`Array` types.  So TiPi can be used out-of-the box if your unknowns are stored
+in the form of Julia arrays.  Otherwise, you'll have to implement the above
+methods.
+
+Note that `length`, `vcreate`, `vcopy!`, `vscale!` and `vfill!` are identical
+or similar to methods already provided by Julia for its arrays but the
+semantics is somewhat different.  For instance, compared to `vcopy!`, `copy!`
+copies all the values of the source array, the elements of the destination may
+have a different data type and the destination may have different dimensions
+than the source (the only constraint is that the destination must have at least
+as many elements as the source).
 
 
 ## Linear Operators

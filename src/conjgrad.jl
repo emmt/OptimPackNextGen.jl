@@ -5,28 +5,24 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 #
-# Copyright (C) 2015, Éric Thiébaut & Jonathan Léger.
-#
-#------------------------------------------------------------------------------
 
-abstract LinearOperator
 
-import TiPi.Algebra: inner, update!, combine!
-
-# A LinearProblem stores the components of the normal equations.
-type LinearProblem{T<:AbstractFloat,N}
-    lhs::LinearOperator            # left hand side matrix
-    rhs::Array{T,N}                # right hand side vector
+# A NormalEquations stores the components of the normal equations.
+type NormalEquations{T}
+    lhs::SelfAdjointOperator{T}    # left hand side matrix
+    rhs::T                         # right hand side vector
 end
 
-function apply!(op::LinearOperator, q, p)
-    error("this function must be specialized")
+function conjgrad{T}(p::NormalEquations{T}, x0::T, tol, maxiter::Integer)
+    conjgrad(p.lhs, p.rhs, x0, tol, maxiter)
 end
 
-conjgrad(p::LinearProblem, x0, tol, maxiter) = conjgrad(p.lhs, p.rhs, x0, tol, maxiter)
-conjgrad!(p::LinearProblem, x, tol, maxiter) = conjgrad!(p.lhs, p.rhs, x, tol, maxiter)
+function conjgrad!{T}(p::NormalEquations{T}, x::T, tol, maxiter::Integer)
+    conjgrad!(p.lhs, p.rhs, x, tol, maxiter)
+end
 
 # conjgrad - conjugate gradient algorithm.
 #
@@ -46,21 +42,27 @@ conjgrad!(p::LinearProblem, x, tol, maxiter) = conjgrad!(p.lhs, p.rhs, x, tol, m
 #           residuals.
 #    maxiter - The maximum number of iterations.
 #
-function conjgrad(A::LinearOperator, b, x0, tol, maxiter)
-    x = copy(x0)
+function conjgrad{T}(A::SelfAdjointOperator{T}, b::T, x0::T, tol,
+                     maxiter::Integer)
+    x = vcreate(x0)
+    vcopy!(x, x0)
     conjgrad!(A, b, x, tol, maxiter)
     return x
 end
 
-function conjgrad!{T<:AbstractFloat,N}(A::LinearOperator, b::Array{T,N},
-                                       x::Array{T,N}, tol, maxiter)
+function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T, tol,
+                      maxiter::Integer)
     # Initialization.
-    @assert(size(b) == size(x))
-    p = Array(T, size(x))
-    q = Array(T, size(x))
-    r = Array(T, size(x))
-    apply!(A, r, x)
-    combine!(r, 1, b, -1, r)
+    p = vcreate(x)
+    q = vcreate(x)
+    r = vcreate(x)
+    apply_direct!(r, A, x)
+    vcombine!(r, 1, b, -1, r)
+    rho::Float = 0
+    rho0::Float = 0
+    alpha::Float = 0
+    gamma::Float = 0
+    epsilon::Float = 0
     rho = inner(r, r)
     if length(tol) == 1
         epsilon = tol[1]
@@ -72,7 +74,6 @@ function conjgrad!{T<:AbstractFloat,N}(A::LinearOperator, b::Array{T,N},
 
     # Conjugate gradient iterations.
     k = 0
-    rho0 = zero(T)
     while true
         k += 1
         if sqrt(rho) <= epsilon
@@ -84,19 +85,19 @@ function conjgrad!{T<:AbstractFloat,N}(A::LinearOperator, b::Array{T,N},
         end
         if k == 1
             # First iteration.
-            copy!(p, r)
+            vcopy!(p, r)
         else
-            combine!(p, 1, r, (rho/rho0), p)
+            vcombine!(p, 1, r, (rho/rho0), p)
         end
-        apply!(A, q, p)
+        apply_direct!(q, A, p)
         gamma = inner(p, q)
-        if gamma <= zero(T)
+        if gamma <= 0
             error("left-hand-side operator A is not positive definite")
             break
         end
         alpha = rho/gamma
-        update!(x, +alpha, p)
-        update!(r, -alpha, q)
+        vupdate!(x, +alpha, p)
+        vupdate!(r, -alpha, q)
         rho0 = rho
         rho = inner(r, r)
     end

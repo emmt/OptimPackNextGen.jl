@@ -65,19 +65,19 @@ end
 ### Compute scalar product
 
 The call:
-```
+
     inner(x, y)
-```
-computes the inner product (a.k.a. scalar product) between `x` and `y` (which
-must have the same size).  The triple inner product between `w`, `x` and `y`
-can be computed by:
-```
+
+computes the inner product (a.k.a. scalar or dot product) between `x` and `y`
+(which must have the same size).  The triple inner product between `w`, `x` and
+`y` can be computed by:
+
     inner(w, x, y)
-```
+
 Finally:
-```
+
     inner(sel, x, y)
-```
+
 computes the sum of the product of the elements of `x` and `y` whose indices
 are given by the `sel` argument.
 """
@@ -113,32 +113,114 @@ function inner{T<:AbstractFloat,N}(sel::Vector{Int}, x::Array{T,N}, y::Array{T,N
 end
 
 """
-### Exchange contents
+### Create a new variable instance
 
 The call:
-```
-    swap!(x, y)
-```
-exchanges the contents of `x` and `y` (which must have the same size).
+
+    vcreate(x)
+
+creates a new variable instance similar to `x`.
 """
-function swap!{T,N}(x::Array{T,N}, y::Array{T,N})
-    @assert size(x) == size(y)
-    temp::T
-    @inbounds begin
-        @simd for i in 1:length(x)
-            temp = x[i]
-            x[i] = y[i]
-            y[i] = temp
+vcreate{T,N}(x::Array{T,N}) = Array(T, size(x))
+
+"""
+### Copy contents
+
+The call:
+
+    vcopy!(dst, src)
+
+copies the contents of `src` into `dst` (which must have the same type and
+size).  Nothing is done if `src` and `dst` are the same object.
+"""
+function vcopy!{T,N}(dst::Array{T,N}, src::Array{T,N})
+    if !is(dst, src)
+        @assert size(src) == size(dst)
+        @inbounds begin
+            @simd for i in 1:length(dst)
+                dst[i] = src[i]
+            end
         end
     end
 end
+
+"""
+### Exchange contents
+
+The call:
+
+    vswap!(x, y)
+
+exchanges the contents of `x` and `y` (which must have the same type and size).
+Nothing is done if `src` and `dst` are the same object.
+"""
+function vswap!{T,N}(x::Array{T,N}, y::Array{T,N})
+    if !is(x, y)
+        @assert size(x) == size(y)
+        @inbounds begin
+            @simd for i in 1:length(x)
+                temp = x[i]
+                x[i] = y[i]
+                y[i] = temp
+            end
+        end
+    end
+end
+
+"""
+### In-place scaling
+
+The call:
+
+    vscale!(x, alpha)
+
+multiplies the contents of `x` by the scalar `alpha`.
+"""
+function vscale!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::T)
+    @inbounds begin
+        if alpha == zero(T)
+            @simd for i in 1:length(x)
+                x[i] = alpha
+            end
+        elseif alpha == -one(T)
+            @simd for i in 1:length(x)
+                x[i] = -x[i]
+            end
+        elseif alpha != one(T)
+            @simd for i in 1:length(x)
+                x[i] *= alpha
+            end
+        end
+    end
+end
+
+vscale!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::Real) = vscale!(x, T(alpha))
+
+"""
+### Fill with a value
+
+The call:
+
+    vfill!(x, alpha)
+
+sets all elements of `x` with the scalar value `alpha`.
+"""
+function vfill!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::T)
+    @inbounds begin
+        @simd for i in 1:length(x)
+            x[i] = alpha
+        end
+    end
+end
+
+vfill!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::Real) = vfill!(x, T(alpha))
 
 """
 ### Increment an array by a scaled step
 
 The call:
 
-    update!(dst, alpha, x)
+    vupdate!(dst, alpha, x)
 
 increments the components of the destination *vector* `dst` by those of
 `alpha*x`.  The code is optimized for some specific values of the multiplier
@@ -147,14 +229,14 @@ using `x`.
 
 Another possibility is:
 
-    update!(dst, sel, alpha, x)
+    vupdate!(dst, sel, alpha, x)
 
 with `sel` a selection of indices to which apply the operation.  Note that if
 an indice is repeated, the operation will be performed several times at this
 location.
 """
-function update!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                     a::T, x::Array{T,N})
+function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                      a::T, x::Array{T,N})
     @assert size(dst) == size(x)
     const n = length(dst)
     @inbounds begin
@@ -174,8 +256,8 @@ function update!{T<:AbstractFloat,N}(dst::Array{T,N},
     end
 end
 
-function update!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
-                                     a::T, x::Array{T,N})
+function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
+                                      a::T, x::Array{T,N})
     @assert size(dst) == size(x)
     const n = length(dst)
     if a == one(T)
@@ -199,14 +281,14 @@ function update!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
     end
 end
 
-function update!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                     alpha::Real, x::Array{T,N})
-    update!(dst, T(alpha), x)
+function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                      alpha::Real, x::Array{T,N})
+    vupdate!(dst, T(alpha), x)
 end
 
-function update!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
-                                     alpha::Real, x::Array{T,N})
-    update!(dst, sel, T(alpha), x)
+function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
+                                      alpha::Real, x::Array{T,N})
+    vupdate!(dst, sel, T(alpha), x)
 end
 
 """
@@ -214,29 +296,29 @@ end
 
 The call:
 
-    multiply!(dst, x, y)
+    vproduct!(dst, x, y)
 
 stores the elementwise multiplication of `x` by `y` in `dst`.
 
 Another possibility is:
 
-    multiply!(dst, sel, x, y)
+    vproduct!(dst, sel, x, y)
 
 with `sel` a selection of indices to which apply the operation.
 """
-function multiply!{T<:AbstractFloat,N}(dst::Array{T,N},
+function vproduct!{T<:AbstractFloat,N}(dst::Array{T,N},
                                        x::Array{T,N}, y::Array{T,N})
-    @assert size(dst) == size(x)
-    @assert size(y) == size(x)
+    @assert size(x) == size(dst)
+    @assert size(y) == size(dst)
     @simd for i in 1:length(dst)
         @inbounds dst[i] = x[i]*y[i]
     end
 end
 
-function multiply!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
+function vproduct!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
                                        x::Array{T,N}, y::Array{T,N})
-    @assert size(dst) == size(x)
-    @assert size(y) == size(x)
+    @assert size(x) == size(dst)
+    @assert size(y) == size(dst)
     const n = length(dst)
     @simd for i in 1:length(sel)
         j = sel[i]
@@ -249,24 +331,24 @@ end
 ### Linear combination of arrays
 
 The calls:
-```
-    combine!(dst, alpha, x)
-    combine!(dst, alpha, x, beta, y)
-```
+
+    vcombine!(dst, alpha, x)
+    vcombine!(dst, alpha, x, beta, y)
+
 stores the linear combinations `alpha*x` and `alpha*x + beta*y` into the
 destination array `dst`.  The code is optimized for some specific values of the
 coefficients `alpha` and `beta`.  For instance, if `alpha` (resp. `beta`) is
 zero, then the contents of `x` (resp. `y`) is not used.
 
-The source array(s) and the destination an be the same.  For instance, the two
+The source(s) and the destination can be the same.  For instance, the two
 following lines of code produce the same result:
-```
-    combine!(dst, 1, dst, alpha, x)
-    update!(dst, alpha, x)
-```
+
+    vcombine!(dst, 1, dst, alpha, x)
+    vupdate!(dst, alpha, x)
+
 """
 
-function combine!{T<:Real,N}(dst::Array{T,N}, a::T, x::Array{T,N})
+function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N}, a::T, x::Array{T,N})
     @assert size(x) == size(dst)
     const n = length(dst)
     @inbounds begin
@@ -290,17 +372,17 @@ function combine!{T<:Real,N}(dst::Array{T,N}, a::T, x::Array{T,N})
     end
 end
 
-function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                      a::T, x::Array{T,N},
-                                      b::T, y::Array{T,N})
+function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                       a::T, x::Array{T,N},
+                                       b::T, y::Array{T,N})
     @assert size(x) == size(dst)
     @assert size(y) == size(dst)
     const n = length(dst)
     @inbounds begin
         if a == zero(T)
-            combine!(dst, b, y)
+            vcombine!(dst, b, y)
         elseif b == zero(T)
-            combine!(dst, a, x)
+            vcombine!(dst, a, x)
         elseif a == one(T)
             if b == one(T)
                 @simd for i in 1:n
@@ -347,15 +429,15 @@ function combine!{T<:AbstractFloat,N}(dst::Array{T,N},
     end
 end
 
-function combine!{T<:Real,N}(dst::Array{T,N},
-                             alpha::Real, x::Array{T,N})
-    combine!(dst, T(alpha), x)
+function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                       alpha::Real, x::Array{T,N})
+    vcombine!(dst, T(alpha), x)
 end
 
-function combine!{T<:Real,N}(dst::Array{T,N},
-                             alpha::Real, x::Array{T,N},
-                             beta::Real,  y::Array{T,N})
-    combine!(dst, T(alpha), x, T(beta), y)
+function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                       alpha::Real, x::Array{T,N},
+                                       beta::Real,  y::Array{T,N})
+    vcombine!(dst, T(alpha), x, T(beta), y)
 end
 
 #-------------------------------------------------------------------------------
@@ -399,8 +481,8 @@ function project_variables!{T<:Real,N}(dst::Array{T,N},
         @simd for i in 1:length(x)
             @inbounds dst[i] = clamp(x[i], nothing, hi)
         end
-    elseif dst != x
-        copy!(dst, x)
+    elseif !is(dst, x)
+        vcopy!(dst, x)
     end
 end
 
@@ -544,8 +626,8 @@ function project_direction!{T<:Real,N}(dst::Array{T,N},
                     dst[i] = project_backward(x[i], d[i], nothing, hi)
                 end
             end
-        elseif dst != d
-            copy!(dst, d)
+        elseif !is(dst, d)
+            vcopy!(dst, d)
         end
     end
 end

@@ -14,15 +14,24 @@ module Algebra
 export LinearOperator,
        SelfAdjointOperator,
        Identity,
+       NormalEquations,
        apply_direct,
+       apply_direct!,
        apply_adjoint,
+       apply_adjoint!,
        inner,
        norm1,
        norm2,
        normInf,
-       swap!,
-       update!,
-       combine!,
+       vcombine!,
+       vcopy!,
+       vcreate,
+       vfill!,
+       vproduct!,
+       vscale!,
+       vswap!,
+       vupdate!,
+       conjgrad,
        project_variables!,
        project_direction!,
        step_limits,
@@ -33,5 +42,6 @@ import ..Float
 
 include("operators.jl")
 include("vectors.jl")
+include("conjgrad.jl")
 
 end # module

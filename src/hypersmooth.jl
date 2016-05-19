@@ -5,17 +5,15 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 #
-# Copyright (C) 2015, Éric Thiébaut & Jonathan Léger.
-#
-#------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
 # Data conversion utilities
 # =========================
 
-typealias Flt Cdouble
+typealias Flt Float
 
 flt(x) = convert(Flt, x)
 
@@ -132,7 +130,7 @@ function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{1},
 
     # Short circuit if weight is zero.
     if alpha == 0 || param.mu[1] == 0
-        clr && fill!(gx, 0)
+        clr && vfill!(gx, 0)
         return 0.0
     end
 
@@ -237,7 +235,7 @@ end
 function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{2},
                   x::Array{T,2}, gx::Array{T,2}, clr::Bool=false)
     @assert(size(x) == size(gx))
-    clr && fill!(gx, 0)
+    clr && vfill!(gx, 0)
     alpha == 0 && return 0.0
     dims = size(x)
     const dim1 = dims[1]
@@ -446,7 +444,7 @@ end
 function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{3},
                   x::Array{T,3}, gx::Array{T,3}, clr::Bool=false)
     @assert(size(x) == size(gx))
-    clr && fill!(gx, 0)
+    clr && vfill!(gx, 0)
     alpha == 0 && return 0.0
     dims = size(x)
     const dim1 = dims[1]

@@ -19,7 +19,7 @@ function deconvtest(test::ASCIIString="conjgrad"; single::Bool=false)
             prob = TiPi.Deconv.init(h, y, size(x), [5e-3,5e-3];
                                     normalize=true, verbose=true)
         end
-        @time TiPi.conjgrad!(prob, x, 0.0, 1000);
+        @time TiPi.Algebra.conjgrad!(prob, x, 0.0, 1000);
         TiPi.MDA.write(x,"/tmp/tipideconvtest.mda")
     else
         x = fill(zero(T), (640,640))

@@ -5,11 +5,9 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 #
-# Copyright (C) 2015-2016, Éric Thiébaut.
-#
-#------------------------------------------------------------------------------
 
 # Improvements:
 # - skip updates such that rho <= 0;
@@ -42,7 +40,7 @@ the value and the gradient of the function as follows:
     f = fg!(x, g)
 
 where `x` are the current variables, `f` is the value of the function at `x`
-and `g` is the gradient at `x` (`g` is already allocated as `g = similar(x0)`).
+and `g` is the gradient at `x` (`g` is already allocated as `g = vcreate(x0)`).
 Argument `x0` gives the initial approximation of the variables (its contents is
 left unchanged).  The best solution found so far is returned in `x`.
 
@@ -141,8 +139,8 @@ by Byrd at al. (1995) which has more overheads and is slower.
 
 """
 function vmlmb{T}(fg!::Function, x0::T; keywords...)
-    x = similar(x0)
-    copy!(x, x0)
+    x = vcreate(x0)
+    vcopy!(x, x0)
     vmlmb!(fg!, x; keywords...)
     return x
 end
@@ -263,16 +261,16 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
 
     # Allocate memory for the limited memory BFGS approximation of the inverse
     # Hessian.
-    g = similar(x)     # gradient
+    g = vcreate(x)     # gradient
     if method > 0
-        p = similar(x) # projected gradient
+        p = vcreate(x) # projected gradient
     end
-    d = similar(x)     # search direction
+    d = vcreate(x)     # search direction
     S = Array(T, mem)  # memorized steps
     Y = Array(T, mem)  # memorized gradient differences
     for k in 1:mem
-        S[k] = similar(x)
-        Y[k] = similar(x)
+        S[k] = vcreate(x)
+        Y[k] = vcreate(x)
     end
     rho = Array(Float, mem)
     alpha = Array(Float, mem)
@@ -377,7 +375,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                     stp = beststp
                     f = bestf
                     gnorm = bestgnorm
-                    combine!(x, 1, S[mark], -stp, d)
+                    vcombine!(x, 1, S[mark], -stp, d)
                     if method > 0
                         project_variables!(x, lo, hi, x)
                     end
@@ -399,8 +397,8 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
             if stage == 2
                 # Update limited memory BFGS approximation of the inverse
                 # Hessian with the effective step and gradient change.
-                update!(S[mark], -1, x)
-                update!(Y[mark], -1, (method == 1 ? p : g))
+                vupdate!(S[mark], -1, x)
+                vupdate!(Y[mark], -1, (method == 1 ? p : g))
                 if method < 2
                     rho[mark] = inner(Y[mark], S[mark])
                     if rho[mark] > 0
@@ -412,10 +410,10 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
 
                 # Compute search direction.
                 if method < 2
-                    copy!(d, g)
+                    vcopy!(d, g)
                     change = apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
                 else
-                    copy!(d, p)
+                    vcopy!(d, p)
                     change = apply_lbfgs!(S, Y, rho, m, mark, d, alpha,
                                           get_free_variables(d))
                 end
@@ -440,7 +438,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
             if stage == 0
                 # At the initial point or computed direction was rejected.  Use
                 # the steepest descent which is the projected gradient.
-                copy!(d, (method > 0 ? p : g))
+                vcopy!(d, (method > 0 ? p : g))
                 gd = -gnorm^2
             end
 
@@ -448,8 +446,8 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
             # of line search.
             f0 = f
             gd0 = gd
-            copy!(S[mark], x)
-            copy!(Y[mark], (method == 1 ? p : g))
+            vcopy!(S[mark], x)
+            vcopy!(Y[mark], (method == 1 ? p : g))
 
             # Choose initial step length.
             if stage == 2
@@ -484,7 +482,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
         end
 
         # Compute the new iterate.
-        combine!(x, 1, S[mark], -stp, d)
+        vcombine!(x, 1, S[mark], -stp, d)
 
     end
 
@@ -601,13 +599,13 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
                          gamma::Float, m::Int, mark::Int, v::T,
                          alpha::Vector{Float})
     @assert gamma > 0
-    apply_lbfgs!(S, Y, rho, u -> scale!(u, gamma), m, mark, v, alpha)
+    apply_lbfgs!(S, Y, rho, u -> vscale!(u, gamma), m, mark, v, alpha)
 end
 
 function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
                          d::T, m::Int, mark::Int, v::T,
                          alpha::Vector{Float})
-    apply_lbfgs!(S, Y, rho, u -> multiply!(u, d, u), m, mark, v, alpha)
+    apply_lbfgs!(S, Y, rho, u -> vproduct!(u, d, u), m, mark, v, alpha)
 end
 
 function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
@@ -623,7 +621,7 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             k = (k > 1 ? k - 1 : mem)
             if rho[k] > 0
                 alpha[k] = inner(S[k], v)/rho[k]
-                update!(v, -alpha[k], Y[k])
+                vupdate!(v, -alpha[k], Y[k])
                 modif = true
             end
         end
@@ -632,7 +630,7 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             for i in 1:m
                 if rho[k] > 0
                     beta::Float = inner(Y[k], v)/rho[k]
-                    update!(v, alpha[k] - beta, S[k])
+                    vupdate!(v, alpha[k] - beta, S[k])
                 end
                 k = (k < mem ? k + 1 : 1)
             end
@@ -655,18 +653,18 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             rho[k] = inner(sel, Y[k], S[k])
             if rho[k] > 0
                 alpha[k] = inner(sel, S[k], v)/rho[k]
-                update!(v, sel, -alpha[k], Y[k])
+                vupdate!(v, sel, -alpha[k], Y[k])
                 if gamma == 0
                     gamma = rho[k]/inner(sel, Y[k], Y[k])
                 end
             end
         end
         if gamma != 0
-            scale!(v, gamma)
+            vscale!(v, gamma)
             for i in 1:m
                 if rho[k] > 0
                     beta::Float = inner(sel, Y[k], v)/rho[k]
-                    update!(v, sel, alpha[k] - beta, S[k])
+                    vupdate!(v, sel, alpha[k] - beta, S[k])
                 end
                 k = (k < mem ? k + 1 : 1)
             end
