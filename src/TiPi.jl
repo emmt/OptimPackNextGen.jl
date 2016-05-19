@@ -5,11 +5,8 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
-#
-# Copyright (C) 2015, Éric Thiébaut & Jonathan Léger.
-#
-#------------------------------------------------------------------------------
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 
 module TiPi
 
@@ -25,6 +22,7 @@ typealias Float Cdouble
 
 include("utils.jl")
 include("AffineTransforms.jl")
+include("operators.jl")
 include("algebra.jl")
 include("kernels.jl")
 include("interp.jl")
