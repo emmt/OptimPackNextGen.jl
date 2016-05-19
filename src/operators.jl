@@ -60,8 +60,9 @@ end
 
 # Overload the `call` method so that `A(x)` makes sense for `A` a linear
 # operator or a product of linear operators and `x` a "vector", or another
-# operator
-call{E,F}(A::LinearOperator{E,F}, x::F) = apply_direct(A, x)
+# operator.
+call{E,F}(A::LinearOperator{E,F}, x::F) = apply_direct(A, x) ::E
+call{E,F,T}(A::Adjoint{E,F,T}, x::E) = apply_adjoint(A.op, x) ::F
 call{E,F,G}(A::LinearOperator{E,F}, B::LinearOperator{F,G}) = Product(A, B)
 call{E,F,L,R}(A::Product{E,F,L,R}, x::F) = A.lop(A.rop(x))
 call{E,F}(A::LinearOperator{E,F}, x) = error("input \"vector\" of wrong type")
@@ -91,8 +92,6 @@ To be used, this method has to be provided for each types derived from
 function apply_direct{E,F}(A::LinearOperator{E,F}, x::F)
     error("method `apply_direct` not implemented for this operator")
 end
-
-apply_direct{E,F,T}(A::Adjoint{E,F,T}, x::E) = apply_adjoint(A.op, x)
 
 @doc """
 

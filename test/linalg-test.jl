@@ -15,13 +15,21 @@ type Operator{E,F} <: LinearOperator{E,F}
     name::AbstractString
 end
 
+type BogusOperator{E,F} <: LinearOperator{E,F}
+    name::AbstractString
+end
+
 import Base: show
 
 show{E,F}(io::IO, A::Operator{E,F}) = print(io, A.name)
+show{E,F}(io::IO, A::BogusOperator{E,F}) = print(io, A.name)
 show{T<:VectorSpace}(io::IO, x::T) = print(io, x.name)
 
 apply_direct{E,F}(A::Operator{E,F}, x::F) = E(A.name * "*" * x.name)
 apply_adjoint{E,F}(A::Operator{E,F}, x::E) = F(A.name * "'*" * x.name)
+
+apply_direct{E,F}(A::BogusOperator{E,F}, x::F) = F(A.name * "*" * x.name)
+apply_adjoint{E,F}(A::BogusOperator{E,F}, x::E) = E(A.name * "'*" * x.name)
 
 function runtests()
     A = Operator{SpaceE,SpaceF}("A")
@@ -61,6 +69,10 @@ function runtests()
 
     Q = A*B*D'
     println(Q*z)
+
+    Z = BogusOperator{SpaceE,SpaceF}("Z")
+    #println(Z*x)
+    #println(Z'*w)
 
 end
 
