@@ -65,7 +65,12 @@ call{E,F}(A::LinearOperator{E,F}, x::F) = apply_direct(A, x) ::E
 call{E,F,T}(A::Adjoint{E,F,T}, x::E) = apply_adjoint(A.op, x) ::F
 call{E,F,G}(A::LinearOperator{E,F}, B::LinearOperator{F,G}) = Product(A, B)
 call{E,F,L,R}(A::Product{E,F,L,R}, x::F) = A.lop(A.rop(x))
-call{E,F}(A::LinearOperator{E,F}, x) = error("input \"vector\" of wrong type")
+function call{E,F,G,H}(A::LinearOperator{E,F}, B::LinearOperator{G,H})
+    error("incompatible input/output types in product of operators")
+end
+function call{E,F}(A::LinearOperator{E,F}, x)
+    error("argument of operator has wrong type")
+end
 
 *{E,F}(A::LinearOperator{E,F}, x) = call(A, x)
 
