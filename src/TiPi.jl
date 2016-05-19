@@ -7,6 +7,7 @@
 #
 # Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
 # This file is part of TiPi.  All rights reserved.
+#
 
 module TiPi
 
@@ -21,9 +22,8 @@ export goodfftdim, fftfreq, zeropad, pad
 typealias Float Cdouble
 
 include("utils.jl")
-include("AffineTransforms.jl")
-include("operators.jl")
 include("algebra.jl")
+include("AffineTransforms.jl")
 include("kernels.jl")
 include("interp.jl")
 include("mda.jl")

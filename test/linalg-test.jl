@@ -1,8 +1,8 @@
 module Test
 
-using TiPi.Operators
+using TiPi.Algebra
 
-import TiPi.Operators: apply_direct, apply_adjoint
+import TiPi.Algebra: apply_direct, apply_adjoint
 
 abstract VectorSpace
 

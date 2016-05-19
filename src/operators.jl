@@ -7,15 +7,9 @@
 #
 # Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
 # This file is part of TiPi.  All rights reserved.
-
-module Operators
+#
 
 import Base: *, ⋅, ctranspose, call
-export LinearOperator,
-       SelfAdjointOperator,
-       Identity,
-       apply_direct,
-       apply_adjoint
 
 """
 `LinearOperator{OUT,INP}` is the abstract type from which inherit all linear
@@ -125,5 +119,4 @@ immutable Identity{T} <: SelfAdjointOperator{T}; end
 Identity{T}(::Type{T}) = Identity{T}()
 apply_direct{T}(::Identity{T}, x::T) = x
 
-
-end # module
+#------------------------------------------------------------------------------
