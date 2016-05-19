@@ -19,7 +19,7 @@ of its elements and its number of dimensions, whereas all dimensions must be
 specified to build a similar array).
 
 The values of a variables may have any type (or may even have each different
-types) Vector spaces implement the following methods:
+types).  Vector spaces implement the following methods:
 
 * `length{T}(x::T)` to give the number of components in variable `x`;
 
@@ -51,13 +51,13 @@ The following methods may optionally be implemented:
 * `normInf{T}(x::T)` to compute the infinite norm of `x`;
 
 * `update!{T}(dst::T, alpha::Float, x::T)` to perform `dst += alpha*x`, the
-  default implementation is: `update!{T}(dst::T, alpha::Float, x::T) =
-  combine!(dst, 1.0, dst, alpha, x)`;
-
-* `combine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T, gamma::Float,
-  z::T)` to perform `dst = alpha*x + beta*y + gamma*z` the default
-  implementation is:
+  default implementation is:
+  ```julia
+  update!{T}(dst::T, alpha::Float, x::T) = combine!(dst, 1.0, dst, alpha, x)`
   ```
+
+* `combine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T, gamma::Float, z::T)` to perform `dst = alpha*x + beta*y + gamma*z` the default implementation is:
+  ```julia
   function combine!{T}(dst::T, alpha::Float, x::T,
                        beta::Float, y::T, gamma::Float, z::T)
         combine!(dst, alpha, x, beta, y)
@@ -91,10 +91,11 @@ Here "adjoint" closely follows the mathematical definition:
 
     inner(y, A*x) = inner(A'*y, x)
 
-whatever `x` and `y` (of the correct type).  This definition clearly depends
-on the inner product.
+whatever `x` and `y` (of the correct type).  This definition clearly depends on
+the inner product which is implemented for the considered variables (see
+above).
 
-Of course combining operators is possible:
+Of course combining operators is possible.  For instance:
 
     A*B'*C*x
     (A*B*C)'*x = C'*B'*A'*x = C'(B'(A'(x)))
@@ -117,7 +118,7 @@ type inherited from one of the abstract types `LinearOperator` or
   input and output types of the "vectors".
 
 * A `SelfAdjointOperator{E}` is a more specialized `LinearOperator` which is
-  its own adjoint.  Its only parameter is the input and out type of the
+  its own adjoint.  Its only parameter is the type of the input and output
   "vectors".
 
 Appart from defining the type for the operator, two methods, `apply_direct` and
