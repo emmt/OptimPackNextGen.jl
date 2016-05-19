@@ -70,7 +70,7 @@ function runtests()
     Q = A*B*D'
     println(Q*z)
 
-    Z = BogusOperator{SpaceE,SpaceF}("Z")
+    Z = BogusOperator{SpaceE,SpaceF}("Z");
     #println(Z*x)
     #println(Z'*w)
 
