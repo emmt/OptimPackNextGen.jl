@@ -126,7 +126,7 @@ end
 function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{1},
                   x::Array{T,1}, gx::Array{T,1}, clr::Bool=false)
     # Minimal checking.
-    @assert(size(x) == size(gx))
+    @assert size(x) == size(gx)
 
     # Short circuit if weight is zero.
     if alpha == 0 || param.mu[1] == 0
@@ -234,7 +234,7 @@ end
 
 function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{2},
                   x::Array{T,2}, gx::Array{T,2}, clr::Bool=false)
-    @assert(size(x) == size(gx))
+    @assert size(x) == size(gx)
     clr && vfill!(gx, 0)
     alpha == 0 && return 0.0
     dims = size(x)
@@ -443,7 +443,7 @@ end
 
 function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{3},
                   x::Array{T,3}, gx::Array{T,3}, clr::Bool=false)
-    @assert(size(x) == size(gx))
+    @assert size(x) == size(gx)
     clr && vfill!(gx, 0)
     alpha == 0 && return 0.0
     dims = size(x)

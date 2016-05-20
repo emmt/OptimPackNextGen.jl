@@ -6,11 +6,9 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 #
-# Copyright (C) 2016, Éric Thiébaut.
-#
-#------------------------------------------------------------------------------
 
 module Kernels
 
@@ -314,7 +312,7 @@ immutable LanczosKernel{T} <: Kernel{T}
     b::T   # a/pi^2
     c::T   # pi/a
     function LanczosKernel(n::Integer)
-        @assert(n > 0)
+        @assert n > 0
         a = T(n)
         new(2*n, a, a/pi^2, pi/a)
     end

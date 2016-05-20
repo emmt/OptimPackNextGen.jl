@@ -5,11 +5,9 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 #
-# Copyright (C) 2016, Éric Thiébaut &  Thibault Wanner.
-#
-#------------------------------------------------------------------------------
 
 import Base.sparse
 
@@ -69,15 +67,15 @@ function Interpolator{T<:AbstractFloat}(ker::Kernels.Kernel{T},
             end
         end
     end
-    @assert(n == nmax)
+    @assert n == nmax
     return Interpolator(J, A, nrows, ncols, width, size(pos))
 end
 
 function call{T<:AbstractFloat,N}(op::Interpolator{T,N},
                                   x::AbstractArray{T,1})
-    @assert(length(x) == op.ncols)
+    @assert length(x) == op.ncols
     y = Array(T, op.dims)
-    @assert(length(y) == op.nrows)
+    @assert length(y) == op.nrows
     const width::Int = op.width
     @inbounds begin
         for i in 1:op.nrows

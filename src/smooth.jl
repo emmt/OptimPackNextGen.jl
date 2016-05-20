@@ -39,7 +39,7 @@ function cost!{T<:AbstractFloat}(alpha::Real,
                                  x::Array{T,2},
                                  g::Array{T,2},
                                  clr::Bool)
-    @assert(size(g) == size(x))
+    @assert size(g) == size(x)
     clr && vfill!(g, zero(T))
     alpha == 0 && return zero(Cdouble)
     err::Cdouble = 0
