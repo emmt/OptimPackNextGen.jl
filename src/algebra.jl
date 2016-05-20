@@ -12,6 +12,7 @@
 module Algebra
 
 export LinearOperator,
+       Endomorphism,
        SelfAdjointOperator,
        Identity,
        NormalEquations,

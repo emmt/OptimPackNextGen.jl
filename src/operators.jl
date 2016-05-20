@@ -19,9 +19,14 @@ output types of the "vectors".
 abstract LinearOperator{OUT,INP}
 
 """
-A `SelfAdjointOperator` is a `LinearOperator` which is its own adjoint.
+An `Endomorphism` is a `LinearOperator` with the same input and output spaces.
 """
-abstract SelfAdjointOperator{E} <: LinearOperator{E,E}
+abstract Endomorphism{E} <: LinearOperator{E,E}
+
+"""
+A `SelfAdjointOperator` is an `Endomorphism` which is its own adjoint.
+"""
+abstract SelfAdjointOperator{E} <: Endomorphism{E}
 
 """
 `Adjoint{E,F,T}` is used to mark the adjoint of a linear operator of type
