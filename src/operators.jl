@@ -160,3 +160,43 @@ end
 apply{E,F}(A::LinearOperator{E,F}, x::E) = A(x)
 
 #------------------------------------------------------------------------------
+
+immutable Rank1Operator{E,F} <: LinearOperator{E,F}
+    lvect::E
+    rvect::F
+    Rank1Operator(lvect::E, rvect::F) = new(lvect, rvect)
+end
+
+function apply_direct{E,F}(op::Rank1Operator{E,F}, src::F)
+    vscale(vdot(op.rvect, src), op.lvect)
+end
+
+function apply_direct!{E,F}(dst::E, op::Rank1Operator{E,F}, src::F)
+    vscale!(dst, vdot(op.rvect, src), op.lvect)
+end
+
+function apply_adjoint{E,F}(op::Rank1Operator{E,F}, src::E)
+    vscale(vdot(op.lvect, src), op.rvect)
+end
+
+function apply_adjoint!{E,F}(dst::F, op::Rank1Operator{E,F}, src::E)
+    vscale!(dst, vdot(op.lvect, src), op.rvect)
+end
+
+#------------------------------------------------------------------------------
+
+# FIXME: assume real weights
+immutable WeightingOperator{E} <: SelfAdjointOperator{E}
+    w::E
+    WeightingOperator{E}(w::E) = new(w)
+end
+
+function apply_direct{E}(op::WeightingOperator{E}, src::E)
+    vproduct(op.w, src)
+end
+
+function apply_direct!{E}(dst::E, op::WeightingOperator{E}, src::E)
+    vproduct!(dst, op.w, src)
+end
+
+#------------------------------------------------------------------------------
