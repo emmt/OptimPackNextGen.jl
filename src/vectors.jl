@@ -13,14 +13,8 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-"""
-### Euclidean norm
+vnorm2{V}(x::V, y::V) = sqrt(vdot(x, y))
 
-The Euclidean (L2) norm of `v` can be computed by:
-
-    vnorm2(v)
-
-"""
 function vnorm2{T<:AbstractFloat,N}(v::Array{T,N})
     s::T = zero(T)
     @simd for i in 1:length(v)
@@ -29,14 +23,6 @@ function vnorm2{T<:AbstractFloat,N}(v::Array{T,N})
     return Float(sqrt(s))
 end
 
-"""
-### L1 norm
-
-The L1 norm of `v` can be computed by:
-
-    vnorm1(v)
-
-"""
 function vnorm1{T<:AbstractFloat,N}(v::Array{T,N})
     s::T = zero(T)
     @simd for i in 1:length(v)
@@ -45,14 +31,6 @@ function vnorm1{T<:AbstractFloat,N}(v::Array{T,N})
     return Float(s)
 end
 
-"""
-### Infinite norm
-
-The infinite norm of `v` can be computed by:
-
-    vnorminf(v)
-
-"""
 function vnorminf{T<:AbstractFloat,N}(v::Array{T,N})
     s::T = zero(T)
     @simd for i in 1:length(v)
@@ -62,25 +40,20 @@ function vnorminf{T<:AbstractFloat,N}(v::Array{T,N})
 end
 
 """
-### Compute scalar product
+### Euclidean, L1 and infinite norms
 
-The call:
+    vnorm2(v)
+    vnorm1(v)
+    vnorminf(v)
 
-    vdot(x, y)
+respectively yield the Euclidean (L2), L1 and infinite norm of `v`.
 
-computes the inner product (a.k.a. scalar or dot product) between `x` and `y`
-(which must have the same size).  The triple inner product between `w`, `x` and
-`y` can be computed by:
+""" vnorm2
+@doc @doc(vnorm2) vnorm1
+@doc @doc(vnorm2) vnorminf
 
-    vdot(w, x, y)
+#------------------------------------------------------------------------------
 
-Finally:
-
-    vdot(sel, x, y)
-
-computes the sum of the product of the elements of `x` and `y` whose indices
-are given by the `sel` argument.
-"""
 function vdot{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
     @assert size(x) == size(y)
     s::T = 0
@@ -113,6 +86,31 @@ function vdot{T<:AbstractFloat,N}(sel::Vector{Int}, x::Array{T,N}, y::Array{T,N}
 end
 
 """
+### Inner product
+
+The call:
+
+    vdot(x, y)
+
+computes the inner product (a.k.a. scalar or dot product) between `x` and `y`
+(which must have the same size).  The triple inner product between `w`, `x` and
+`y` can be computed by:
+
+    vdot(w, x, y)
+
+Finally:
+
+    vdot(sel, x, y)
+
+computes the sum of the product of the elements of `x` and `y` whose indices
+are given by the `sel` argument.
+""" vdot
+
+#------------------------------------------------------------------------------
+
+vcreate{T,N}(x::Array{T,N}) = Array(T, size(x))
+
+"""
 ### Create a new variable instance
 
 The call:
@@ -120,19 +118,16 @@ The call:
     vcreate(x)
 
 creates a new variable instance similar to `x`.
-"""
-vcreate{T,N}(x::Array{T,N}) = Array(T, size(x))
+""" vcreate
 
-"""
-### Copy contents
+#------------------------------------------------------------------------------
 
-The call:
-
+function vcopy(src)
+    dst = vcreate(src)
     vcopy!(dst, src)
+    return dst
+end
 
-copies the contents of `src` into `dst` (which must have the same type and
-size).  Nothing is done if `src` and `dst` are the same object.
-"""
 function vcopy!{T,N}(dst::Array{T,N}, src::Array{T,N})
     if !is(dst, src)
         @assert size(src) == size(dst)
@@ -145,15 +140,23 @@ function vcopy!{T,N}(dst::Array{T,N}, src::Array{T,N})
 end
 
 """
-### Exchange contents
+### Copy contents
 
 The call:
 
-    vswap!(x, y)
+    vcopy!(dst, src)
 
-exchanges the contents of `x` and `y` (which must have the same type and size).
-Nothing is done if `src` and `dst` are the same object.
-"""
+copies the contents of `src` into `dst` (which must have the same type and
+size).  Nothing is done if `src` and `dst` are the same object.  To create
+a fresh copy of `src`, do:
+
+    dst = vcopy(src)
+
+""" vcopy
+@doc @doc(vcopy) vcopy!
+
+#------------------------------------------------------------------------------
+
 function vswap!{T,N}(x::Array{T,N}, y::Array{T,N})
     if !is(x, y)
         @assert size(x) == size(y)
@@ -168,43 +171,98 @@ function vswap!{T,N}(x::Array{T,N}, y::Array{T,N})
 end
 
 """
-### In-place scaling
+### Exchange contents
 
 The call:
 
-    vscale!(x, alpha)
+    vswap!(x, y)
 
-multiplies the contents of `x` by the scalar `alpha`.
-"""
-function vscale!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::T)
+exchanges the contents of `x` and `y` (which must have the same type and size).
+Nothing is done if `src` and `dst` are the same object.
+""" vswap!
+
+#------------------------------------------------------------------------------
+
+function vscale{T<:Real}(alpha::T, src)
+    if alpha == one(T)
+        return src
+    else
+        dst = vcreate(src)
+        vscale!(dst, alpha, src)
+    end
+    return dst
+end
+
+vscale!{V}(dst::V, alpha::Real, src::V) = vcombine!(dst, alpha, src, 0, src)
+vscale!(dst, alpha::Real) = vscale!(dst, alpha, dst)
+
+function vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::T)
     @inbounds begin
         if alpha == zero(T)
-            @simd for i in 1:length(x)
-                x[i] = alpha
+            @simd for i in 1:length(dst)
+                dst[i] = alpha
             end
         elseif alpha == -one(T)
-            @simd for i in 1:length(x)
-                x[i] = -x[i]
+            @simd for i in 1:length(dst)
+                dst[i] = -dst[i]
             end
         elseif alpha != one(T)
-            @simd for i in 1:length(x)
-                x[i] *= alpha
+            @simd for i in 1:length(dst)
+                dst[i] *= alpha
             end
         end
     end
 end
 
-vscale!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::Real) = vscale!(x, T(alpha))
+function vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::T, src::Array{T,N})
+    @assert size(src) == size(dst)
+    @inbounds begin
+        if alpha == zero(T)
+            @simd for i in 1:length(x)
+                dst[i] = alpha
+            end
+        elseif alpha == -one(T)
+            @simd for i in 1:length(x)
+                dst[i] = -src[i]
+            end
+        elseif alpha == one(T)
+            if !is(src, dst)
+                @simd for i in 1:length(x)
+                    dst[i] = src[i]
+                end
+            end
+        else
+            @simd for i in 1:length(x)
+                dst[i] = alpha*src[i]
+            end
+        end
+    end
+end
+
+vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real) = vscale!(dst, T(alpha))
+vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real, src::Array{T,N}) = vscale!(dst, T(alpha), src)
+vscale{T<:AbstractFloat,N}(alpha::Real, src::Array{T,N}) = vscale(T(alpha), src)
 
 """
-### Fill with a value
+### Scaling
 
-The call:
+    dst = vscale(alpha, src)
 
-    vfill!(x, alpha)
+multiplies the contents of `src` by the scalar `alpha` and returns a new
+ "vector" `dst`.  Alternatively:
 
-sets all elements of `x` with the scalar value `alpha`.
-"""
+    vscale!(dst, alpha)
+
+performs in-place scaling of `dst` and
+
+    vscale!(dst, alpha, src)
+
+stores in `dst` the result of scaling `src` by `alpha`.
+""" vscale
+@doc @doc(vscale) vscale!
+
+#------------------------------------------------------------------------------
+
 function vfill!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::T)
     @inbounds begin
         @simd for i in 1:length(x)
@@ -216,25 +274,17 @@ end
 vfill!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::Real) = vfill!(x, T(alpha))
 
 """
-### Increment an array by a scaled step
+### Fill with a value
 
 The call:
 
-    vupdate!(dst, alpha, x)
+    vfill!(x, alpha)
 
-increments the components of the destination *vector* `dst` by those of
-`alpha*x`.  The code is optimized for some specific values of the multiplier
-`alpha`.  For instance, if `alpha` is zero, then `dst` left unchanged without
-using `x`.
+sets all elements of `x` with the scalar value `alpha`.
+""" vfill!
 
-Another possibility is:
+#------------------------------------------------------------------------------
 
-    vupdate!(dst, sel, alpha, x)
-
-with `sel` a selection of indices to which apply the operation.  Note that if
-an indice is repeated, the operation will be performed several times at this
-location.
-"""
 function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N},
                                       a::T, x::Array{T,N})
     @assert size(dst) == size(x)
@@ -292,20 +342,36 @@ function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
 end
 
 """
-### Elementwise multiplication
+### Increment an array by a scaled step
 
 The call:
 
-    vproduct!(dst, x, y)
+    vupdate!(dst, alpha, x)
 
-stores the elementwise multiplication of `x` by `y` in `dst`.
+increments the components of the destination *vector* `dst` by those of
+`alpha*x`.  The code is optimized for some specific values of the multiplier
+`alpha`.  For instance, if `alpha` is zero, then `dst` left unchanged without
+using `x`.
 
 Another possibility is:
 
-    vproduct!(dst, sel, x, y)
+    vupdate!(dst, sel, alpha, x)
 
-with `sel` a selection of indices to which apply the operation.
-"""
+with `sel` a selection of indices to which apply the operation.  Note that if
+an indice is repeated, the operation will be performed several times at this
+location.
+""" vupdate!
+
+#------------------------------------------------------------------------------
+
+function vproduct{V}(x::V, y::V)
+    dst = vcreate(x)
+    vproduct!(dst, x, y)
+    return dst
+end
+
+vproduct!{V}(dst::V, src::V) = vproduct!(dst, dst, src)
+
 function vproduct!{T<:AbstractFloat,N}(dst::Array{T,N},
                                        x::Array{T,N}, y::Array{T,N})
     @assert size(x) == size(dst)
@@ -328,48 +394,35 @@ function vproduct!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
 end
 
 """
-### Linear combination of arrays
+### Elementwise multiplication
 
-The calls:
+    dst = vproduct(x, y)
 
-    vcombine!(dst, alpha, x)
+yields the elementwise multiplication of `x` by `y`.  To avoid
+allocating the result, the destination array `dst` can be specified with the
+in-place version of the method:
+
+    vproduct!(dst, x, y)
+
+Another possibility is:
+
+    vproduct!(dst, sel, x, y)
+
+with `sel` a selection of indices to which apply the operation.
+""" vproduct
+
+@doc @doc(vproduct) vproduct!
+
+#------------------------------------------------------------------------------
+
+vcombine(alpha::Real, x) = vscale(alpha, x)
+
+vcombine!(dst, alpha::Real, x) = vscale!(dst, alpha, x)
+
+function vcombine{V}(alpha::Real, x::V, beta::Real, y::V)
+    dst = vcreate(x)
     vcombine!(dst, alpha, x, beta, y)
-
-stores the linear combinations `alpha*x` and `alpha*x + beta*y` into the
-destination array `dst`.  The code is optimized for some specific values of the
-coefficients `alpha` and `beta`.  For instance, if `alpha` (resp. `beta`) is
-zero, then the contents of `x` (resp. `y`) is not used.
-
-The source(s) and the destination can be the same.  For instance, the two
-following lines of code produce the same result:
-
-    vcombine!(dst, 1, dst, alpha, x)
-    vupdate!(dst, alpha, x)
-
-"""
-
-function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N}, a::T, x::Array{T,N})
-    @assert size(x) == size(dst)
-    const n = length(dst)
-    @inbounds begin
-        if a == zero(T)
-            @simd for i in 1:n
-                dst[i] = a
-            end
-        elseif a == one(T)
-            @simd for i in 1:n
-                dst[i] = x[i]
-            end
-        elseif a == -one(T)
-            @simd for i in 1:n
-                dst[i] = -x[i]
-            end
-        else
-            @simd for i in 1:n
-                dst[i] = a*x[i]
-            end
-        end
-    end
+    return dst
 end
 
 function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
@@ -430,15 +483,42 @@ function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
 end
 
 function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                       alpha::Real, x::Array{T,N})
-    vcombine!(dst, T(alpha), x)
-end
-
-function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
                                        alpha::Real, x::Array{T,N},
                                        beta::Real,  y::Array{T,N})
     vcombine!(dst, T(alpha), x, T(beta), y)
 end
+
+"""
+### Linear combination of arrays
+
+    dst = vcombine(alpha, x)
+    dst = vcombine(alpha, x, beta, y)
+
+yields the linear combinations `alpha*x` and `alpha*x + beta*y`.  To avoid
+allocating the result, the destination array `dst` can be specified with the
+in-place version of the method:
+
+    vcombine!(dst, alpha, x)
+    vcombine!(dst, alpha, x, beta, y)
+
+The code is optimized for some specific values of the coefficients `alpha` and
+`beta`.  For instance, if `alpha` (resp. `beta`) is zero, then the contents of
+`x` (resp. `y`) is not used.
+
+The source(s) and the destination can be the same.  For instance, the two
+following lines of code produce the same result:
+
+    vcombine!(dst, 1, dst, alpha, x)
+    vupdate!(dst, alpha, x)
+
+and the following statements also yied the same result:
+
+    vcombine!(dst, alpha, x)
+    vscale!(dst, alpha, x)
+
+""" vcombine
+
+@doc @doc(vcombine) vcombine!
 
 #-------------------------------------------------------------------------------
 # PROJECTING VARIABLES
@@ -447,15 +527,6 @@ end
 @inline clamp{T<:Real}(x::T, ::Void, hi::T) = min(x, hi)
 @inline clamp{T<:Real}(x::T, lo::T, ::Void) = max(lo, x)
 
-"""
-    project_variables!(dst, lo, hi, x)
-
-stores in `dst` the projection of the variables `x` in the box whose lower
-bound is `lo` and upper bound is `hi`.
-
-This is the same as `dst = clamp(x, lo, hi)` except that the result is
-preallocated and that the operation is *much* faster (by a factor of 2-3).
-"""
 function project_variables!{T<:Real,N}(dst::Array{T,N},
                                        lo::Real, hi::Real,
                                        x::Array{T,N})
@@ -542,6 +613,16 @@ function project_variables!{T<:Real,N}(dst::Array{T,N},
         @inbounds dst[i] = clamp(x[i], lo[i], hi[i])
     end
 end
+
+"""
+    project_variables!(dst, lo, hi, x)
+
+stores in `dst` the projection of the variables `x` in the box whose lower
+bound is `lo` and upper bound is `hi`.
+
+This is the same as `dst = clamp(x, lo, hi)` except that the result is
+preallocated and that the operation is *much* faster (by a factor of 2-3).
+""" project_variables!
 
 #------------------------------------------------------------------------------
 # PROJECTING DIRECTION
@@ -754,22 +835,6 @@ end
 #------------------------------------------------------------------------------
 # COMPUTING STEP LIMITS
 
-"""
-### Compute step limits for line search
-
-When there are separable bound constraints on the variables, the step `smin` to
-the closest not yet reached bound and the step `smax` to the farthest bound are
-computed by the call:
-```
-    (smin, smax) = step_limits(lo, hi, x, s, d)
-```
-where `lo` is the lower bound, `hi` is the upper bound, `x` are the current
-variables and `sign(s)*d` is the search direction.
-
-In orther words, `smin` is the smallest step which will bring at least one more
-variable "out of bounds" and `smax` is the smallest step which will bring all
-variables "out of bounds".  As a consequence, `0 < smin` and `0 ≤ smax`.
-"""
 function step_limits{T<:Real,N}(lo::T, hi::T, x::Array{T,N},
                                 orient, d::Array{T,N})
     @assert size(d) == size(x)
@@ -965,6 +1030,23 @@ function step_limits{T<:Real,N}(lo::Real, hi::Array{T,N}, x::Array{T,N},
     step_limits(T(lo), hi, x, orient, d)
 end
 
+"""
+### Compute step limits for line search
+
+When there are separable bound constraints on the variables, the step `smin` to
+the closest not yet reached bound and the step `smax` to the farthest bound are
+computed by the call:
+```
+    (smin, smax) = step_limits(lo, hi, x, s, d)
+```
+where `lo` is the lower bound, `hi` is the upper bound, `x` are the current
+variables and `sign(s)*d` is the search direction.
+
+In orther words, `smin` is the smallest step which will bring at least one more
+variable "out of bounds" and `smax` is the smallest step which will bring all
+variables "out of bounds".  As a consequence, `0 < smin` and `0 ≤ smax`.
+""" step_limits
+
 #------------------------------------------------------------------------------
 # GETTING FREE VARIABLES
 
@@ -991,28 +1073,6 @@ end
 @inline function may_move_backward{T<:Real}(x::T, d::T, lo::T, hi::T)
     d != zero(T) && (d > zero(T) ? x > lo : x < hi)
 end
-
-"""
-## Get free variables when following a direction
-
-    sel =  get_free_variables(lo, hi, x, orient, d)
-
-yields the list of components of the variables `x` which are allowed to vary
-along the search direction `sign(orient)*d` under box constraints with `lo` and
-`hi` the lower and upper bounds.
-
-If the projected gradient `p` of the objective function is available, the free
-variables can be obtained by:
-
-    sel =  get_free_variables(p)
-
-where the projected gradient `p` has been computed as:
-
-    project_direction!(p, lo, hi, x, -1, g)
-
-with `g` the gradient of the objective function at `x`.
-
-"""
 
 function get_free_variables{T<:Real,N}(p::Array{T,N})
     const ZERO = zero(T)
@@ -1236,5 +1296,27 @@ function get_free_variables{T<:Real,N}(lo::Real, hi::Array{T,N}, x::Array{T,N},
                                        orient, d::Array{T,N})
     get_free_variables(T(lo), hi, x, orient, d)
 end
+
+"""
+## Get free variables when following a direction
+
+    sel =  get_free_variables(lo, hi, x, orient, d)
+
+yields the list of components of the variables `x` which are allowed to vary
+along the search direction `sign(orient)*d` under box constraints with `lo` and
+`hi` the lower and upper bounds.
+
+If the projected gradient `p` of the objective function is available, the free
+variables can be obtained by:
+
+    sel =  get_free_variables(p)
+
+where the projected gradient `p` has been computed as:
+
+    project_direction!(p, lo, hi, x, -1, g)
+
+with `g` the gradient of the objective function at `x`.
+
+""" get_free_variables
 
 #------------------------------------------------------------------------------

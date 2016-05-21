@@ -79,6 +79,39 @@ have a different data type and the destination may have different dimensions
 than the source (the only constraint is that the destination must have at least
 as many elements as the source).
 
+The following methods must be implemented (`S` is a floating-point scalar type
+and `V` is the type of your variables):
+
+* `vnorm1(x::V, y::V)`
+* `vnorminf(x::V, y::V)`
+* `vdot(x::V, y::V)`
+* `vcreate(x::V)`
+* `vcopy!(dst::V, src::V)`
+* `vswap!(x::V, y::V)`
+* `vfill!(x::V, alpha::S)`
+* `vupdate!(dst::V, alpha::S, x::V)`
+* `vproduct!(dst::V, x::V, y::V)`
+* `vcombine!(dst::V, alpha::S, x::V, beta::S, y::V)`
+
+The following methods have default based on other provided method but you may
+consider implementing a more efficient version:
+
+* `vnorm2(x::V, y::V)` defaults to `sqrt(vdot(x, y))`;
+* `vscale!(dst::V, alpha::S)` defaults to `vscale!(dst, alpha, dst)`;
+* `vscale!(dst::V, alpha::S, src::V)` defaults to `vcombine!(dst, alpha, src, 0, src)`;
+* `vproduct!(dst::V, src::V)` defaults to `vproduct!(dst, dst, src)`;
+
+In order to use bound constraint optimization, you must provide the following
+methods (`F` is the type of object returned by `get_free_variables`):
+
+* `project_variables`;
+* `project_direction`;
+* `get_free_variables`;
+* `step_limits`;
+* `vdot(sel::F, x::V, y::V)`
+* `vupdate!(dst::V, sel::F, alpha::S, x::V)`
+* `vproduct!(dst::V, sel::F, x::V, y::V)`
+
 
 ## Linear Operators
 
