@@ -134,7 +134,9 @@ apply_direct{T}(::Identity{T}, x::T) = x
 stores in the destination "vector" `dst` the result of applying the linear
 operator `A` to the source "vector" `src`.
 """
-apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) = vcopy!(dst, A(src))
+function apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F)
+    vcopy!(dst, A(src))
+end
 
 @doc """
 
@@ -143,6 +145,18 @@ apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) = vcopy!(dst, A(src))
 stores in the destination "vector" `dst` the result of applying the adjoint of
 the linear operator `A` to the source "vector" `src`.
 """
-apply_adjoint{E,F}(dst::F, A::LinearOperator{E,F}, src::E) = vcopy!(dst, A'(src))
+function apply_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, src::E)
+    vcopy!(dst, A'(src))
+end
+
+function apply!{E,F}(dst::F, A::LinearOperator{E,F}, src::E)
+    apply_direct!(dst, A, src)
+end
+
+function apply!{E,F,T}(dst::E, A::Adjoint{E,F,T}, src::F)
+    apply_adjoint!(dst, A.op, src)
+end
+
+apply{E,F}(A::LinearOperator{E,F}, x::E) = A(x)
 
 #------------------------------------------------------------------------------
