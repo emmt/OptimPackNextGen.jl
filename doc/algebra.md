@@ -33,7 +33,7 @@ types).  Vector spaces implement the following methods:
 
 * `vscale!{T}(x::T, alpha::Float)` to scale all values of `x` by `alpha`;
 
-* `inner{T}(x::T, y::{T})::Float` to compute the inner product of `x` and `y`,
+* `vdot{T}(x::T, y::{T})::Float` to compute the inner product of `x` and `y`,
   the result is expected to be a `Float`;
 
 * `vcombine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T)` to perform
@@ -44,12 +44,12 @@ types).  Vector spaces implement the following methods:
 
 The following methods may optionally be implemented:
 
-* `norm2{T}(x::T)` to compute the Euclidean norm of `x`, if not provided, the
-  default implementation is: `norm2(x) = sqrt(inner(x, x))`;
+* `vnorm2{T}(x::T)` to compute the Euclidean norm of `x`, if not provided, the
+  default implementation is: `vnorm2(x) = sqrt(vdot(x, x))`;
 
-* `norm1{T}(x::T)` to compute the L1 norm of `x`;
+* `vnorm1{T}(x::T)` to compute the L1 norm of `x`;
 
-* `normInf{T}(x::T)` to compute the infinite norm of `x`;
+* `vnorminf{T}(x::T)` to compute the infinite norm of `x`;
 
 * `update!{T}(dst::T, alpha::Float, x::T)` to perform `dst += alpha*x`, the
   default implementation is:
@@ -97,11 +97,11 @@ work as expected:
 
 Here "adjoint" closely follows the mathematical definition:
 
-    inner(y, A*x) = inner(A'*y, x)
+    vdot(y, A*x) = vdot(A'*y, x)
 
 whatever `x` and `y` (of the correct type).  This definition clearly depends on
-the inner product which is implemented for the considered variables (see
-above).
+the inner product which is implemented by the `vdot` method for the considered
+variables (see above).
 
 Of course combining operators is possible.  For instance:
 

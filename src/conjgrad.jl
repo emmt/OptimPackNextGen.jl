@@ -63,7 +63,7 @@ function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T, tol,
     alpha::Float = 0
     gamma::Float = 0
     epsilon::Float = 0
-    rho = inner(r, r)
+    rho = vdot(r, r)
     if length(tol) == 1
         epsilon = tol[1]
     elseif length(tol) == 2
@@ -90,7 +90,7 @@ function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T, tol,
             vcombine!(p, 1, r, (rho/rho0), p)
         end
         apply_direct!(q, A, p)
-        gamma = inner(p, q)
+        gamma = vdot(p, q)
         if gamma <= 0
             error("left-hand-side operator A is not positive definite")
             break
@@ -99,6 +99,6 @@ function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T, tol,
         vupdate!(x, +alpha, p)
         vupdate!(r, -alpha, q)
         rho0 = rho
-        rho = inner(r, r)
+        rho = vdot(r, r)
     end
 end

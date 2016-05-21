@@ -17,11 +17,11 @@
 ### Euclidean norm
 
 The Euclidean (L2) norm of `v` can be computed by:
-```
-    norm2(v)
-```
+
+    vnorm2(v)
+
 """
-function norm2{T<:AbstractFloat,N}(v::Array{T,N})
+function vnorm2{T<:AbstractFloat,N}(v::Array{T,N})
     s::T = zero(T)
     @simd for i in 1:length(v)
         @inbounds s += v[i]*v[i]
@@ -33,11 +33,11 @@ end
 ### L1 norm
 
 The L1 norm of `v` can be computed by:
-```
-    norm1(v)
-```
+
+    vnorm1(v)
+
 """
-function norm1{T<:AbstractFloat,N}(v::Array{T,N})
+function vnorm1{T<:AbstractFloat,N}(v::Array{T,N})
     s::T = zero(T)
     @simd for i in 1:length(v)
         @inbounds s += abs(v[i])
@@ -49,11 +49,11 @@ end
 ### Infinite norm
 
 The infinite norm of `v` can be computed by:
-```
-    normInf(v)
-```
+
+    vnorminf(v)
+
 """
-function normInf{T<:AbstractFloat,N}(v::Array{T,N})
+function vnorminf{T<:AbstractFloat,N}(v::Array{T,N})
     s::T = zero(T)
     @simd for i in 1:length(v)
         @inbounds s = max(s, abs(v[i]))
@@ -66,22 +66,22 @@ end
 
 The call:
 
-    inner(x, y)
+    vdot(x, y)
 
 computes the inner product (a.k.a. scalar or dot product) between `x` and `y`
 (which must have the same size).  The triple inner product between `w`, `x` and
 `y` can be computed by:
 
-    inner(w, x, y)
+    vdot(w, x, y)
 
 Finally:
 
-    inner(sel, x, y)
+    vdot(sel, x, y)
 
 computes the sum of the product of the elements of `x` and `y` whose indices
 are given by the `sel` argument.
 """
-function inner{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
+function vdot{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
     @assert size(x) == size(y)
     s::T = 0
     @simd for i in 1:length(x)
@@ -90,7 +90,7 @@ function inner{T<:AbstractFloat,N}(x::Array{T,N}, y::Array{T,N})
     return Float(s)
 end
 
-function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
+function vdot{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
     @assert size(x) == size(w)
     @assert size(y) == size(w)
     s::T = 0
@@ -100,7 +100,7 @@ function inner{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
     return Float(s)
 end
 
-function inner{T<:AbstractFloat,N}(sel::Vector{Int}, x::Array{T,N}, y::Array{T,N})
+function vdot{T<:AbstractFloat,N}(sel::Vector{Int}, x::Array{T,N}, y::Array{T,N})
     @assert size(y) == size(x)
     s::T = 0
     const n = length(x)

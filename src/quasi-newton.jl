@@ -14,7 +14,7 @@
 # - check for sufficient descent condition and implement restarts;
 # - add other convergence criteria;
 # - in case of early stop, revert to best solution so far;
-# - better initial step than 1/norm2(g);
+# - better initial step than 1/vnorm2(g);
 
 module QuasiNewton
 
@@ -296,7 +296,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
             project_direction!(p, lo, hi, x, -1, g)
         end
         if eval == 1 || f < bestf
-            gnorm = norm2((method > 0 ? p : g))
+            gnorm = vnorm2((method > 0 ? p : g))
             beststp = stp
             bestf = f
             bestgnorm = gnorm
@@ -326,9 +326,9 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
             # Line search is in progress.
             if requires_derivative(lnsrch)
                 if method > 0
-                    gd = (inner(g, x) - inner(g, S[mark]))/stp
+                    gd = (vdot(g, x) - vdot(g, S[mark]))/stp
                 else
-                    gd = -inner(g, d)
+                    gd = -vdot(g, d)
                 end
             end
             (stp, search) = iterate!(lnsrch, stp, f, gd)
@@ -380,7 +380,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                         project_variables!(x, lo, hi, x)
                     end
                 else
-                    gnorm = norm2((method > 0 ? p : g))
+                    gnorm = vnorm2((method > 0 ? p : g))
                 end
             end
 
@@ -400,10 +400,10 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                 vupdate!(S[mark], -1, x)
                 vupdate!(Y[mark], -1, (method == 1 ? p : g))
                 if method < 2
-                    rho[mark] = inner(Y[mark], S[mark])
+                    rho[mark] = vdot(Y[mark], S[mark])
                     if rho[mark] > 0
                         # The update is acceptable, compute the scale.
-                        gamma = rho[mark]/inner(Y[mark], Y[mark])
+                        gamma = rho[mark]/vdot(Y[mark], Y[mark])
                     end
                 end
                 m = min(m + 1, mem)
@@ -421,7 +421,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                     if method > 0
                         project_direction!(d, lo, hi, x, -1, d)
                     end
-                    gd = -inner(g, d)
+                    gd = -vdot(g, d)
                     reject = ! sufficient_descent(gd, epsilon, gnorm, d)
                 else
                     reject = true
@@ -514,7 +514,7 @@ function check_status(lnsrch::AbstractLineSearch)
 end
 
 function sufficient_descent{T}(gd::Float, ε::Float, gnorm::Float, d::T)
-    ε > 0 ? (gd ≤ -ε*norm2(d)*gnorm) : gd < 0
+    ε > 0 ? (gd ≤ -ε*vnorm2(d)*gnorm) : gd < 0
 end
 
 function sufficient_descent(gd::Float, ε::Float, gnorm::Float, dnorm::Float)
@@ -525,7 +525,7 @@ end
     sufficient_descent(gd, ε, gnorm, d)
 
 checks whether `d` is a sufficient descent direction (Zoutenjdik condition).
-Argument `gd` is the scalar product `inner(g,d)` between the gradient `g` and
+Argument `gd` is the scalar product `vdot(g,d)` between the gradient `g` and
 the direction `d`, `ε` is a nonnegative small value in the range `[0,1)` and
 `gnorm` is the Euclidean norm of the gradient `g`.
 
@@ -533,7 +533,7 @@ If the Euclidean norm of `d` has already been computed, then
 
     sufficient_descent(gd, ε, gnorm, dnorm)
 
-should be used instead with `dnorm = norm2(d)`.
+should be used instead with `dnorm = vnorm2(d)`.
 """ sufficient_descent
 
 function print_iteration(iter::Int, eval::Int, rejects::Int,
@@ -576,7 +576,7 @@ The most recent step and gradient difference are stored in `S[mark]` and
 `Y[mark]`, respectively.
 
 Argument `rho` contains the inner products of the steps and the gradient
-differences: `rho[k] = inner(S[k],Y[k])`.  On exit rho is unchanged.
+differences: `rho[k] = vdot(S[k],Y[k])`.  On exit rho is unchanged.
 
 Argument `alpha` is a work vector of length at least `m`.
 
@@ -620,7 +620,7 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
         for i in 1:m
             k = (k > 1 ? k - 1 : mem)
             if rho[k] > 0
-                alpha[k] = inner(S[k], v)/rho[k]
+                alpha[k] = vdot(S[k], v)/rho[k]
                 vupdate!(v, -alpha[k], Y[k])
                 modif = true
             end
@@ -629,7 +629,7 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             H0!(v)
             for i in 1:m
                 if rho[k] > 0
-                    beta::Float = inner(Y[k], v)/rho[k]
+                    beta::Float = vdot(Y[k], v)/rho[k]
                     vupdate!(v, alpha[k] - beta, S[k])
                 end
                 k = (k < mem ? k + 1 : 1)
@@ -650,12 +650,12 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
         k::Int = mark + 1
         for i in 1:m
             k = (k > 1 ? k - 1 : mem)
-            rho[k] = inner(sel, Y[k], S[k])
+            rho[k] = vdot(sel, Y[k], S[k])
             if rho[k] > 0
-                alpha[k] = inner(sel, S[k], v)/rho[k]
+                alpha[k] = vdot(sel, S[k], v)/rho[k]
                 vupdate!(v, sel, -alpha[k], Y[k])
                 if gamma == 0
-                    gamma = rho[k]/inner(sel, Y[k], Y[k])
+                    gamma = rho[k]/vdot(sel, Y[k], Y[k])
                 end
             end
         end
@@ -663,7 +663,7 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             vscale!(v, gamma)
             for i in 1:m
                 if rho[k] > 0
-                    beta::Float = inner(sel, Y[k], v)/rho[k]
+                    beta::Float = vdot(sel, Y[k], v)/rho[k]
                     vupdate!(v, sel, alpha[k] - beta, S[k])
                 end
                 k = (k < mem ? k + 1 : 1)

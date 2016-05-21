@@ -5,11 +5,9 @@
 #
 #------------------------------------------------------------------------------
 #
-# This file is part of TiPi.jl licensed under the MIT "Expat" License.
+# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# This file is part of TiPi.  All rights reserved.
 #
-# Copyright (C) 2015-2016, Éric Thiébaut.
-#
-#------------------------------------------------------------------------------
 
 module LineSearch
 
@@ -36,7 +34,7 @@ type, a typical line search is performed as follows:
     f0 = func(x)        # function value at x0
     g0 = grad(x)        # gradient at x0
     d = ...             # search direction
-    dtg0 = inner(d, g0) # directional derivative at x0
+    dtg0 = vdot(d, g0)  # directional derivative at x0
     stp = ...           # initial step
     stpmin = ...        # lower bound for the step
     stpmax = ...        # upper bound for the step
@@ -45,7 +43,7 @@ type, a typical line search is performed as follows:
         x = x0 + stp*d    # compute trial point
         f = func(x)       # function value at x
         g = grad(x)       # gradient at x
-        dtg = inner(d, g) # directional derivative at x
+        dtg = vdot(d, g)  # directional derivative at x
         stp, searching = iterate!(ls, stp, f, dtg)
     end
     task = get_task(ls)
