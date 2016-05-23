@@ -218,21 +218,21 @@ function vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::T, src::Array{T,N})
     @assert size(src) == size(dst)
     @inbounds begin
         if alpha == zero(T)
-            @simd for i in 1:length(x)
+            @simd for i in 1:length(dst)
                 dst[i] = alpha
             end
         elseif alpha == -one(T)
-            @simd for i in 1:length(x)
+            @simd for i in 1:length(dst)
                 dst[i] = -src[i]
             end
         elseif alpha == one(T)
             if !is(src, dst)
-                @simd for i in 1:length(x)
+                @simd for i in 1:length(dst)
                     dst[i] = src[i]
                 end
             end
         else
-            @simd for i in 1:length(x)
+            @simd for i in 1:length(dst)
                 dst[i] = alpha*src[i]
             end
         end
