@@ -11,14 +11,12 @@
 
 import Base.call
 
-type QuadraticSmoothness{N} <: AbstractCost
-end
+immutable QuadraticSmoothness <: AbstractCost end
 
-function cost{T<:AbstractFloat}(alpha::Real,
-                                ::QuadraticSmoothness{2},
+function cost{T<:AbstractFloat}(alpha::Float, ::QuadraticSmoothness,
                                 x::Array{T,2})
-    alpha == 0 && return zero(Cdouble)
-    err::Cdouble = 0
+    alpha == zero(Float) && return zero(Float)
+    err::Float = 0
     dims = size(x)
     dim1 = dims[1]
     dim2 = dims[2]
@@ -31,22 +29,19 @@ function cost{T<:AbstractFloat}(alpha::Real,
             err += dx1*dx1 + dx2*dx2
         end
     end
-    return convert(Cdouble,alpha)*err
+    return alpha*err
 end
 
-function cost!{T<:AbstractFloat}(alpha::Real,
-                                 ::QuadraticSmoothness{2},
-                                 x::Array{T,2},
-                                 g::Array{T,2},
-                                 clr::Bool)
+function cost!{T<:AbstractFloat}(alpha::Float, ::QuadraticSmoothness,
+                                 x::Array{T,2}, g::Array{T,2}, clr::Bool)
     @assert size(g) == size(x)
-    clr && vfill!(g, zero(T))
-    alpha == 0 && return zero(Cdouble)
-    err::Cdouble = 0
+    clr && vfill!(g, 0)
+    alpha == zero(Float) && return zero(Float)
+    err::Float = 0
     const dims = size(x)
     const dim1 = dims[1]
     const dim2 = dims[2]
-    const beta = convert(T, alpha + alpha)
+    const beta = T(alpha + alpha)
     for i2 in 1:dim2
         i2n = (i2 < dim2 ? i2 + 1 : dim2)
         for i1 in 1:dim1
@@ -61,5 +56,5 @@ function cost!{T<:AbstractFloat}(alpha::Real,
             g[i1,i2n] += dx2
         end
     end
-    return convert(Cdouble,alpha)*err
+    return alpha*err
 end
