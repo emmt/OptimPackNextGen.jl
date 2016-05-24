@@ -214,9 +214,6 @@ function vscale{T<:Real}(alpha::T, src)
     return dst
 end
 
-vscale!{V}(dst::V, alpha::Real, src::V) = vcombine!(dst, alpha, src, 0, src)
-vscale!(dst, alpha::Real) = vscale!(dst, alpha, dst)
-
 function vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::T)
     @inbounds begin
         if alpha == zero(T)
@@ -260,9 +257,13 @@ function vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::T, src::Array{T,N})
     end
 end
 
+vscale!{V}(dst::V, alpha::Real, src::V) = vcombine!(dst, alpha, src, 0, src)
+
+vscale!(dst, alpha::Real) = vscale!(dst, alpha, dst)
+
 vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real) = vscale!(dst, T(alpha))
+
 vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real, src::Array{T,N}) = vscale!(dst, T(alpha), src)
-vscale{T<:AbstractFloat,N}(alpha::Real, src::Array{T,N}) = vscale(T(alpha), src)
 
 """
 ### Scaling
