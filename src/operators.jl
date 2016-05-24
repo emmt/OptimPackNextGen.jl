@@ -11,6 +11,8 @@
 
 import Base: *, ⋅, ctranspose, call, diag
 
+import ..subrange, ..dimlist
+
 """
 `LinearOperator{OUT,INP}` is the abstract type from which inherit all linear
 operators.  It is parameterized by `INP` and `OUT` respectively the input and
@@ -309,5 +311,167 @@ function apply_direct!{E}(dst::E, A::DiagonalOperator{E}, src::E)
 end
 
 diag{E}(A::DiagonalOperator{E}) = A.diag
+
+#------------------------------------------------------------------------------
+# CROPPING AND ZERO-PADDING OPERATORS
+
+typealias Region{N} NTuple{N,UnitRange{Int}}
+
+immutable CroppingOperator{T,N} <: LinearOperator{Array{T,N},Array{T,N}}
+    outdims::NTuple{N,Int}
+    inpdims::NTuple{N,Int}
+    region::Region{N}
+    function CroppingOperator{T,N}(::Type{T},
+                                   outdims::NTuple{N,Int},
+                                   inpdims::NTuple{N,Int})
+        for k in 1:N
+            if outdims[k] > inpdims[k]
+                error("output dimensions must be smaller or equal input ones")
+            end
+        end
+        new(outdims, inpdims, subrange(outdims, inpdims))
+    end
+end
+
+function apply_direct{T,N}(A::CroppingOperator{T,N}, src::Array{T,N})
+    @assert size(src) == input_size(A)
+    _crop(src, A.region)
+end
+
+function apply_direct!{T,N}(dst::Array{T,N}, A::CroppingOperator{T,N},
+                            src::Array{T,N})
+    @assert size(src) == input_size(A)
+    @assert size(dst) == output_size(A)
+    _crop!(dst, src, A.region)
+end
+
+function apply_adjoint{T,N}(A::CroppingOperator{T,N}, src::Array{T,N})
+    @assert size(src) == output_size(A)
+    _zeropad(input_size(A), A.region, src)
+end
+
+function apply_adjoint!{T,N}(dst::Array{T,N}, A::CroppingOperator{T,N},
+                             src::Array{T,N})
+    @assert size(src) == output_size(A)
+    @assert size(dst) == input_size(A)
+    _zeropad(dst, A.region, src)
+end
+
+immutable ZeroPaddingOperator{T,N} <: LinearOperator{Array{T,N},Array{T,N}}
+    outdims::NTuple{N,Int}
+    inpdims::NTuple{N,Int}
+    region::Region{N}
+    function ZeroPaddingOperator{T,N}(::Type{T},
+                                   outdims::NTuple{N,Int},
+                                   inpdims::NTuple{N,Int})
+        for k in 1:N
+            if outdims[k] < inpdims[k]
+                error("output dimensions must be larger or equal input ones")
+            end
+        end
+        new(outdims, inpdims, subrange(inpdims, outdims))
+    end
+end
+
+function apply_direct{T,N}(A::ZeroPaddingOperator{T,N}, src::Array{T,N})
+    @assert size(src) == input_size(A)
+    _zeropad(output_size(A), A.region, src)
+end
+
+function apply_direct!{T,N}(dst::Array{T,N}, A::ZeroPaddingOperator{T,N},
+                            src::Array{T,N})
+    @assert size(src) == input_size(A)
+    @assert size(dst) == output_size(A)
+    _zeropad!(dst, A.region, src)
+end
+
+function apply_adjoint{T,N}(A::ZeroPaddingOperator{T,N}, src::Array{T,N})
+    @assert size(src) == output_size(A)
+    _crop(src, A.region)
+end
+
+function apply_adjoint!{T,N}(dst::Array{T,N}, A::ZeroPaddingOperator{T,N},
+                             src::Array{T,N})
+    @assert size(src) == output_size(A)
+    @assert size(dst) == input_size(A)
+    _crop!(dst, src, A.region)
+end
+
+for Operator in (:CroppingOperator, :ZeroPaddingOperator)
+    @eval begin
+
+        function $Operator{T,N}(::Type{T},
+                                outdims::NTuple{N,Integer},
+                                inpdims::NTuple{N,Integer})
+            $Operator{T,N}(T, dimlist(outdims), dimlist(inpdims))
+        end
+
+        function $Operator{T,N}(out::Array{T,N}, inp::Array{T,N})
+            $Operator{T,N}(T, size(out), size(inp))
+        end
+
+        function $Operator{T,N}(out::Array{T,N}, inpdims::NTuple{N,Integer})
+            $Operator{T,N}(T, size(out), dimlist(inpdims))
+        end
+
+        function $Operator{T,N}(outdims::NTuple{N,Integer}, inp::Array{T,N})
+            $Operator{T,N}(T, dimlist(outdims), size(inp))
+        end
+
+        eltype{T,N}(A::$Operator{T,N}) = T
+
+        input_size{T,N}(A::$Operator{T,N}) = A.inpdims
+
+        output_size{T,N}(A::$Operator{T,N}) = A.outdims
+
+    end
+end
+
+"""
+The following methods define a cropping operator:
+
+    C = CroppingOperator(T, outdims, inpdims)
+    C = CroppingOperator(out, inp)
+    C = CroppingOperator(out, inpdims)
+    C = CroppingOperator(outdims, inp)
+
+where `T` is the type of the elements of the arrays transformed by the
+operator, `outdims` (resp. `inpdims`) are the dimensions of the output
+(resp. input) of the operator, `out` (resp. `inp`) is a template array which
+represents the structure of the output (resp. input) of the operator.  That is
+to say, `T = eltype(out)` and `outdims = size(out)` (resp. `T = eltype(inp)`
+and `inpdims = size(inp)`).
+
+The adjoint of a cropping operator is a zero-padding operator which can be
+defined by one of:
+
+    Z = ZeroPaddingOperator(T, outdims, inpdims)
+    Z = ZeroPaddingOperator(out, inp)
+    Z = ZeroPaddingOperator(out, inpdims)
+    Z = ZeroPaddingOperator(outdims, inp)
+
+### See Also
+zeropad, crop.
+
+""" CroppingOperator
+
+@doc @doc(CroppingOperator) ZeroPaddingOperator
+
+_crop{T,N}(src::Array{T,N}, region::Region{N}) = src[region...]
+
+function _crop!{T,N}(dst::Array{T,N}, src::Array{T,N}, region::Region{N})
+    vcopy!(dst, src[region...])
+end
+
+function _zeropad{T,N}(dims::NTuple{N,Int}, region::Region{N}, src::Array{T,N})
+    dst = Array(T, dims)
+    _zeropad!(dst, region, src)
+    return dst
+end
+
+function _zeropad!{T,N}(dst::Array{T,N}, region::Region{N}, src::Array{T,N})
+    fill!(dst, zero(T))
+    dst[region...] = src
+end
 
 #------------------------------------------------------------------------------
