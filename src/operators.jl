@@ -85,7 +85,30 @@ ctranspose{E,F}(A::LinearOperator{E,F}) = Adjoint(A)
 *{E,F}(A::LinearOperator{E,F}, x) = A(x)
 ⋅{E,F}(A::LinearOperator{E,F}, x) = A(x)
 
-@doc """
+function apply_direct{E,F}(A::LinearOperator{E,F}, x::F)
+    error("method `apply_direct` not implemented for this operator")
+end
+
+function apply_adjoint{E,F}(A::LinearOperator{E,F}, x::E)
+    error("method `apply_adjoint` not implemented for this operator")
+end
+
+apply_adjoint{E,F,T}(A::Adjoint{E,F,T}, x::F) = apply_direct(A.op, x)
+apply_adjoint{E}(A::SelfAdjointOperator{E}, x::E) = apply_direct(A, x)
+
+immutable Identity{T} <: SelfAdjointOperator{T}; end
+Identity{T}(::Type{T}) = Identity{T}()
+apply_direct{T}(::Identity{T}, x::T) = x
+
+function apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F)
+    vcopy!(dst, A(src))
+end
+
+function apply_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, src::E)
+    vcopy!(dst, A'(src))
+end
+
+"""
 
     apply_direct(A, x)
 
@@ -97,12 +120,18 @@ To be used, this method has to be provided for each types derived from
     A(x)
     call(A, x)
 
-"""
-function apply_direct{E,F}(A::LinearOperator{E,F}, x::F)
-    error("method `apply_direct` not implemented for this operator")
-end
+The in-place version is:
 
-@doc """
+    apply_direct!(dst, A, src)
+
+where the destination "vector" `dst` is used to store the result of applying
+the linear operator `A` to the source "vector" `src`.
+
+""" apply_direct
+
+@doc @doc(apply_direct) apply_direct!
+
+"""
 
     apply_adjoint(A, x)
 
@@ -115,39 +144,16 @@ the following cases:
     A'(x)
     call(A', x)
 
-"""
-function apply_adjoint{E,F}(A::LinearOperator{E,F}, x::E)
-    error("method `apply_adjoint` not implemented for this operator")
-end
-
-apply_adjoint{E,F,T}(A::Adjoint{E,F,T}, x::F) = apply_direct(A.op, x)
-apply_adjoint{E}(A::SelfAdjointOperator{E}, x::E) = apply_direct(A, x)
-
-immutable Identity{T} <: SelfAdjointOperator{T}; end
-Identity{T}(::Type{T}) = Identity{T}()
-apply_direct{T}(::Identity{T}, x::T) = x
-
-@doc """
-
-    apply_direct!(dst, A, src)
-
-stores in the destination "vector" `dst` the result of applying the linear
-operator `A` to the source "vector" `src`.
-"""
-function apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F)
-    vcopy!(dst, A(src))
-end
-
-@doc """
+The in-place version is:
 
     apply_adjoint!(dst, A, src)
 
-stores in the destination "vector" `dst` the result of applying the adjoint of
-the linear operator `A` to the source "vector" `src`.
-"""
-function apply_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, src::E)
-    vcopy!(dst, A'(src))
-end
+where the destination "vector" `dst` is used to store the result of applying
+the adjoint of the linear operator `A` to the source "vector" `src`.
+
+""" apply_adjoint
+
+@doc @doc(apply_adjoint) apply_adjoint!
 
 function apply!{E,F}(dst::F, A::LinearOperator{E,F}, src::E)
     apply_direct!(dst, A, src)
