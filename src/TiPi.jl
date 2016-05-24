@@ -11,9 +11,19 @@
 
 module TiPi
 
-export cost, cost!, prox, prox!, AbstractCost, HyperbolicEdgePreserving
 export MDA
-export goodfftdim, fftfreq, zeropad, pad
+export goodfftdim,
+       fftfreq,
+       zeropad,
+       pad,
+       cost,
+       cost!,
+       check_gradient,
+       prox,
+       prox!,
+       AbstractCost,
+       HyperbolicEdgePreserving,
+       QuadraticSmoothness
 
 """
 `Float` is the type of all floating point scalar, it is currently an alias to
@@ -23,6 +33,10 @@ typealias Float Cdouble
 
 include("utils.jl")
 include("algebra.jl")
+using .Algebra
+for sym in names(TiPi.Algebra)
+    @eval export $sym
+end
 include("AffineTransforms.jl")
 include("kernels.jl")
 include("interp.jl")
