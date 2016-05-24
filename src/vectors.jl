@@ -73,14 +73,27 @@ function vdot{T<:AbstractFloat,N}(w::Array{T,N}, x::Array{T,N}, y::Array{T,N})
     return Float(s)
 end
 
-function vdot{T<:AbstractFloat,N}(sel::Vector{Int}, x::Array{T,N}, y::Array{T,N})
+function vdot{T<:AbstractFloat,N}(sel::Vector{Int},
+                                  x::Array{T,N}, y::Array{T,N})
     @assert size(y) == size(x)
     s::T = 0
     const n = length(x)
     @simd for i in 1:length(sel)
         j = sel[i]
-        1 <= j <= n || throw(BoundsError())
+        1 ≤ j ≤ n || throw(BoundsError())
         @inbounds s += x[j]*y[j]
+    end
+    return Float(s)
+end
+
+function vdot{T<:AbstractFloat,N}(x::Array{Complex{T},N},
+                                  y::Array{Complex{T},N})
+    @assert size(x) == size(y)
+    s::T = zero(T)
+    @inbounds begin
+        @simd for i in 1:length(x)
+            s += x[i].re*y[i].re + x[i].im*y[i].im
+        end
     end
     return Float(s)
 end
@@ -104,6 +117,14 @@ Finally:
 
 computes the sum of the product of the elements of `x` and `y` whose indices
 are given by the `sel` argument.
+
+If the arguments are complex, the result is:
+
+    vdot(x, y) = x[1].re*y[1].re + x[1].im*y[1].im +
+                 x[2].re*y[2].re + x[2].im*y[2].im + ...
+
+which is the real part of the usual definition.
+
 """ vdot
 
 #------------------------------------------------------------------------------
@@ -313,19 +334,19 @@ function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
     if a == one(T)
         @simd for i in 1:length(sel)
             j = sel[i]
-            1 <= j <= n || throw(BoundsError())
+            1 ≤ j ≤ n || throw(BoundsError())
             @inbounds dst[j] += x[j]
         end
     elseif a == -one(T)
         @simd for i in 1:length(sel)
             j = sel[i]
-            1 <= j <= n || throw(BoundsError())
+            1 ≤ j ≤ n || throw(BoundsError())
             @inbounds dst[j] -= x[j]
         end
     elseif a != zero(T)
         @simd for i in 1:length(sel)
             j = sel[i]
-            1 <= j <= n || throw(BoundsError())
+            1 ≤ j ≤ n || throw(BoundsError())
             @inbounds dst[j] += a*x[j]
         end
     end
@@ -388,7 +409,7 @@ function vproduct!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
     const n = length(dst)
     @simd for i in 1:length(sel)
         j = sel[i]
-        1 <= j <= n || throw(BoundsError())
+        1 ≤ j ≤ n || throw(BoundsError())
         @inbounds dst[j] = x[j]*y[j]
     end
 end
