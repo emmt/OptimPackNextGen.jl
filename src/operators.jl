@@ -9,7 +9,7 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-import Base: *, ⋅, ctranspose, call
+import Base: *, ⋅, ctranspose, call, diag
 
 """
 `LinearOperator{OUT,INP}` is the abstract type from which inherit all linear
@@ -190,45 +190,68 @@ Simple linear operators operating on Julia `Array` can be tested on random
 with `outdims` and `outdims` the dimensions of the output and input "vectors"
 for `A`.  The element type is automatically guessed from the type of `A`.
 
-"""
+""" check_operator
+
 #------------------------------------------------------------------------------
 
-immutable Rank1Operator{E,F} <: LinearOperator{E,F}
+"""
+A `RankOneOperator` is defined by two "vectors" `l` and `r` as:
+
+    A = RankOneOperator(l, r)
+
+and behaves as follows:
+
+    A(x)  = vscale(vdot(r, x)), l)
+    A'(x) = vscale(vdot(l, x)), r)
+"""
+immutable RankOneOperator{E,F} <: LinearOperator{E,F}
     lvect::E
     rvect::F
-    Rank1Operator(lvect::E, rvect::F) = new(lvect, rvect)
+    RankOneOperator(lvect::E, rvect::F) = new(lvect, rvect)
 end
 
-function apply_direct{E,F}(op::Rank1Operator{E,F}, src::F)
+function apply_direct{E,F}(op::RankOneOperator{E,F}, src::F)
     vscale(vdot(op.rvect, src), op.lvect)
 end
 
-function apply_direct!{E,F}(dst::E, op::Rank1Operator{E,F}, src::F)
+function apply_direct!{E,F}(dst::E, op::RankOneOperator{E,F}, src::F)
     vscale!(dst, vdot(op.rvect, src), op.lvect)
 end
 
-function apply_adjoint{E,F}(op::Rank1Operator{E,F}, src::E)
+function apply_adjoint{E,F}(op::RankOneOperator{E,F}, src::E)
     vscale(vdot(op.lvect, src), op.rvect)
 end
 
-function apply_adjoint!{E,F}(dst::F, op::Rank1Operator{E,F}, src::E)
+function apply_adjoint!{E,F}(dst::F, op::RankOneOperator{E,F}, src::E)
     vscale!(dst, vdot(op.lvect, src), op.rvect)
 end
 
 #------------------------------------------------------------------------------
 
 # FIXME: assume real weights
-immutable WeightingOperator{E} <: SelfAdjointOperator{E}
-    w::E
-    WeightingOperator{E}(w::E) = new(w)
+"""
+A `DiagonalOperator` is a self-adjoint linear operator defined by a "vector"
+of weights `w` as:
+
+    W = DiagonalOperator(w)
+
+and behaves as follows:
+
+    W(x) = vproduct(w, x)
+"""
+immutable DiagonalOperator{E} <: SelfAdjointOperator{E}
+    diag::E
+    DiagonalOperator{E}(w::E) = new(w)
 end
 
-function apply_direct{E}(op::WeightingOperator{E}, src::E)
-    vproduct(op.w, src)
+function apply_direct{E}(A::DiagonalOperator{E}, src::E)
+    vproduct(A.diag, src)
 end
 
-function apply_direct!{E}(dst::E, op::WeightingOperator{E}, src::E)
-    vproduct!(dst, op.w, src)
+function apply_direct!{E}(dst::E, A::DiagonalOperator{E}, src::E)
+    vproduct!(dst, A.diag, src)
 end
+
+diag{E}(A::DiagonalOperator{E}) = A.diag
 
 #------------------------------------------------------------------------------
