@@ -88,6 +88,11 @@ function fftfreq(dim::Integer, step::Real)
     return f
 end
 
+dimlist{N}(dims::NTuple{N,Int}) = dims
+dimlist{N}(dims::NTuple{N,Integer}) = ntuple(i -> Int(dims[i]), N)
+dimlist(dims::Integer...) = ntuple(i -> Int(dims[i]), length(dims))
+dimlist{N,T}(dims::Array{T,N}) = ntuple(i -> Int(dims[i]), length(dims))
+
 function subrange(small::Int, large::Int)
     # Compte offsets to preserve the position of the center (as specified
     # by the conventions).
@@ -107,12 +112,12 @@ function crop{T,N}(src::AbstractArray{T,N}, dims::NTuple{N,Int})
 end
 
 function crop{T,N}(src::AbstractArray{T,N}, dims::NTuple{N,Integer})
-    crop(src, ntuple(i -> Int(dims[i]), N))
+    crop(src, dimlist(dims))
 end
 
 function crop{T,N}(src::AbstractArray{T,N}, dims::Integer...)
     length(dims) == N || error("incompatible number of dimensions")
-    crop(src, ntuple(i -> Int(dims[i]), N))
+    crop(src, dimlist(dims))
 end
 
 function crop!{S,T,N}(dst::AbstractArray{S,N}, src::AbstractArray{T,N})
@@ -127,12 +132,12 @@ function pad{S,T,N}(val::S, src::AbstractArray{T,N}, dims::NTuple{N,Int})
 end
 
 function pad{S,T,N}(val::S, src::AbstractArray{T,N}, dims::NTuple{N,Integer})
-    pad(val, src, ntuple(i -> Int(dims[i]), N))
+    pad(val, src, dimlist(dims))
 end
 
 function pad{S,T,N}(val::S, src::Array{T,N}, dims::Integer...)
     length(dims) == N || error("incompatible number of dimensions")
-    pad(val, src, ntuple(i -> Int(dims[i]), N))
+    pad(val, src, dimlist(dims))
 end
 
 function paste!{S,T,N}(dst::AbstractArray{S,N}, src::AbstractArray{T,N})
