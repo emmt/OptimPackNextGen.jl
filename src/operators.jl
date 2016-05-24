@@ -161,6 +161,38 @@ apply{E,F}(A::LinearOperator{E,F}, x::E) = A(x)
 
 #------------------------------------------------------------------------------
 
+function check_operator{E,F}(y::E, A::LinearOperator{E,F}, x::F)
+    v1 = vdot(y, A*x)
+    v2 = vdot(A'*y, x)
+    (v1, v2, v1 - v2)
+end
+
+function check_operator{T<:AbstractFloat,M,N}(outdims::NTuple{M,Int},
+                                              A::LinearOperator{Array{T,M},
+                                                                Array{T,N}},
+                                              inpdims::NTuple{N,Int})
+    check_operator(Array{T}(randn(outdims)), A, Array{T}(randn(inpdims)))
+end
+
+"""
+    (v1, v2, v1 - v2) = check_operator(y, A, x)
+
+yields `v1 = vdot(y, A*x)`, `v2 = vdot(A'*y, x)` and their difference for `A` a
+linear operator, `y` a "vector" of the output space of `A` and `x` a "vector"
+of the input space of `A`.  In principle, the two inner products should be the
+same whatever `x` and `y`; otherwise the operator has a bug.
+
+Simple linear operators operating on Julia `Array` can be tested on random
+"vectors" with:
+
+    (v1, v2, v1 - v2) = check_operator(outdims, A, inpdims)
+
+with `outdims` and `outdims` the dimensions of the output and input "vectors"
+for `A`.  The element type is automatically guessed from the type of `A`.
+
+"""
+#------------------------------------------------------------------------------
+
 immutable Rank1Operator{E,F} <: LinearOperator{E,F}
     lvect::E
     rvect::F
