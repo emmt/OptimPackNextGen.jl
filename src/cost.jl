@@ -93,15 +93,15 @@ and to convert any `Real` multiplier to `TiPi.Float`.
 """
 abstract AbstractCost
 
-call(f::AbstractCost, x) = cost(Float(1), f, x)
-cost(f::AbstractCost, x) = cost(Float(1), f, x)
+call(f::AbstractCost, x) = cost(one(Float), f, x)
+cost(f::AbstractCost, x) = cost(one(Float), f, x)
 cost(alpha::Real, f::AbstractCost, x) = cost(Float(alpha), f, x) :: Float
 #function cost(alpha::Float, f::AbstractCost, x)
 #    error("cost() method not implemented")
 #end
 
 function cost!{T}(f::AbstractCost, x::T, g::T, ovr::Bool)
-    cost!(1, f, x, g, ovr)
+    cost!(one(Float), f, x, g, ovr)
 end
 function cost!{T}(alpha::Real, f::AbstractCost, x::T, g::T, ovr::Bool)
     cost!(Float(alpha), f, x, g, ovr) ::Float
@@ -113,12 +113,12 @@ end
 
 function prox(alpha::Real, f::AbstractCost, x)
    xp = vcreate(x)
-   prox!(alpha, f, x, xp)
+   prox!(Float(alpha), f, x, xp)
    return xp
 end
 
-prox!{T}(f::AbstractCost, x::T, xp::T) = prox!(1, f, x, xp)
-prox{T}(f::AbstractCost, x::T) = prox(1, f, x)
+prox!{T}(f::AbstractCost, x::T, xp::T) = prox!(one(Float), f, x, xp)
+prox{T}(f::AbstractCost, x::T) = prox(one(Float), f, x)
 
 ##############################
 # Maximum a posteriori (MAP) #
@@ -153,3 +153,135 @@ function cost!{L,R,T}(alpha::Float, f::MAPCost{L,R}, x::T, g::T,
     return Float(cost!(alpha,      f.lkl, x, g, ovr) +
                  cost!(alpha*f.mu, f.rgl, x, g, false))
 end
+
+#------------------------------------------------------------------------------
+
+function check_gradient{T}(f::AbstractCost, x::T; keywords...)
+    g = vcreate(x)
+    f0 = cost!(f, x, g, true)
+    check_gradient(x -> cost(f, x), x, g; keywords...)
+end
+
+function check_gradient{T}(f::AbstractCost, x::T, g::T; keywords...)
+    check_gradient(x -> cost(f, x), x, g; keywords...)
+end
+
+function check_gradient{T,N}(f::Function, x::Array{T,N}, g::Array{T,N};
+                             number::Integer=10,
+                             xtol::NTuple{2,Real}=(1e-8,1e-5),
+                             dir::Real=+1, verb::Bool=false)
+
+    @assert minimum(xtol) > 0
+    @assert number > 0
+
+    n = length(x)
+    number = min(n, number)
+    if number < n
+        sel = rand(1:n, number)
+    else
+        sel = 1:n
+    end
+    xatol = T(xtol[1])
+    xrtol = T(xtol[2])
+    if verb
+        @printf("GRADIENT CHECK WITH: xtol=(%.1e,%1e),  number=%d\n",
+                xatol, xrtol, number)
+    end
+    g1 = Array(T, number)
+    if dir != 0
+        # Forward or backward differences.
+        s = T(sign(dir))
+        f0 = f(x)
+        for j in 1:number
+            i = sel[j]
+            xi = x[i]
+            h = s*max(xatol, xrtol*abs(xi))
+            x[i] = xi + h
+            g1[j] = (f(x) - f0)/h
+            x[i] = xi
+            if verb
+                @printf("  %9d: %15.7e / %15.7e\n", i, g[i], g1[j])
+            end
+        end
+    else
+        # Centered differences.
+        for j in 1:number
+            println(j)
+            i = sel[j]
+            xi = x[i]
+            h = max(xatol, xrtol*abs(xi))
+            x[i] = xi + h
+            f1 = f(x)
+            x[i] = xi - h
+            f2 = f(x)
+            x[i] = xi
+            g1[j] = (f1 - f2)/(h + h)
+            if verb
+                @printf("  %9d: %15.7e / %15.7e\n", i, g[i], g1[j])
+            end
+        end
+    end
+
+    # Compute statistics.
+    sumabserr = zero(T)
+    sumrelerr = zero(T)
+    maxabserr = zero(T)
+    maxrelerr = zero(T)
+    for j in 1:number
+        i = sel[j]
+        a = g[i]
+        b = g1[j]
+        abserr = abs(a - b)
+        relerr = (abserr == zero(T) ? zero(T)
+                  : (abserr + abserr)/(abs(a) + abs(b)))
+        sumabserr += abserr
+        sumrelerr += relerr
+        maxabserr = max(maxabserr, abserr)
+        maxrelerr = max(maxrelerr, relerr)
+    end
+    avgabserr = T(1/number)*sumabserr
+    avgrelerr = T(1/number)*sumrelerr
+    if verb
+        @printf("ABSOLUTE ERROR: average = %.1e,  maximum = %.1e\n",
+                avgabserr, maxabserr)
+        @printf("RELATIVE ERROR: average = %.1e,  maximum = %.1e\n",
+                avgrelerr, maxrelerr)
+    end
+    avgabserr, maxabserr, avgrelerr, maxrelerr
+end
+
+"""
+
+    check_gradient(f, x, g)
+
+Compare gradient function with gradient estimated by finite differences.  `f`
+is the function, `x` are the variables and `g` is the gradient of `f(x)` at
+`x`.  The returned value is the 4-value tuple:
+
+    (avgabserr, maxabserr, avgrelerr, maxrelerr)
+
+with the average and maximal absolute and relative errors.
+
+If `f` is a cost function (its type inherits from `AbstractCost`), the
+gradient needs not be specified:
+
+    check_gradient(f, x)
+
+The number of gradient values to check may be specified by keyword
+`number` (the subset of parameters is randomly chosen).  The default is
+to compute the finite difference gradient for all variables.
+
+The absolute and relative finite difference step size can be specified by
+keyword `xtol`.  By default, `xtol = (1e-8, 1e-5)`.
+
+Keyword `dir` can be used to specify which kind of finite differences to use to
+estimate the gradient: "forward" (if `dir > 0`), "backward" (if `dir < 0`) or
+"centered" (if `dir = 0`).  The default is to use centered finite differences
+which are more precise (of order `h^3` with `h` the step size) but twice more
+expensive to compute.
+
+If keyword `verb` is true, the result is printed.
+
+""" check_gradient
+
+#------------------------------------------------------------------------------
