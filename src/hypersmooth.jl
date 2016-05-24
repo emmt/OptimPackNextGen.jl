@@ -9,17 +9,6 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-#------------------------------------------------------------------------------
-# Data conversion utilities
-# =========================
-
-typealias Flt Float
-
-flt(x) = convert(Flt, x)
-
-flt_tuple(a::Real) = (flt(a),)
-flt_tuple{N,T}(a::NTuple{N,T}) = ntuple(i -> flt(a[i]), N)
-flt_tuple{T}(a::Array{T,1}) = ntuple(i -> flt(a[i]), length(a))
 
 #------------------------------------------------------------------------------
 #
@@ -84,17 +73,17 @@ immutable HyperbolicEdgePreserving{N} <: AbstractCost
 end
 
 function HyperbolicEdgePreserving(eps::Real, mu::Real)
-    HyperbolicEdgePreserving{1}(flt(eps), (flt(mu),))
+    HyperbolicEdgePreserving{1}(Float(eps), (Float(mu),))
 end
 
 function HyperbolicEdgePreserving(eps::Real, mu::Vector{Real})
     N = length(mu)
-    HyperbolicEdgePreserving{N}(flt(eps), ntuple(i -> flt(mu[i]), N))
+    HyperbolicEdgePreserving{N}(Float(eps), ntuple(i -> Float(mu[i]), N))
 end
 
 function HyperbolicEdgePreserving(eps::Real, mu::NTuple)
     N = length(mu)
-    HyperbolicEdgePreserving{N}(flt(eps), ntuple(i -> flt(mu[i]), N))
+    HyperbolicEdgePreserving{N}(Float(eps), ntuple(i -> Float(mu[i]), N))
 end
 
 #------------------------------------------------------------------------------
@@ -104,40 +93,42 @@ end
 # (this is done at the end) while `alpha` is taken into account when
 # integrating the gradient `gx`.
 
-function cost{T}(alpha::Real, param::HyperbolicEdgePreserving{1},
+function cost{T}(alpha::Float, param::HyperbolicEdgePreserving{1},
                  x::Array{T,1})
     # Short circuit if weight is zero.
-    if alpha == 0 || param.mu[1] == 0
-        return 0.0
+    if alpha == zero(Float) || param.mu[1] == zero(Float)
+        return zero(Float)
     end
 
     # Integrate un-weighted cost.
     const dim1 = size(x)[1]
-    const s = convert(T, (param.eps/param.mu[1])^2)
+    const s = T((param.eps/param.mu[1])^2)
     fx::T = zero(T)
-    for i1 in 2:dim1
-        @inbounds fx += sqrt((x[i1] - x[i1-1])^2 + s)
+    @inbounds begin
+        for i1 in 2:dim1
+            fx += sqrt((x[i1] - x[i1-1])^2 + s)
+        end
     end
 
     # Remove the "bias" and scale the cost.
     return (param.mu[1]*fx - (dim1 - 1)*param.eps)*alpha
 end
 
-function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{1},
+function cost!{T}(alpha::Float, param::HyperbolicEdgePreserving{1},
                   x::Array{T,1}, gx::Array{T,1}, clr::Bool=false)
     # Minimal checking.
     @assert size(x) == size(gx)
 
     # Short circuit if weight is zero.
-    if alpha == 0 || param.mu[1] == 0
+    if alpha == zero(Float) || param.mu[1] == zero(Float)
         clr && vfill!(gx, 0)
-        return 0.0
+        return zero(Float)
     end
 
     # Integrate un-weighted cost and gradient.
     const dim1 = size(x)[1]
-    const s = convert(T, (param.eps/param.mu[1])^2)
-    const beta = convert(T, alpha*param.mu[1])
+    const s = T((param.eps/param.mu[1])^2)
+    const beta = T(alpha*param.mu[1])
     fx::T = zero(T)
     if clr
         tp = zero(T)
@@ -181,19 +172,19 @@ end
 #            +----+----+-->
 #             i1-1  i1
 #
-function cost{T}(alpha::Real, param::HyperbolicEdgePreserving{2},
+function cost{T}(alpha::Float, param::HyperbolicEdgePreserving{2},
                  x::Array{T,2})
-    if alpha == 0
-        return 0.0
+    if alpha == zero(Float)
+        return zero(Float)
     end
     dims = size(x)
     const dim1 = dims[1]
     const dim2 = dims[2]
-    const s = convert(T, (param.eps)^2)
+    const s = T((param.eps)^2)
     fx = zero(T)
     if param.isotropic
         # Same weights along all directions.
-        const w = convert(T, param.mu[1]^2/2)
+        const w = T(param.mu[1]^2/2)
         for i2 in 2:dim2
             @inbounds x2 = x[1,i2-1]
             @inbounds x4 = x[1,i2]
@@ -210,8 +201,8 @@ function cost{T}(alpha::Real, param::HyperbolicEdgePreserving{2},
         end
     else
         # Not same weights along all directions.
-        const w1 = convert(T, param.mu[1]^2/2)
-        const w2 = convert(T, param.mu[2]^2/2)
+        const w1 = T(param.mu[1]^2/2)
+        const w2 = T(param.mu[2]^2/2)
         for i2 in 2:dim2
             @inbounds x2 = x[1,i2-1]
             @inbounds x4 = x[1,i2]
@@ -232,20 +223,20 @@ function cost{T}(alpha::Real, param::HyperbolicEdgePreserving{2},
     return (fx - (dim1 - 1)*(dim2 - 1)*param.eps)*alpha
 end
 
-function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{2},
+function cost!{T}(alpha::Float, param::HyperbolicEdgePreserving{2},
                   x::Array{T,2}, gx::Array{T,2}, clr::Bool=false)
     @assert size(x) == size(gx)
     clr && vfill!(gx, 0)
-    alpha == 0 && return 0.0
+    alpha == zero(Float) && return zero(Float)
     dims = size(x)
     const dim1 = dims[1]
     const dim2 = dims[2]
-    const s = convert(T, (param.eps)^2)
+    const s = T((param.eps)^2)
     fx = zero(T)
     if param.isotropic
         # Same weights along all directions.
-        const w = convert(T, param.mu[1]^2/2)
-        const q = convert(T, alpha*w)
+        const w = T(param.mu[1]^2/2)
+        const q = T(alpha*w)
         for i2 in 2:dim2
             @inbounds x2 = x[1,i2-1]
             @inbounds x4 = x[1,i2]
@@ -275,9 +266,9 @@ function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{2},
         end
     else
         # Not same weights along all directions.
-        const w1 = convert(T, param.mu[1]^2/2)
-        const w2 = convert(T, param.mu[2]^2/2)
-        const a = convert(T, alpha)
+        const w1 = T(param.mu[1]^2/2)
+        const w2 = T(param.mu[2]^2/2)
+        const a = T(alpha)
         for i2 in 2:dim2
             @inbounds x2 = x[1,i2-1]
             @inbounds x4 = x[1,i2]
@@ -334,18 +325,18 @@ end
 #     |'        |/                 x8 = x[i1  , i2  , i3  ]
 #     x1--------x2
 #
-function cost{T}(alpha::Real, param::HyperbolicEdgePreserving{3},
+function cost{T}(alpha::Float, param::HyperbolicEdgePreserving{3},
                  x::Array{T,3})
-    alpha == 0 && return 0.0
+    alpha == zero(Float) && return zero(Float)
     dims = size(x)
     const dim1 = dims[1]
     const dim2 = dims[2]
     const dim3 = dims[3]
-    const s = convert(T, (param.eps)^2)
+    const s = T((param.eps)^2)
     fx = zero(T)
     if param.isotropic
         # Same weights along all directions.
-        const w = convert(T, param.mu[1]^2/4)
+        const w = T(param.mu[1]^2/4)
         for i3 in 2:dim3
             for i2 in 2:dim2
                 # Get part of 2x2x2 bloc such that 8th point is at
@@ -390,9 +381,9 @@ function cost{T}(alpha::Real, param::HyperbolicEdgePreserving{3},
         end
     else
         # Not same weights along all directions.
-        const w1 = convert(T, param.mu[1]^2/4)
-        const w2 = convert(T, param.mu[2]^2/4)
-        const w3 = convert(T, param.mu[3]^2/4)
+        const w1 = T(param.mu[1]^2/4)
+        const w2 = T(param.mu[2]^2/4)
+        const w3 = T(param.mu[3]^2/4)
         for i3 in 2:dim3
             for i2 in 2:dim2
                 # Get part of 2x2x2 bloc such that 8th point is at
@@ -441,21 +432,21 @@ function cost{T}(alpha::Real, param::HyperbolicEdgePreserving{3},
     return (fx - (dim1 - 1)*(dim2 - 1)*(dim3 - 1)*param.eps)*alpha
 end
 
-function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{3},
+function cost!{T}(alpha::Float, param::HyperbolicEdgePreserving{3},
                   x::Array{T,3}, gx::Array{T,3}, clr::Bool=false)
     @assert size(x) == size(gx)
     clr && vfill!(gx, 0)
-    alpha == 0 && return 0.0
+    alpha == zero(Float) && return zero(Float)
     dims = size(x)
     const dim1 = dims[1]
     const dim2 = dims[2]
     const dim3 = dims[3]
-    const s = convert(T, (param.eps)^2)
+    const s = T((param.eps)^2)
     fx = zero(T)
     if param.isotropic
         # Same weights along all directions.
-        const w = convert(T, param.mu[1]^2/4)
-        const q = convert(T, alpha*w)
+        const w = T(param.mu[1]^2/4)
+        const q = T(alpha*w)
         for i3 in 2:dim3
             for i2 in 2:dim2
                 # Get part of 2x2x2 bloc such that 8th point is at
@@ -512,10 +503,10 @@ function cost!{T}(alpha::Real, param::HyperbolicEdgePreserving{3},
         end
     else
         # Not same weights along all directions.
-        const w1 = convert(T, param.mu[1]^2/4)
-        const w2 = convert(T, param.mu[2]^2/4)
-        const w3 = convert(T, param.mu[3]^2/4)
-        const a = convert(T, alpha)
+        const w1 = T(param.mu[1]^2/4)
+        const w2 = T(param.mu[2]^2/4)
+        const w3 = T(param.mu[3]^2/4)
+        const a = T(alpha)
         for i3 in 2:dim3
             for i2 in 2:dim2
                 # Get part of 2x2x2 bloc such that 8th point is at
