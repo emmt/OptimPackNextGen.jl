@@ -14,8 +14,11 @@ module TiPi
 export MDA
 export goodfftdim,
        fftfreq,
-       zeropad,
+       crop,
+       crop!,
        pad,
+       zeropad,
+       paste!,
        cost,
        cost!,
        check_gradient,

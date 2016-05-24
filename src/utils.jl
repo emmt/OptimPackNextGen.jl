@@ -88,63 +88,116 @@ function fftfreq(dim::Integer, step::Real)
     return f
 end
 
-zeropad{T,N}(arr::Array{T,N}, dims::NTuple{N,Int}) = pad(zero(T), arr, dims)
-
-function zeropad{T,N}(arr::Array{T,N}, dims::Integer...)
-    length(dims) == N || error("incompatible number of dimensions")
-    pad(zero(T), arr, ntuple(i -> int(dims[i]), N))
-end
-
-function pad{S,T,N}(val::S, arr::Array{T,N}, dims::Integer...)
-    length(dims) == N || error("incompatible number of dimensions")
-    pad(val, arr, ntuple(i -> int(dims[i]), N))
-end
-
-function pad{S,T,N}(val::S, src::Array{T,N}, dstDims::NTuple{N,Int})
-    if N < 1 || length(dstDims) != N
-        error("bad number of dimensions")
-    end
-
+function subrange(small::Int, large::Int)
     # Compte offsets to preserve the position of the center (as specified
     # by the conventions).
-    srcDims = size(src)
-    r = Array(UnitRange{Int}, N)
-    for k in 1:N
-        srcDim = srcDims[k]
-        dstDim = dstDims[k]
-        if dstDim < srcDim
-            error("dimensions of result must be at least as large as those of the input")
-        end
-        offset = div(dstDim,2) - div(srcDim,2)
-        r[k] = offset + 1 : offset + srcDim
-    end
+    1 ≤ small ≤ large || throw(BoundsError())
+    offset = div(large, 2) - div(small, 2)
+    offset + 1 : offset + small
+end
 
-    # Create destination array (initially filled with the padding value)
-    # and block-copy the source.
-    dst = Array(S, dstDims)
+subrange(small::Integer, large::Integer) = subrange(Int(small), Int(large))
+
+function subrange{N}(small::NTuple{N,Integer}, large::NTuple{N,Integer})
+    ntuple(i -> subrange(small[i], large[i]), N)
+end
+
+function crop{T,N}(src::AbstractArray{T,N}, dims::NTuple{N,Int})
+    src[subrange(dims, size(src))...]
+end
+
+function crop{T,N}(src::AbstractArray{T,N}, dims::NTuple{N,Integer})
+    crop(src, ntuple(i -> Int(dims[i]), N))
+end
+
+function crop{T,N}(src::AbstractArray{T,N}, dims::Integer...)
+    length(dims) == N || error("incompatible number of dimensions")
+    crop(src, ntuple(i -> Int(dims[i]), N))
+end
+
+function crop!{S,T,N}(dst::AbstractArray{S,N}, src::AbstractArray{T,N})
+    copy!(dst, src[subrange(size(dst), size(src))...])
+end
+
+function pad{S,T,N}(val::S, src::AbstractArray{T,N}, dims::NTuple{N,Int})
+    dst = Array(S, dims)
     fill!(dst, val)
-    if N == 1
-        dst[r[1]] = src
-    elseif N == 2
-        dst[r[1], r[2]] = src
-    elseif N == 3
-        dst[r[1], r[2], r[3]] = src
-    elseif N == 4
-        dst[r[1], r[2], r[3], r[4]] = src
-    elseif N == 5
-        dst[r[1], r[2], r[3], r[4], r[5]] = src
-    elseif N == 6
-        dst[r[1], r[2], r[3], r[4], r[5], r[6]] = src
-    elseif N == 7
-        dst[r[1], r[2], r[3], r[4], r[5], r[6], r[7]] = src
-    elseif N == 8
-        dst[r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]] = src
-    elseif N == 9
-        dst[r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]] = src
-    elseif N == 10
-        dst[r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10]] = src
-    else
-        error("too many dimensions")
-    end
+    dst[subrange(size(src), dims)...] = src
     return dst
 end
+
+function pad{S,T,N}(val::S, src::AbstractArray{T,N}, dims::NTuple{N,Integer})
+    pad(val, src, ntuple(i -> Int(dims[i]), N))
+end
+
+function pad{S,T,N}(val::S, src::Array{T,N}, dims::Integer...)
+    length(dims) == N || error("incompatible number of dimensions")
+    pad(val, src, ntuple(i -> Int(dims[i]), N))
+end
+
+function paste!{S,T,N}(dst::AbstractArray{S,N}, src::AbstractArray{T,N})
+    dst[subrange(size(src), size(dst))...] = src
+end
+
+zeropad{T,N}(src::Array{T,N}, dims::NTuple{N,Integer}) = pad(zero(T), src, dims)
+
+function zeropad{T,N}(src::Array{T,N}, dims::Integer...)
+    length(dims) == N || error("incompatible number of dimensions")
+    zeropad(src, dims)
+end
+
+"""
+    crop(src, dims)
+
+yields a subarray of dimensions `dims` consisting in the central region of the
+source array `src`.  The cropped region must have as many dimensions as the
+source and all the dimensions of the cropped region must be less or equal the
+corresponding dimension of the source.
+
+The in-place version:
+
+    crop!(dst, src)
+
+is equivalent to:
+
+    copy(dst, crop(src, size(dst)))
+
+### See Also
+pad, zeropad, paste!.
+""" crop
+
+@doc @doc(crop) crop!
+
+"""
+    pad(val, src, dims)
+
+yields an array of dimensions `dims` whose values are copied from the source
+array `src` in the central region and set to `val` elsewhere.  The data type of
+`val` determines the type of the elements of the result.  The dimensions `dims`
+must be larger or equal the corresponding dimension of the source.
+
+Zero-padding is done by:
+
+    zeropad(src, dims)
+
+and amounts to:
+
+    pad(zero(eltype(src), src, dims)
+
+### See Also
+crop, crop!, paste!.
+""" pad
+
+@doc @doc(pad) zeropad
+
+"""
+    paste!(dst, src)
+
+copies `src` into the central region of `dst` (leaving unchanged the other
+elements of `dst`).  The two arrays must have the same number of dimensions and
+all dimensions of the destination must be larger or equal the corresponding
+dimension of the source.
+
+### See Also
+crop, crop!, pad, zeropad.
+""" paste!
