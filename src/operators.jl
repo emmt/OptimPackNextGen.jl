@@ -62,7 +62,6 @@ function Product{E,F,G}(A::LinearOperator{E,G},
     Product{E,F,typeof(A),typeof(B)}(A,B)
 end
 
-
 # Overload the `call` method so that `A(x)` makes sense for `A` a linear
 # operator or a product of linear operators and `x` a "vector", or another
 # operator.
@@ -98,7 +97,20 @@ apply_adjoint{E}(A::SelfAdjointOperator{E}, x::E) = apply_direct(A, x)
 
 immutable Identity{T} <: SelfAdjointOperator{T}; end
 Identity{T}(::Type{T}) = Identity{T}()
+Identity() = Identity{Any}()
+#const identity = Identity()
 apply_direct{T}(::Identity{T}, x::T) = x
+
+"""
+
+    Identity(T)
+
+yields identity operator over arguments of type `T` while
+
+    Identity()
+
+yields identity operator for any type of argument.
+""" Identity
 
 function apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F)
     vcopy!(dst, A(src))
@@ -234,6 +246,45 @@ end
 
 #------------------------------------------------------------------------------
 
+# FIXME: assume real scale
+"""
+A `ScalingOperator` is a self-adjoint linear operator defined by a scalar
+`alpha` to operate on "vectors" of type `E` as:
+
+    A = ScalingOperator(alpha, E)
+
+or
+
+    A = ScalingOperator(E, alpha)
+
+and behaves as follows:
+
+    A(x) = vscale(alpha, x)
+
+If `E` is not provided, the operator operates on any "vector":
+
+    A = ScalingOperator(alpha)
+
+"""
+immutable ScalingOperator{E} <: SelfAdjointOperator{E}
+    alpha::Float
+    ScalingOperator{E}(::Type{E}, alpha::Float) = new(alpha)
+end
+
+ScalingOperator{E}(::Type{E}, alpha::Real) = ScalingOperator{E}(E, Float(alpha))
+ScalingOperator{E}(alpha::Real, ::Type{E}) = ScalingOperator{E}(E, Float(alpha))
+ScalingOperator(alpha::Real) = ScalingOperator{Any}(Any, Float(alpha))
+
+function apply_direct{E}(A::ScalingOperator{E}, src::E)
+    vscale(A.alpha, src)
+end
+
+function apply_direct!{E}(dst::E, A::ScalingOperator{E}, src::E)
+    vscale!(dst, A.alpha, src)
+end
+
+#------------------------------------------------------------------------------
+
 # FIXME: assume real weights
 """
 A `DiagonalOperator` is a self-adjoint linear operator defined by a "vector"
@@ -247,7 +298,6 @@ and behaves as follows:
 """
 immutable DiagonalOperator{E} <: SelfAdjointOperator{E}
     diag::E
-    DiagonalOperator{E}(w::E) = new(w)
 end
 
 function apply_direct{E}(A::DiagonalOperator{E}, src::E)
