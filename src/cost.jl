@@ -159,25 +159,17 @@ end
 
 immutable QuadraticCost{E,F} <: AbstractCost
     A::LinearOperator{E,F}
-    b::Union{Void,E}
+    b::Union{E,Void}
     W::SelfAdjointOperator{E}
-    flags::UInt
-    function QuadraticCost{E,F}(A::LinearOperator{E,F},
-                                b::Union{Void,E},
+    bias::Bool
+    function QuadraticCost{E,F}(A::LinearOperator{E,F}, ::Void,
                                 W::SelfAdjointOperator{E})
-        flags = zero(UInt)
-        if ! is(b, nothing)
-            flags |= 1
-        end
-        if ! is_identity(A)
-            flags |= 2
-        end
-        if ! is_identity(W)
-            flags |= 4
-        end
-        new(W, A, b, flags)
+        new(A, nothing, W, false)
     end
-
+    function QuadraticCost{E,F}(A::LinearOperator{E,F}, b::E,
+                                W::SelfAdjointOperator{E})
+        new(A, b, W, true)
+    end
 end
 
 QuadraticCost() = QuadraticCost(Any)
@@ -187,14 +179,34 @@ function QuadraticCost{E}(::Type{E})
     QuadraticCost{E,E}(I, nothing, I)
 end
 
-function QuadraticCost{E}(::Type{E})
-    return QuadraticCost{E,E}(Identity(E), nothing, Identity(E))
+function QuadraticCost{E,F}(A::LinearOperator{E,F}, b::E,
+                            W::SelfAdjointOperator{E})
+    QuadraticCost{E,F}(A, b, W)
 end
 
-function QuadraticCost{E,F}(A::LinearOperator{E,F},
-                            b::Union{Void,E}=nothing,
-                            W::SelfAdjointOperator{E}=Identity(E))
-    QuadraticCost{E,F}(A, b, W)
+function QuadraticCost{E}(::Void, b::E, W::SelfAdjointOperator{E})
+    QuadraticCost{E,E}(Identity(E), b, W)
+end
+
+function QuadraticCost{E,F}(A::LinearOperator{E,F}, ::Void,
+                            W::SelfAdjointOperator{E})
+    QuadraticCost{E,F}(A, nothing, W)
+end
+
+function QuadraticCost{E,F}(A::LinearOperator{E,F}, b::E, ::Void)
+    QuadraticCost{E,F}(A, b, Identity(E))
+end
+
+function QuadraticCost{E,F}(A::LinearOperator{E,F}, ::Void, ::Void)
+    QuadraticCost{E,F}(A, nothing, Identity(E))
+end
+
+function QuadraticCost{E}(::Void, ::Void, W::SelfAdjointOperator{E})
+    QuadraticCost{E,E}(Identity(E), nothing, W)
+end
+
+function QuadraticCost{E}(::Void, b::E, ::Void)
+    QuadraticCost{E,E}(Identity(E), b, Identity(E))
 end
 
 """
@@ -204,7 +216,7 @@ yields `r = A*x - b` for the quadratic cost `f`.
 """
 function residuals{E,F}(q::QuadraticCost{E,F}, x::F)
     r = q.A*x
-    if (q.flags & 2) != 0
+    if q.bias
         if is(r, x)
             r = vcreate(x)
             vcombine!(r, 1, x, -1, q.b)
@@ -221,7 +233,7 @@ function cost{E,F}(alpha::Float, q::QuadraticCost{E,F}, x::F)
     return Float((alpha/2)*vdot(r, q.W*r))
 end
 
-function cost!{E,F}(alpha::Float, f::QuadraticCost{E,F}, x::F, g, ovr::Bool)
+function cost!{E,F}(alpha::Float, q::QuadraticCost{E,F}, x::F, g, ovr::Bool)
     if alpha == zero(Float)
         ovr && vfill!(g, 0)
         return zero(Float)
