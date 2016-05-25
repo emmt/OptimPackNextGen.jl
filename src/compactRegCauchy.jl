@@ -1,5 +1,4 @@
 
-
 #
 # compactRegCauchy.jl --
 #
@@ -53,14 +52,17 @@ end
 function cost!{T<:AbstractFloat}(alpha::Float, param::CompactRegCauchy,
                                  x::Array{T,2}, g::Array{T,2}, clr::Bool)
     @assert size(g) == size(x)
-    clr && vfill!(g, 0)
-    alpha == zero(Float) && return zero(Float)
-    if clr
-        g[:] = param.w[:].*x[:]
-    else
-        g[:] += param.w[:].*x[:]
+    if alpha == zero(Float)
+        clr && vfill!(g, 0)
+        return zero(Float)
     end
-    return alpha*sum(param.w.*x.*x)
+    temp = param.w.*x
+    if clr
+        vscale!(g, 2*alpha, temp)
+    else
+        vupdate!(g, 2*alpha, temp)
+    end
+    return alpha*sum(temp.*x)
 end
 
 #err::Float = 0
