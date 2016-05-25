@@ -1,4 +1,3 @@
-
 #
 # compactRegCauchy.jl --
 #
@@ -21,10 +20,10 @@ immutable CompactRegCauchy <: AbstractCost
     #offset::NTuple{N,Cdouble} #translation
     #rotMat::Array{Cdouble,2} #an N*N matrix that is the rotation
     #isotropic::Bool #maybe later
-    function HyperbolicEdgePreserving(_a::Cdouble,
-                                      _center::NTuple{2,Cdouble},
-                                      _pixDim::NTuple{2,Cdouble},
-                                      _imgDim::NTuple{2,Int})
+    function CompactRegCauchy(_a::Cdouble,
+                             _center::NTuple{2,Cdouble},
+                             _pixDim::NTuple{2,Cdouble},
+                             _imgDim::NTuple{2,Int})
         a > 0.0 || error("radius must be strictly positive")
         prod(_pixDim) > 0.0 || error("pixel dimensions must be strictly positive")
         prod(_imgDim) > 0 || error("image dimensions must be strictly positive")
@@ -64,17 +63,3 @@ function cost!{T<:AbstractFloat}(alpha::Float, param::CompactRegCauchy,
     end
     return alpha*sum(temp.*x)
 end
-
-#err::Float = 0
-#dims = size(x)
-#dim1 = dims[1]
-#dim2 = dims[2]
-#a2=param.a*param.a
-#for i2 in 1:dim2
-#    i2f2=param.pixDim[2]*Float(i2)*param.pixDim[2]*Float(i2)
-#    for i1 in 1:dim1
-#        i1f=param.pixDim[1]*Float(i1)
-#        err += (1.0 + 2.0*(i1f*i1f + i2f2)/a2)*x[i1,i2]
-#    end
-#end
-    
