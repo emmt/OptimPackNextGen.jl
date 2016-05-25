@@ -45,7 +45,7 @@ end
 function cost{T<:AbstractFloat}(alpha::Float, param::CompactRegCauchy,
                                 x::Array{T,2})
     alpha == zero(Float) && return zero(Float)
-    return alpha*sum(param.w.*x.*x)
+    return alpha*vdot(x, param.w.*x)
 end
 
 function cost!{T<:AbstractFloat}(alpha::Float, param::CompactRegCauchy,
@@ -61,5 +61,5 @@ function cost!{T<:AbstractFloat}(alpha::Float, param::CompactRegCauchy,
     else
         vupdate!(g, 2*alpha, temp)
     end
-    return alpha*sum(temp.*x)
+    return alpha*vdot(x, temp)
 end
