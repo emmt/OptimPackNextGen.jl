@@ -73,7 +73,7 @@ function runtests()
     Z = BogusOperator{SpaceE,SpaceF}("Z");
     #println(Z*x)
     #println(Z'*w)
-
+    nothing
 end
 
 end

@@ -174,7 +174,31 @@ yield the result of applying the adjoint of the linear operator `A` to the
     apply_adjoint(A, x)
 
 yields the result of applying the adjoint of the linear operator `A` to the
-"vector" `x`.
+"vector" `x`.  The methods `apply_direct!` and `apply_adjoint!` may also be
+implemented:
+
+    apply_direct!(dst, A, x)
+    apply_adjoint!(dst, A, x)
+
+which store the result of applying the operator `A` or its adjoint in `dst`.
+For maximum efficiency it is better to provide the 4 methods `apply_direct`,
+`apply_direct!`, `apply_adjoint` and `apply_adjoint!` for a specific linear
+operator.  The following default methods are however implemented by TiPi:
+
+    function apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, x::F)
+       vcopy!(dst, apply_direct(A, x))
+    end
+
+    function apply_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, x::E)
+       vcopy!(dst, apply_adjoint(A, x))
+    end
+
+so it is sufficient to implement `apply_direct` and `apply_adjoint` to have a
+fully operational operator.
+
+The result returned by `apply_direct` (resp. `apply_adjoint`) may not be a new
+instance of an output (resp. input) "vector".  For instance, an efficient
+implementation of the identity would just returns its argument.
 
 Implementing a linear operator is typically done by:
 
@@ -191,8 +215,9 @@ Implementing a linear operator is typically done by:
 Explicitly importing `apply_direct` and `apply_adjoint` is needed to overload
 these methods.
 
-For a `SelfAdjointOperator` it is sufficient to provide `apply_direct`.
-Implementing a self-adjoint operator amounts to:
+For a `SelfAdjointOperator` it is sufficient to provide `apply_direct` and/or
+`apply_direct!` (i.e. neither `apply_adjoint` nor `apply_adjoint!` are
+required).  Implementing a self-adjoint operator amounts to:
 
     using TiPi.Algebra
     import TiPi.Algebra: apply_direct
