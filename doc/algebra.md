@@ -150,13 +150,21 @@ the input space of `A` be the same as the output space of `B`.
 For technical reasons, only left multiplication of a vector by an operator is
 implemented.  This makes sense for inverse problems.
 
+The input and output types of a linear operator are respectively obtained by:
+
+    input_type(A)      # yields F for A::LinearOperator{E,F}
+    output_type(A)     # yields E for A::LinearOperator{E,F}
+
 To benefit from this framework, an operator must be an instance of a concrete
-type inherited from one of the abstract types `LinearOperator` or
-`SelfAdjointOperator`.
+type inherited from one of the abstract type `LinearOperator` or one of its
+descendant (like `Endomorphism` or `SelfAdjointOperator`).
 
 * `LinearOperator{OUT,INP}` is the parametric abstract type from which inherit
   all linear operators.  The parameters `INP` and `OUT` are respectively the
   input and output types of the "vectors".
+
+* An `Endomorphism` is a `LinearOperator` with the same input and output
+  spaces.
 
 * A `SelfAdjointOperator{E}` is a more specialized `LinearOperator` which is
   its own adjoint.  Its only parameter is the type of the input and output

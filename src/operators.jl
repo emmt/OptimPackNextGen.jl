@@ -16,7 +16,11 @@ import ..subrange, ..dimlist
 """
 `LinearOperator{OUT,INP}` is the abstract type from which inherit all linear
 operators.  It is parameterized by `INP` and `OUT` respectively the input and
-output types of the "vectors".
+output types of the "vectors".  The input and output types of a linear operator
+are respectively obtained by:
+
+    input_type(A)
+    output_type(A)
 
 The methods `apply_direct` and `apply_adjoint` should be implemented for any
 linear operator types:
@@ -46,6 +50,9 @@ abstract LinearOperator{OUT,INP}
 
 
 # Default methods for a linear operator:
+
+input_type{E,F}(A::LinearOperator{E,F}) = F
+output_type{E,F}(A::LinearOperator{E,F}) = E
 
 function apply_direct{E,F}(A::LinearOperator{E,F}, x::F)
     error("method `apply_direct` not implemented for this operator")
