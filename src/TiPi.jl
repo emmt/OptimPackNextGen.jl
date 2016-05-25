@@ -26,6 +26,7 @@ export goodfftdim,
        prox!,
        AbstractCost,
        HyperbolicEdgePreserving,
+       QuadraticCost,
        QuadraticSmoothness
 
 """

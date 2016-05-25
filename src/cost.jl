@@ -155,6 +155,104 @@ function cost!{L,R,T}(alpha::Float, f::MAPCost{L,R}, x::T, g::T,
 end
 
 #------------------------------------------------------------------------------
+# QUADRATIC COST
+
+immutable QuadraticCost{E,F} <: AbstractCost
+    A::LinearOperator{E,F}
+    b::Union{Void,E}
+    W::SelfAdjointOperator{E}
+    flags::UInt
+    function QuadraticCost{E,F}(A::LinearOperator{E,F},
+                                b::Union{Void,E},
+                                W::SelfAdjointOperator{E})
+        flags = zero(UInt)
+        if ! is(b, nothing)
+            flags |= 1
+        end
+        if ! is_identity(A)
+            flags |= 2
+        end
+        if ! is_identity(W)
+            flags |= 4
+        end
+        new(W, A, b, flags)
+    end
+
+end
+
+QuadraticCost() = QuadraticCost(Any)
+
+function QuadraticCost{E}(::Type{E})
+    I = Identity(E)
+    QuadraticCost{E,E}(I, nothing, I)
+end
+
+function QuadraticCost{E}(::Type{E})
+    return QuadraticCost{E,E}(Identity(E), nothing, Identity(E))
+end
+
+function QuadraticCost{E,F}(A::LinearOperator{E,F},
+                            b::Union{Void,E}=nothing,
+                            W::SelfAdjointOperator{E}=Identity(E))
+    QuadraticCost{E,F}(A, b, W)
+end
+
+"""
+     residuals(f, x)
+
+yields `r = A*x - b` for the quadratic cost `f`.
+"""
+function residuals{E,F}(q::QuadraticCost{E,F}, x::F)
+    r = q.A*x
+    if (q.flags & 2) != 0
+        if is(r, x)
+            r = vcreate(x)
+            vcombine!(r, 1, x, -1, q.b)
+        else
+            vupdate!(r, -1, q.b)
+        end
+    end
+    return r
+end
+
+function cost{E,F}(alpha::Float, q::QuadraticCost{E,F}, x::F)
+    alpha == zero(Float) && return zero(Float)
+    r = residuals(q, x)
+    return Float((alpha/2)*vdot(r, q.W*r))
+end
+
+function cost!{E,F}(alpha::Float, f::QuadraticCost{E,F}, x::F, g, ovr::Bool)
+    if alpha == zero(Float)
+        ovr && vfill!(g, 0)
+        return zero(Float)
+    end
+    r = residuals(q, x)
+    Wr = q.W*r
+    if ovr
+        apply_adjoint!(g, q.A, Wr)
+        if alpha != one(Float)
+            vscale!(g, alpha)
+        end
+    else
+        vupdate!(g, alpha, q.A'*Wr)
+    end
+    return Float((alpha/2)*vdot(r, Wr))
+end
+
+"""
+A general formulation of a quadratic cost is:
+
+    f(x) = (1/2)*(A*x - b)'*W*(A*x - b)
+
+with `A` a linear operator, `b` a "vector" and `W` a weighting operator.  The
+gradient is given by:
+
+    g(x) = A'*W*(A*x - b)
+
+""" QuadraticCost
+
+#------------------------------------------------------------------------------
+# CHECKING OF GRADIENTS
 
 function check_gradient{T}(f::AbstractCost, x::T; keywords...)
     g = vcreate(x)
