@@ -27,7 +27,8 @@ export goodfftdim,
        AbstractCost,
        HyperbolicEdgePreserving,
        QuadraticCost,
-       QuadraticSmoothness
+       QuadraticSmoothness,
+       CompactRegCauchy
 
 """
 `Float` is the type of all floating point scalar, it is currently an alias to
@@ -52,5 +53,6 @@ include("cost.jl")
 include("smooth.jl")
 include("hypersmooth.jl")
 include("deconv.jl")
+include("compactRegCauchy.jl")
 
 end # module
