@@ -32,10 +32,11 @@ immutable CompactRegCauchy <: AbstractCost
         #create the weight map
         _w=Array(Cdouble,_imgDim);
         a2=a*a
-        for i2 in 1:dim2
-            i2f2=param.pixDim[2]*Float(i2)*param.pixDim[2]*Float(i2)
-            for i1 in 1:dim1
-                i1f=param.pixDim[1]*Float(i1)
+        for i2 in 1:imgDim[2]
+            i2f2 = param.pixDim[2]*Float(i2) - center[2]
+            i2f2 *= i2f2
+            for i1 in 1:imgDim[1]
+                i1f=param.pixDim[1]*Float(i1) - center[1]
                 _w[i1,i2] = (1.0 + 2.0*(i1f*i1f + i2f2)/a2)
             end
         end
