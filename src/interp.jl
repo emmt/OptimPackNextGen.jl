@@ -1,5 +1,5 @@
 #
-# interpol.jl --
+# interp.jl --
 #
 # Linear interpolation.
 #
@@ -11,7 +11,8 @@
 
 import Base.sparse
 
-type Interpolator{T<:AbstractFloat,N}
+immutable Interpolator{T<:AbstractFloat,N} <: LinearOperator{AbstractArray{T,N},
+                                                             AbstractArray{T,1}}
     J::Vector{Int}
     A::Vector{T}
     nrows::Int
@@ -19,6 +20,10 @@ type Interpolator{T<:AbstractFloat,N}
     width::Int
     dims::NTuple{N,Int} # dimensions of result
 end
+
+eltype{T,N}(op::Interpolator{T,N}) = T
+output_size{T,N}(op::Interpolator{T,N}) = op.dims
+input_size{T,N}(op::Interpolator{T,N}) = (op.ncols,)
 
 """
 # Linear interpolator
@@ -48,7 +53,7 @@ function Interpolator{T<:AbstractFloat}(ker::Kernels.Kernel{T},
     const ncols = length(grd)
     const width = length(ker)
     const nmax = nrows*width
-    const s::T = T(width)/T(2)
+    const s::T = T(width/2)
     const delta::T = T(step(grd))
     const offset::T = T(first(grd)) - delta
 
@@ -56,10 +61,10 @@ function Interpolator{T<:AbstractFloat}(ker::Kernels.Kernel{T},
     A = Array(T, nmax)
     n::Int = 0
     @inbounds begin
-        for i in 1:nrows
+        for i in eachindex(pos)
             t = (T(pos[i]) - offset)/delta
-            kmin = floor(Int, t - s) + 1
-            for k in kmin:kmin+width-1
+            k0 = floor(Int, t - s)
+            for k in k0+1:k0+width
                 j = max(1, min(k, ncols))
                 n += 1
                 J[n] = j
@@ -71,30 +76,78 @@ function Interpolator{T<:AbstractFloat}(ker::Kernels.Kernel{T},
     return Interpolator(J, A, nrows, ncols, width, size(pos))
 end
 
-function call{T<:AbstractFloat,N}(op::Interpolator{T,N},
-                                  x::AbstractArray{T,1})
-    @assert length(x) == op.ncols
-    y = Array(T, op.dims)
-    @assert length(y) == op.nrows
-    const width::Int = op.width
-    @inbounds begin
-        for i in 1:op.nrows
-            k0::Int = width*(i - 1)
-            s::T = zero(T)
-            for k in k0+1:k0+width
-                j = op.J[k]
-                a = op.A[k]
-                s += a*x[j]
-            end
-            y[i] = s
-        end
-    end
-    return y
+function checksize{T,N}(op::Interpolator{T,N},
+                        out::AbstractArray{T,N},
+                        inp::AbstractArray{T,1})
+    number = op.nrows*op.width
+    length(op.J) == number || error("bad number of interpolator indices")
+    length(op.A) == number || error("bad number of interpolator weights")
+    @assert length(inp) == op.ncols
+    @assert size(out) == op.dims
+    length(out) == op.nrows || error("bug: bad number of \"rows\"")
 end
 
-function call{T<:AbstractFloat,N,R<:Real}(op::Interpolator{T,N},
-                                          x::AbstractArray{R,1})
-    op(convert(Array{T,1}, x))
+function apply_direct{T,N}(op::Interpolator{T,N},
+                           src::AbstractArray{T,1})
+    dst = Array(T, output_size(op))
+    apply_direct!(dst, op, src)
+    return dst
+end
+
+function apply_direct!{T,N}(dst::AbstractArray{T,N},
+                            op::Interpolator{T,N},
+                            src::AbstractArray{T,1})
+    checksize(op, dst, src)
+    const width = op.width
+    const nrows = op.nrows
+    const ncols = op.ncols
+    A = op.A
+    J = op.J
+    @inbounds begin
+        k0 = 0
+        for i in 1:nrows
+            s = zero(T)
+            for k in k0+1:k0+width
+                j = J[k]
+                1 ≤ j ≤ ncols || error("corrupted interpolator table")
+                s += A[k]*src[j]
+            end
+            dst[i] = s
+            k0 += width
+        end
+    end
+end
+
+function apply_adjoint{T,N}(op::Interpolator{T,N},
+                            src::AbstractArray{T,N})
+    dst = Array(T, input_size(op))
+    apply_adjoint!(dst, op, src)
+    return dst
+end
+
+function apply_adjoint!{T,N}(dst::AbstractArray{T,1},
+                             op::Interpolator{T,N},
+                             src::AbstractArray{T,N})
+    checksize(op, src, dst)
+    const width = op.width
+    const nrows = op.nrows
+    const ncols = op.ncols
+    A = op.A
+    J = op.J
+    is(dst, src) && error("operation cannot be done in-place")
+    fill!(dst, zero(T))
+    @inbounds begin
+        k0 = 0
+        for i in 1:nrows
+            s = src[i]
+            for k in k0+1:k0+width
+                j = J[k]
+                1 ≤ j ≤ ncols || error("corrupted interpolator table")
+                dst[j] += A[k]*s
+            end
+            k0 += width
+        end
+    end
 end
 
 function sparse(op::Interpolator)
