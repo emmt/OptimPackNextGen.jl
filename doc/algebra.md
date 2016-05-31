@@ -27,7 +27,7 @@ types).  Vector spaces implement the following methods:
 
 * `vcopy!{T}(dst::T, src::T)` to copy the contents of `src` into `dst`;
 
-* `swap!{T}(x::T, y::T)` to exchange the contents of `x` and `y`;
+* `vswap!{T}(x::T, y::T)` to exchange the contents of `x` and `y`;
 
 * `vfill!{T}(x::T, alpha::Float)` to set all values of `x` with `alpha`;
 
@@ -57,7 +57,8 @@ The following methods may optionally be implemented:
   update!{T}(dst::T, alpha::Float, x::T) = vcombine!(dst, 1.0, dst, alpha, x)`
   ```
 
-* `vcombine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T, gamma::Float, z::T)` to perform `dst = alpha*x + beta*y + gamma*z` the default implementation is:
+* `vcombine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T, gamma::Float, z::T)`
+  to perform `dst = alpha*x + beta*y + gamma*z` the default implementation is:
   ```julia
   function vcombine!{T}(dst::T, alpha::Float, x::T,
                         beta::Float, y::T, gamma::Float, z::T)
