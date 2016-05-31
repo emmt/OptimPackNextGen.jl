@@ -25,6 +25,7 @@ export goodfftdim,
        prox,
        prox!,
        AbstractCost,
+       CirculantConvolution,
        HyperbolicEdgePreserving,
        QuadraticCost,
        QuadraticSmoothness,
@@ -42,6 +43,8 @@ using .Algebra
 for sym in names(TiPi.Algebra)
     @eval export $sym
 end
+include("convolution.jl")
+using .Convolution
 include("AffineTransforms.jl")
 include("kernels.jl")
 include("interp.jl")
