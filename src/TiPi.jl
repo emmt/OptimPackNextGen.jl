@@ -38,11 +38,63 @@ export goodfftdim,
 typealias Float Float64
 
 include("utils.jl")
+
 include("algebra.jl")
-using .Algebra
-for sym in names(TiPi.Algebra)
-    @eval export $sym
-end
+import .Algebra: LinearOperator,
+                 Endomorphism,
+                 SelfAdjointOperator,
+                 Identity,
+                 NormalEquations,
+                 DiagonalOperator,
+                 RankOneOperator,
+                 ScalingOperator,
+                 CroppingOperator,
+                 ZeroPaddingOperator,
+                 input_eltype,
+                 input_ndims,
+                 input_size,
+                 input_type,
+                 output_eltype,
+                 output_ndims,
+                 output_size,
+                 output_type,
+                 apply,
+                 apply!,
+                 apply_direct,
+                 apply_direct!,
+                 apply_adjoint,
+                 apply_adjoint!,
+                 apply_inverse,
+                 apply_inverse!,
+                 apply_inverse_adjoint,
+                 apply_inverse_adjoint!,
+                 check_operator,
+                 is_identity,
+                 vcombine,
+                 vcombine!,
+                 vcopy,
+                 vcopy!,
+                 vcreate,
+                 vdot,
+                 vfill!,
+                 vnorm1,
+                 vnorm2,
+                 vnorminf,
+                 vproduct,
+                 vproduct!,
+                 vscale,
+                 vscale!,
+                 vswap!,
+                 vupdate!,
+                 conjgrad,
+                 project_variables!,
+                 project_direction!,
+                 step_limits,
+                 get_free_variables
+
+include("fft.jl")
+import .FFT: FFTOperator
+
 include("convolution.jl")
 using .Convolution
 include("AffineTransforms.jl")

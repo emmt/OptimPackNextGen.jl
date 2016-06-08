@@ -13,8 +13,9 @@ module Convolution
 
 import Base: eltype
 
-using ..Algebra
-import ..Algebra: apply_direct, apply_direct!, apply_adjoint, apply_adjoint!
+import ..Algebra: Endomorphism,
+                  apply_direct, apply_direct!,
+                  apply_adjoint, apply_adjoint!
 
 import Base: DFT, FFTW
 import Base.FFTW: fftwNumber, fftwReal, fftwComplex

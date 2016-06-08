@@ -43,24 +43,29 @@ Although TiPi provides default versions, the methods `apply_direct!` and
     apply_adjoint!(dst, A, x)
 
 which store in the destination `dst` the result of applying the operator `A` or
-its adjoint to the source `src`.
+its adjoint to the source `src`.  It is assumed that `dst` is returned by
+these methods.
 
-
-Finally, if a linear operator `A` is invertible, it shall implements the
+Finally, if a linear operator `A` is invertible, it shall implement the
 following methods:
 
     apply_inverse(A, x)
     apply_inverse!(dst, A, x)
 
-and if `A` is not self-adjoint:
+and (unless `A` is self-adjoint):
 
     apply_inverse_adjoint(A, x)
     apply_inverse_adjoint!(dst, A, x)
 
+Remember that it is assumed that the destination `dst` is returned by the
+`apply_...!` methods which take this argument.
+
 """
 abstract LinearOperator{OUT,INP}
 
-# Declare methods and link their documentation.
+# Declare basic methods and link their documentation.
+function apply end
+function apply! end
 function apply_direct end
 function apply_direct! end
 function apply_adjoint end
@@ -69,6 +74,8 @@ function apply_inverse end
 function apply_inverse! end
 function apply_inverse_adjoint end
 function apply_inverse_adjoint! end
+@doc @doc(LinearOperator) apply
+@doc @doc(LinearOperator) apply!
 @doc @doc(LinearOperator) apply_direct
 @doc @doc(LinearOperator) apply_direct!
 @doc @doc(LinearOperator) apply_adjoint
@@ -79,83 +86,43 @@ function apply_inverse_adjoint! end
 @doc @doc(LinearOperator) apply_inverse_adjoint!
 
 
-# Basic methods:
-input_type{E,F}(A::LinearOperator{E,F}) = F
-output_type{E,F}(A::LinearOperator{E,F}) = E
-
-
 # Terminal methods:
-
-function apply_direct{E,F}(A::LinearOperator{E,F}, x::F)
-    error("method `apply_direct` not implemented for this operator")
-end
-
-function apply_adjoint{E,F}(A::LinearOperator{E,F}, x::E)
-    error("method `apply_adjoint` not implemented for this operator")
-end
-
-function apply_inverse{E,F}(A::LinearOperator{E,F}, x::E)
-    error("method `apply_inverse` not implemented for this operator")
-end
-
-function apply_inverse_adjoint{E,F}(A::LinearOperator{E,F}, x::F)
-    error("method `apply_inverse_adjoint` not implemented for this operator")
-end
-
+apply_direct{E,F}(A::LinearOperator{E,F}, x::F) =
+    error("method `apply_direct` not implemented by this operator")
+apply_adjoint{E,F}(A::LinearOperator{E,F}, x::E) =
+    error("method `apply_adjoint` not implemented by this operator")
+apply_inverse{E,F}(A::LinearOperator{E,F}, x::E) =
+    error("method `apply_inverse` not implemented by this operator")
+apply_inverse_adjoint{E,F}(A::LinearOperator{E,F}, x::F) =
+    error("method `apply_inverse_adjoint` not implemented by this operator")
 
 # Operations between operators.
-
-function apply_direct{E,F,G}(A::LinearOperator{E,G},
-                             B::LinearOperator{G,F})
+apply_direct{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
     Product(A,B)
-end
-
-function apply_adjoint{E,F,G}(A::LinearOperator{G,E},
-                              B::LinearOperator{G,F})
+apply_adjoint{E,F,G}(A::LinearOperator{G,E}, B::LinearOperator{G,F}) =
     Product(Adjoint(A),B)
-end
-
-function apply_inverse{E,F,G}(A::LinearOperator{G,E},
-                              B::LinearOperator{G,F})
+apply_inverse{E,F,G}(A::LinearOperator{G,E}, B::LinearOperator{G,F}) =
     Product(Inverse(A),B)
-end
-
-function apply_inverse_adjoint{E,F,G}(A::LinearOperator{E,G},
-                                      B::LinearOperator{G,F})
+apply_inverse_adjoint{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
     Product(Inverse(Adjoint(A)),B)
-end
 
+# Shortcuts:
+apply!{E,F}(y::E, A::LinearOperator{E,F}, x::F) =
+    apply_direct!(y, A, x)
+apply{E,F}(A::LinearOperator{E,F}, x::F) =
+    apply_direct(A, x)
+apply{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
+    apply_direct(A, B)
 
 # Default methods for a linear operator when destination is given:
-
 apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) =
     vcopy!(dst, apply_direct(A, src))
-
 apply_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, src::E) =
     vcopy!(dst, apply_adjoint(A, src))
-
 apply_inverse!{E,F}(dst::F, A::LinearOperator{E,F}, src::E) =
     vcopy!(dst, apply_inverse(A, src))
-
-apply_inverse_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, src::E) =
+apply_inverse_adjoint!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) =
     vcopy!(dst, apply_inverse_adjoint(A, src))
-
-# Overload the `call` method so that `A(x)` makes sense for `A` a linear
-# operator and `x` a "vector", or another operator.
-
-call{E,F}(A::LinearOperator{E,F}, x::F) = apply_direct(A, x) ::E
-
-call{E,F,G}(A::LinearOperator{E,F}, B::LinearOperator{F,G}) = Product(A, B)
-
-function call{E,F}(A::LinearOperator{E,F}, x)
-    error("argument of operator has wrong type or incompatible input/output types in product of operators")
-end
-
-function apply!{E,F}(dst::F, A::LinearOperator{E,F}, src::E)
-    apply_direct!(dst, A, src)
-end
-
-apply{E,F}(A::LinearOperator{E,F}, x::E) = A(x)
 
 
 """
@@ -170,9 +137,12 @@ abstract SelfAdjointOperator{E} <: Endomorphism{E}
 
 apply_adjoint{E}(A::SelfAdjointOperator{E}, x::E) =
     apply_direct(A, x)
-
-apply_adjoint!{E}(dst::E, A::SelfAdjointOperator{E}, src::E) =
+apply_adjoint!{E}(y::E, A::SelfAdjointOperator{E}, x::E) =
     apply_direct!(dst, A, src)
+apply_inverse_adjoint{E}(A::SelfAdjointOperator{E}, x::E) =
+    apply_inverse(A, x)
+apply_inverse_adjoint!{E}(y::E, A::SelfAdjointOperator{E}, x::E) =
+    apply_inverse!(y, A, x)
 
 
 doc"""
@@ -304,6 +274,12 @@ apply_inverse_adjoint{E,F,T}(A::Inverse{E,F,T}, x::E) =
 apply_inverse_adjoint!{E,F,T}(y::F, A::Inverse{E,F,T}, x::E) =
     apply_adjoint!(y, A.op, x)
 
+# Overload the `call` method so that `A(x)` makes sense for `A` a linear
+# operator and `x` a "vector", or another operator.
+call{E,F}(A::LinearOperator{E,F}, x::F) = apply_direct(A, x) ::E
+call{E,F,G}(A::LinearOperator{E,F}, B::LinearOperator{F,G}) = apply_direct(A, B)
+call{E,F}(A::LinearOperator{E,F}, x) =
+    error("argument of operator has wrong type or incompatible input/output types in product of operators")
 
 # Overload `*` and `ctranspose` so that are no needs to overload `Ac_mul_B`
 # `Ac_mul_Bc`, etc. to have `A'*x`, `A*B*C*x`, etc. yield the expected result.
@@ -312,6 +288,66 @@ ctranspose{E,F}(A::LinearOperator{E,F}) = Adjoint(A)
 ⋅{E,F}(A::LinearOperator{E,F}, x) = A(x)
 \{E,F}(A::LinearOperator{E,F}, x) = apply_inverse(A, x)
 #\{E,F}(A::Adjoint{E,F,T}, x) = apply_inverse_adjoint(A.op, x)
+
+# Basic methods:
+function input_type end
+function input_eltype end
+function input_size end
+function input_ndims end
+function output_type end
+function output_eltype end
+function output_size end
+function output_ndims end
+doc"""
+The calls:
+
+    input_type(A)
+    output_type(A)
+
+yield the type of the input argument and of the output of the linear operator
+`A`.  If `A` operate on Julia arrays, the element type, list of dimensions,
+`i`-th dimension and number of dimensions for the input and output are given
+by:
+
+    input_eltype(A)          output_eltype(A)
+    input_size(A)            output_size(A)
+    input_size(A, i)         output_size(A, i)
+    input_ndims(A)           output_ndims(A)
+
+""" input_type
+@doc @doc(input_type) input_eltype
+@doc @doc(input_type) input_size
+@doc @doc(input_type) input_ndims
+@doc @doc(input_type) output_type
+@doc @doc(input_type) output_eltype
+@doc @doc(input_type) output_size
+@doc @doc(input_type) output_ndims
+
+input_type{E,F}(::LinearOperator{E,F}) = F
+output_type{E,F}(::LinearOperator{E,F}) = E
+for f in (:input_eltype, :output_eltype,
+          :input_ndims,  :output_ndims)
+    @eval $f(::LinearOperator) =
+        error($(string("method `",f,"` not implemented by this operator")))
+end
+for f in (:input_size, :output_size)
+    @eval $f(::LinearOperator) =
+        error($(string("method `",f,"` not implemented by this operator")))
+    @eval $f(::LinearOperator, ::Integer) =
+        error($(string("method `",f,"` not implemented by this operator")))
+end
+
+for T in (:Adjoint, :Inverse)
+    for f in (:type, :eltype, :size, :ndims)
+        inpf = Symbol("input_"*string(f))
+        outf = Symbol("output_"*string(f))
+        @eval $inpf(A::$T) = $outf(A.op)
+        @eval $outf(A::$T) = $inpf(A.op)
+    end
+    @eval input_size(A::$T, i::Integer) = output_size(A,i)
+    @eval output_size(A::$T, i::Integer) = input_size(A,i)
+end
+
 
 #------------------------------------------------------------------------------
 # DIAGONAL OPERATOR
