@@ -16,7 +16,7 @@ export start!, iterate!, get_task, get_reason, get_step, requires_derivative,
        BacktrackingLineSearch, MoreThuenteLineSearch
 
 # Use the same floating point type for scalars as in TiPi.
-import ..Float
+import TiPi.Float
 
 """
 ## Line search methods

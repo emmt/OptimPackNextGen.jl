@@ -12,7 +12,7 @@
 module Algebra
 
 # Use the same floating point type for scalars as in TiPi.
-import ..Float
+import TiPi.Float
 
 include("operators.jl")
 include("vectors.jl")
