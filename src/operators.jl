@@ -379,6 +379,13 @@ end
 
 diag{E}(A::DiagonalOperator{E}) = A.diag
 
+for f in (:eltype, :ndims, :size, :type)
+    @eval $(Symbol(string("input_",f)))(A::DiagonalOperator) = $f(A.diag)
+    @eval $(Symbol(string("output_",f)))(A::DiagonalOperator) = $f(A.diag)
+end
+input_size(A::DiagonalOperator, i::Integer) = size(A.diag, i)
+output_size(A::DiagonalOperator, i::Integer) = size(A.diag, i)
+
 #------------------------------------------------------------------------------
 # IDENTITY OPERATOR
 
