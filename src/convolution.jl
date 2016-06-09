@@ -11,11 +11,14 @@
 
 module Convolution
 
-import Base: eltype
+import Base: eltype, size, ndims
 
-import ..Algebra: Endomorphism,
-                  apply_direct, apply_direct!,
-                  apply_adjoint, apply_adjoint!
+import TiPi: Endomorphism,
+             input_size, output_size,
+             input_ndims, output_ndims,
+             input_eltype, output_eltype,
+             apply_direct, apply_direct!,
+             apply_adjoint, apply_adjoint!
 
 import Base: DFT, FFTW
 import Base.FFTW: fftwNumber, fftwReal, fftwComplex
@@ -30,11 +33,21 @@ type CirculantConvolution{T<:fftwNumber,C<:fftwComplex,N} <: Endomorphism{Array{
     backward::DFT.Plan{C}     # plan for backward transform
 end
 
+# Basic methods for a linear operator on Julia's arrays.
 input_size(H::CirculantConvolution) = H.xdims
 output_size(H::CirculantConvolution) = H.xdims
+input_size(H::CirculantConvolution, i::Integer) = H.xdims[i]
+output_size(H::CirculantConvolution, i::Integer) = H.xdims[i]
 input_ndims{T,C,N}(H::CirculantConvolution{T,C,N}) = N
 output_ndims{T,C,N}(H::CirculantConvolution{T,C,N}) = N
+input_eltype{T,C,N}(H::CirculantConvolution{T,C,N}) = T
+output_eltype{T,C,N}(H::CirculantConvolution{T,C,N}) = T
+
+# Basic methods for an array.
 eltype{T,C,N}(H::CirculantConvolution{T,C,N}) = T
+size{T,C,N}(H::CirculantConvolution{T,C,N}) = ntuple(i -> H.xdims[(i ≤ N ? i : i - N)], 2*N)
+size{T,C,N}(H::CirculantConvolution{T,C,N}, i::Integer) = H.xdims[(i ≤ N ? i : i - N)]
+ndims{T,C,N}(H::CirculantConvolution{T,C,N}) = 2*N
 
 doc"""
 `check_flags(flags)` checks whether `flags` is an allowed bitwise-or
