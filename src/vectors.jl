@@ -143,11 +143,7 @@ creates a new variable instance similar to `x`.
 
 #------------------------------------------------------------------------------
 
-function vcopy(src)
-    dst = vcreate(src)
-    vcopy!(dst, src)
-    return dst
-end
+vcopy(src) = vcopy!(vcreate(src), src)
 
 function vcopy!{T,N}(dst::Array{T,N}, src::Array{T,N})
     if !is(dst, src)

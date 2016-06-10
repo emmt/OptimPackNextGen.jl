@@ -44,10 +44,7 @@ end
 #
 function conjgrad{T}(A::SelfAdjointOperator{T}, b::T, x0::T, tol,
                      maxiter::Integer)
-    x = vcreate(x0)
-    vcopy!(x, x0)
-    conjgrad!(A, b, x, tol, maxiter)
-    return x
+    conjgrad!(A, b, vcopy(x0), tol, maxiter)
 end
 
 function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T, tol,
@@ -101,4 +98,5 @@ function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T, tol,
         rho0 = rho
         rho = vdot(r, r)
     end
+    return x
 end
