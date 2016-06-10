@@ -395,11 +395,11 @@ Identity{T}(::Type{T}) = Identity{T}()
 
 Identity() = Identity{Any}()
 
-apply_direct{T}(::Identity{T}, x::T) = x
-
-apply_inverse{T}(::Identity{T}, x::T) = x
-
-#const identity = Identity()
+for op in (:direct, :inverse)
+    @eval $(Symbol(string("apply_",op))){T}(::Identity{T}, x::T) = x
+    @eval $(Symbol(string("apply_",op,"!"))){T}(y::T, ::Identity{T}, x::T) =
+        vcopy!(y, x)
+end
 
 is_identity{E}(A::LinearOperator{E,E}) = is(A, Identity(E)) || is(A, Identity())
 
