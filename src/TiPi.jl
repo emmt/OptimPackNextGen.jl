@@ -14,6 +14,7 @@ module TiPi
 export MDA
 export goodfftdim,
        fftfreq,
+       bounding_box,
        crop,
        crop!,
        pad,
