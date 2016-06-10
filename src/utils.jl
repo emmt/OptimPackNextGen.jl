@@ -1,21 +1,13 @@
 #
 # utils.jl --
 #
-# General purpose routines for TiPi.
+# General purpose methods for TiPi.
 #
 #------------------------------------------------------------------------------
 #
 # Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
 # This file is part of TiPi.  All rights reserved.
 #
-
-function defaultweights{T<:AbstractFloat,N}(y::Array{T,N})
-    wgt = Array(T, size(y))
-    for i in 1:length(wgt)
-        wgt[i] = (isnan(y[i]) ? zero(T) : one(T))
-    end
-    return wgt
-end
 
 """
 ### Get good dimension length for the FFT
@@ -206,3 +198,5 @@ dimension of the source.
 ### See Also
 crop, crop!, pad, zeropad.
 """ paste!
+
+#------------------------------------------------------------------------------
