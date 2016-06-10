@@ -146,7 +146,7 @@ creates a new variable instance similar to `x`.
 vcopy(src) = vcopy!(vcreate(src), src)
 
 function vcopy!{T,N}(dst::Array{T,N}, src::Array{T,N})
-    if !is(dst, src)
+    if pointer(dst) != pointer(src)
         @assert size(src) == size(dst)
         @inbounds begin
             @simd for i in 1:length(dst)
@@ -176,7 +176,7 @@ object.  To create a fresh copy of `src`, do:
 #------------------------------------------------------------------------------
 
 function vswap!{T,N}(x::Array{T,N}, y::Array{T,N})
-    if !is(x, y)
+    if pointer(x) != pointer(y)
         @assert size(x) == size(y)
         @inbounds begin
             @simd for i in 1:length(x)
@@ -201,55 +201,54 @@ Nothing is done if `src` and `dst` are the same object.
 
 #------------------------------------------------------------------------------
 
-function vscale{T<:Real}(alpha::T, src)
+function vscale{T<:Real}(alpha::T, x)
     if alpha == one(T)
-        return src
-    else
-        dst = vcreate(src)
-        vscale!(dst, alpha, src)
+        return x
     end
-    return dst
+    vscale!(vcreate(x), alpha, x)
 end
 
-function vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::T)
+function vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real)
+    const a::T = T(alpha)
     @inbounds begin
-        if alpha == zero(T)
+        if a == zero(T)
             @simd for i in 1:length(dst)
-                dst[i] = alpha
+                dst[i] = a
             end
-        elseif alpha == -one(T)
+        elseif a == -one(T)
             @simd for i in 1:length(dst)
                 dst[i] = -dst[i]
             end
-        elseif alpha != one(T)
+        elseif a != one(T)
             @simd for i in 1:length(dst)
-                dst[i] *= alpha
+                dst[i] *= a
             end
         end
     end
     return dst
 end
 
-function vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::T, src::Array{T,N})
+function vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real, src::Array{T,N})
     @assert size(src) == size(dst)
+    const a::T = T(alpha)
     @inbounds begin
-        if alpha == zero(T)
+        if a == zero(T)
             @simd for i in 1:length(dst)
-                dst[i] = alpha
+                dst[i] = a
             end
-        elseif alpha == -one(T)
+        elseif a == -one(T)
             @simd for i in 1:length(dst)
                 dst[i] = -src[i]
             end
-        elseif alpha == one(T)
-            if !is(src, dst)
+        elseif a == one(T)
+            if pointer(dst) != pointer(src)
                 @simd for i in 1:length(dst)
                     dst[i] = src[i]
                 end
             end
         else
             @simd for i in 1:length(dst)
-                dst[i] = alpha*src[i]
+                dst[i] = a*src[i]
             end
         end
     end
@@ -259,10 +258,6 @@ end
 vscale!{V}(dst::V, alpha::Real, src::V) = vcombine!(dst, alpha, src, 0, src)
 
 vscale!(dst, alpha::Real) = vscale!(dst, alpha, dst)
-
-vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real) = vscale!(dst, T(alpha))
-
-vscale!{T<:AbstractFloat,N}(dst::Array{T,N}, alpha::Real, src::Array{T,N}) = vscale!(dst, T(alpha), src)
 
 """
 ### Scaling
@@ -285,16 +280,15 @@ return argument `dst`.
 
 #------------------------------------------------------------------------------
 
-function vfill!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::T)
+function vfill!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::Real)
+    const a::T = T(alpha)
     @inbounds begin
         @simd for i in 1:length(x)
-            x[i] = alpha
+            x[i] = a
         end
     end
-    return dst
+    return x
 end
-
-vfill!{T<:AbstractFloat,N}(x::Array{T,N}, alpha::Real) = vfill!(x, T(alpha))
 
 """
 ### Fill with a value
@@ -309,8 +303,9 @@ sets all elements of `x` with the scalar value `alpha` and return `x`.
 #------------------------------------------------------------------------------
 
 function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                      a::T, x::Array{T,N})
+                                      alpha::Real, x::Array{T,N})
     @assert size(dst) == size(x)
+    const a::T = T(alpha)
     const n = length(dst)
     @inbounds begin
         if a == one(T)
@@ -331,39 +326,32 @@ function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N},
 end
 
 function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
-                                      a::T, x::Array{T,N})
+                                      alpha::Real, x::Array{T,N})
     @assert size(dst) == size(x)
+    const a::T = T(alpha)
     const n = length(dst)
-    if a == one(T)
-        @simd for i in 1:length(sel)
-            j = sel[i]
-            1 ≤ j ≤ n || throw(BoundsError())
-            @inbounds dst[j] += x[j]
-        end
-    elseif a == -one(T)
-        @simd for i in 1:length(sel)
-            j = sel[i]
-            1 ≤ j ≤ n || throw(BoundsError())
-            @inbounds dst[j] -= x[j]
-        end
-    elseif a != zero(T)
-        @simd for i in 1:length(sel)
-            j = sel[i]
-            1 ≤ j ≤ n || throw(BoundsError())
-            @inbounds dst[j] += a*x[j]
+    @inbounds begin
+        if a == one(T)
+            @simd for i in 1:length(sel)
+                j = sel[i]
+                1 ≤ j ≤ n || throw(BoundsError())
+                dst[j] += x[j]
+            end
+        elseif a == -one(T)
+            @simd for i in 1:length(sel)
+                j = sel[i]
+                1 ≤ j ≤ n || throw(BoundsError())
+                dst[j] -= x[j]
+            end
+        elseif a != zero(T)
+            @simd for i in 1:length(sel)
+                j = sel[i]
+                1 ≤ j ≤ n || throw(BoundsError())
+                dst[j] += a*x[j]
+            end
         end
     end
     return dst
-end
-
-function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                      alpha::Real, x::Array{T,N})
-    vupdate!(dst, T(alpha), x)
-end
-
-function vupdate!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
-                                      alpha::Real, x::Array{T,N})
-    vupdate!(dst, sel, T(alpha), x)
 end
 
 """
@@ -389,11 +377,7 @@ location.
 
 #------------------------------------------------------------------------------
 
-function vproduct{V}(x::V, y::V)
-    dst = vcreate(x)
-    vproduct!(dst, x, y)
-    return dst
-end
+vproduct{V}(x::V, y::V) = vproduct!(vcreate(x), x, y)
 
 vproduct!{V}(dst::V, src::V) = vproduct!(dst, dst, src)
 
@@ -412,10 +396,12 @@ function vproduct!{T<:AbstractFloat,N}(dst::Array{T,N}, sel::Vector{Int},
     @assert size(x) == size(dst)
     @assert size(y) == size(dst)
     const n = length(dst)
-    @simd for i in 1:length(sel)
-        j = sel[i]
-        1 ≤ j ≤ n || throw(BoundsError())
-        @inbounds dst[j] = x[j]*y[j]
+    @inbounds begin
+        @simd for i in 1:length(sel)
+            j = sel[i]
+            1 ≤ j ≤ n || throw(BoundsError())
+            dst[j] = x[j]*y[j]
+        end
     end
     return dst
 end
@@ -444,19 +430,18 @@ with `sel` a selection of indices to which apply the operation.
 
 vcombine(alpha::Real, x) = vscale(alpha, x)
 
-vcombine!(dst, alpha::Real, x) = vscale!(dst, alpha, x)
+vcombine!{T}(dst::T, alpha::Real, x::T) = vscale!(dst, alpha, x)
 
-function vcombine{V}(alpha::Real, x::V, beta::Real, y::V)
-    dst = vcreate(x)
-    vcombine!(dst, alpha, x, beta, y)
-    return dst
-end
+vcombine{T}(alpha::Real, x::T, beta::Real, y::T) =
+    vcombine!(vcreate(x), alpha, x, beta, y)
 
 function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                       a::T, x::Array{T,N},
-                                       b::T, y::Array{T,N})
+                                       alpha::Real, x::Array{T,N},
+                                       beta::Real, y::Array{T,N})
     @assert size(x) == size(dst)
     @assert size(y) == size(dst)
+    const a::T = T(alpha)
+    const b::T = T(beta)
     const n = length(dst)
     @inbounds begin
         if a == zero(T)
@@ -508,12 +493,6 @@ function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
         end
     end
     return dst
-end
-
-function vcombine!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                       alpha::Real, x::Array{T,N},
-                                       beta::Real,  y::Array{T,N})
-    vcombine!(dst, T(alpha), x, T(beta), y)
 end
 
 """
