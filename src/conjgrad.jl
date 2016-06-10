@@ -11,7 +11,7 @@
 
 
 # A NormalEquations stores the components of the normal equations.
-type NormalEquations{T}
+immutable NormalEquations{T}
     lhs::SelfAdjointOperator{T}    # left hand side matrix
     rhs::T                         # right hand side vector
 end
