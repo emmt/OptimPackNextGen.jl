@@ -135,6 +135,8 @@ A `SelfAdjointOperator` is an `Endomorphism` which is its own adjoint.
 """
 abstract SelfAdjointOperator{E} <: Endomorphism{E}
 
+apply_direct{E}(A::SelfAdjointOperator{E}, x::E) =
+    apply_direct!(vcreate(x), A, x)
 apply_adjoint{E}(A::SelfAdjointOperator{E}, x::E) =
     apply_direct(A, x)
 apply_adjoint!{E}(y::E, A::SelfAdjointOperator{E}, x::E) =
