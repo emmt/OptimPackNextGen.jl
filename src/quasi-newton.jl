@@ -22,7 +22,7 @@ using TiPi.Algebra
 using TiPi.LineSearch
 
 # Use the same floating point type for scalars as in TiPi.
-import Tipi.Float
+import TiPi.Float
 
 export vmlmb, vmlmb!, EMULATE_BLMVM
 
