@@ -183,9 +183,9 @@ function apply_adjoint!{T<:Real,C<:Complex,N}(y::Array{T,N},
                                               x::Array{C,N})
     plan = get_plan!(y, F, x, Backward)
     temp = F.temp
-    @inbounds begin
-        @simd for i in 1:length(x)
-            temp[i] = x[i]
+    if pointer(x) != pointer(temp)
+        @simd for i in 1:length(temp)
+            @inbounds temp[i] = x[i]
         end
     end
     A_mul_B!(y, plan, temp)
