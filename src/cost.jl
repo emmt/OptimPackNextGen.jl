@@ -157,6 +157,17 @@ end
 #------------------------------------------------------------------------------
 # QUADRATIC COST
 
+doc"""
+A general formulation of a quadratic cost is:
+
+    f(x) = (1/2)*(A*x - b)'*W*(A*x - b)
+
+with `A` a linear operator, `b` a "vector" and `W` a weighting operator.  The
+gradient is given by:
+
+    g(x) = A'*W*(A*x - b)
+
+"""
 immutable QuadraticCost{E,F} <: AbstractCost
     A::LinearOperator{E,F}
     b::Union{E,Void}
@@ -251,17 +262,30 @@ function cost!{E,F}(alpha::Float, q::QuadraticCost{E,F}, x::F, g, ovr::Bool)
     return Float((alpha/2)*vdot(r, Wr))
 end
 
-"""
-A general formulation of a quadratic cost is:
+function apply_hessian!{E,F}(y::F, alpha::Float, q::QuadraticCost{E,F},
+                             x::F, ovr::Bool)
+    if alpha == zero(Float)
+        ovr && vfill!(y, 0)
+    else
+        r = apply_direct(q.A, x)
+        apply_direct!(r, q.W, r)
+        if ovr
+            apply_adjoint!(y, q.A, r)
+            if alpha != one(T)
+                vscale!(y, alpha)
+            end
+        else
+            vupdate!(y, alpha, apply_adjoint(q.A, r))
+        end
+    end
+    return y
+end
 
-    f(x) = (1/2)*(A*x - b)'*W*(A*x - b)
+apply_hessian!{E,F}(y::F, q::QuadraticCost{E,F}, x::F) =
+    apply_hessian!(y, Float(1), q, x, true)
 
-with `A` a linear operator, `b` a "vector" and `W` a weighting operator.  The
-gradient is given by:
-
-    g(x) = A'*W*(A*x - b)
-
-""" QuadraticCost
+apply_hessian{E,F}(q::QuadraticCost{E,F}, x::F) =
+    apply_hessian!(vcreate!(x), q, x)
 
 #------------------------------------------------------------------------------
 # CHECKING OF GRADIENTS
