@@ -11,7 +11,7 @@
 
 import Base: *, ⋅, \, ctranspose, call, diag
 
-import ..subrange, ..dimlist
+import TiPi: subrange, dimlist, contents
 
 """
 `LinearOperator{OUT,INP}` is the abstract type from which inherit all linear
@@ -166,6 +166,8 @@ immutable Product{E,F,L<:LinearOperator,R<:LinearOperator} <: LinearOperator{E,F
     rop::R
 end
 
+contents(A::Product) = (A.lop, A.rop)
+
 Product{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
     Product{E,F,typeof(A),typeof(B)}(A,B)
 
@@ -206,10 +208,13 @@ immutable Adjoint{E,F,T<:LinearOperator} <: LinearOperator{F,E}
     op::T
 end
 
+contents(A::Adjoint) = A.op
+
 Adjoint{E}(A::SelfAdjointOperator{E}) = A
 Adjoint{E,F}(A::LinearOperator{E,F}) = Adjoint{E,F,typeof(A)}(A)
 Adjoint{E,F,T}(A::Adjoint{E,F,T}) = A.op
 Adjoint{E,F,L,R}(A::Product{E,F,L,R}) = Product(Adjoint(A.rop), Adjoint(A.lop))
+
 
 apply_direct{E,F,T}(A::Adjoint{E,F,T}, x::E) =
     apply_adjoint(A.op, x)
@@ -247,6 +252,8 @@ For instance, 'A\B` yields `Inverse(A)*B`.
 immutable Inverse{E,F,T<:LinearOperator} <: LinearOperator{F,E}
     op::T
 end
+
+contents(A::Inverse) = A.op
 
 Inverse{E,F}(A::LinearOperator{E,F}) = Inverse{E,F,typeof(A)}(A)
 Inverse{E,F,T}(A::Inverse{E,F,T}) = A.op

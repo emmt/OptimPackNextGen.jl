@@ -21,6 +21,32 @@ function nth(n::Integer)
     string(n,"-th")
 end
 
+doc"""
+# Containers and Marked Objects
+
+Julia typing system can be exploited to "mark" some object instances so that
+they are seen as another specific type.  For instance, this feature is used to
+mark linear operators as being transposed (so that they behave as their
+adjoint) or inverted (so that they behave as their inverse).
+
+These marked objects have a single member: the object that is marked.  This
+single member can be retrieved by the `contents` method.  The following piece
+of code shows the idea:
+
+    immutable MarkedType{T}
+        data::T
+    end
+    MarkedType{T}(obj::T) = MarkedType{T}(obj)
+    contents(obj::MarkedType) = obj.data
+
+More generally, the `contents` method can be used to retrieve the contents of a
+"container" object:
+
+    contents(container)
+
+"""
+function contents end
+
 """
 ### Get good dimension length for the FFT
 
