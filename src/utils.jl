@@ -9,6 +9,18 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
+doc"""
+`nth(n)` yields a human readable string for `n` integer like `1-st`, `2-nd`,
+etc.
+"""
+function nth(n::Integer)
+    k = abs(n)%10
+    k == 1 ? string(n,"-th") :
+    k == 2 ? string(n,"-nd") :
+    k == 3 ? string(n,"-rd") :
+    string(n,"-th")
+end
+
 """
 ### Get good dimension length for the FFT
 
