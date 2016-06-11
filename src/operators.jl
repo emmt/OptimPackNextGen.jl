@@ -467,17 +467,16 @@ and behaves as follows:
 immutable DiagonalOperator{E} <: AbstractDiagonalOperator{E}
     diag::E
 end
+
 contents(A::DiagonalOperator) = A.diag
 
-function apply_direct{E}(A::DiagonalOperator{E}, src::E)
+diag(A::DiagonalOperator) = A.diag
+
+apply_direct{E}(A::DiagonalOperator{E}, src::E) =
     vproduct(A.diag, src)
-end
 
-function apply_direct!{E}(dst::E, A::DiagonalOperator{E}, src::E)
+apply_direct!{E}(dst::E, A::DiagonalOperator{E}, src::E) =
     vproduct!(dst, A.diag, src)
-end
-
-diag{E}(A::DiagonalOperator{E}) = A.diag
 
 for f in (:eltype, :ndims, :size, :type)
     @eval $(Symbol(string("input_",f)))(A::DiagonalOperator) = $f(A.diag)
@@ -546,13 +545,13 @@ ScalingOperator{E}(::Type{E}, alpha::Real) = ScalingOperator{E}(E, Float(alpha))
 ScalingOperator{E}(alpha::Real, ::Type{E}) = ScalingOperator{E}(E, Float(alpha))
 ScalingOperator(alpha::Real) = ScalingOperator{Any}(Any, Float(alpha))
 
-function apply_direct{E}(A::ScalingOperator{E}, src::E)
-    vscale(A.alpha, src)
-end
+contents(A::ScalingOperator) = A.alpha
 
-function apply_direct!{E}(dst::E, A::ScalingOperator{E}, src::E)
+apply_direct{E}(A::ScalingOperator{E}, src::E) =
+    vscale(A.alpha, src)
+
+apply_direct!{E}(dst::E, A::ScalingOperator{E}, src::E) =
     vscale!(dst, A.alpha, src)
-end
 
 #------------------------------------------------------------------------------
 # RANK-1 OPERATOR
@@ -573,21 +572,17 @@ immutable RankOneOperator{E,F} <: LinearOperator{E,F}
     RankOneOperator(lvect::E, rvect::F) = new(lvect, rvect)
 end
 
-function apply_direct{E,F}(op::RankOneOperator{E,F}, src::F)
+apply_direct{E,F}(op::RankOneOperator{E,F}, src::F) =
     vscale(vdot(op.rvect, src), op.lvect)
-end
 
-function apply_direct!{E,F}(dst::E, op::RankOneOperator{E,F}, src::F)
+apply_direct!{E,F}(dst::E, op::RankOneOperator{E,F}, src::F) =
     vscale!(dst, vdot(op.rvect, src), op.lvect)
-end
 
-function apply_adjoint{E,F}(op::RankOneOperator{E,F}, src::E)
+apply_adjoint{E,F}(op::RankOneOperator{E,F}, src::E) =
     vscale(vdot(op.lvect, src), op.rvect)
-end
 
-function apply_adjoint!{E,F}(dst::F, op::RankOneOperator{E,F}, src::E)
+apply_adjoint!{E,F}(dst::F, op::RankOneOperator{E,F}, src::E) =
     vscale!(dst, vdot(op.lvect, src), op.rvect)
-end
 
 #------------------------------------------------------------------------------
 # CROPPING AND ZERO-PADDING OPERATORS
