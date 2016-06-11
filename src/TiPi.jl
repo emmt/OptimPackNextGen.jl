@@ -116,7 +116,8 @@ include("smooth.jl")
 include("hypersmooth.jl")
 
 include("invprob.jl")
-import .InverseProblems: QuadraticInverseProblem
+import .InverseProblems: QuadraticInverseProblem,
+                         solve, solve!
 
 include("deconv.jl")
 include("compactRegCauchy.jl")
