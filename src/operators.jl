@@ -9,9 +9,16 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-import Base: *, ⋅, \, ctranspose, call, diag
+import Base: *, ⋅, \, ctranspose, call, diag, showerror
 
 import TiPi: subrange, dimlist, contents
+
+immutable UnimplementedOperation <: Exception end
+
+showerror(io::IO, e::UnimplementedOperation) =
+    print(io, "attempt to apply unimplemented operation")
+
+unimplemented_operation(args...) = throw(UnimplementedOperation())
 
 """
 `LinearOperator{OUT,INP}` is the abstract type from which inherit all linear
@@ -384,22 +391,27 @@ immutable FakeLinearOperator{E,F} <: LinearOperator{E,F} end
 FakeLinearOperator{E,F}(::Type{E},::Type{F}) =
     FakeLinearOperator{E,F}()
 
+immutable FakeOperatorException <: Exception end
+
+showerror(io::IO, e::FakeOperatorException) =
+    print(io, "attempt to apply fake linear operator")
+
 apply_direct{E,F}(::FakeLinearOperator{E,F}, ::F) =
-    error("attempt to apply fake linear operator")
+    throw(FakeOperatorException())
 apply_direct!{E,F}(::E, ::FakeLinearOperator{E,F}, ::F) =
-    error("attempt to apply fake linear operator")
+    throw(FakeOperatorException())
 apply_adjoint{E,F}(::FakeLinearOperator{E,F}, ::E) =
-    error("attempt to apply adjoint of fake linear operator")
+    throw(FakeOperatorException())
 apply_adjoint!{E,F}(::F, ::FakeLinearOperator{E,F}, ::E) =
-    error("attempt to apply adjoint of fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse{E,F}(::FakeLinearOperator{E,F}, ::E) =
-    error("attempt to apply inverse of fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse!{E,F}(::F, ::FakeLinearOperator{E,F}, ::E) =
-    error("attempt to apply inverse of fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse_adjoint{E,F}(::FakeLinearOperator{E,F}, ::F) =
-    error("attempt to apply inverse adjoint of fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse_adjoint!{E,F}(::E, ::FakeLinearOperator{E,F}, ::F) =
-    error("attempt to apply inverse adjoint of fake linear operator")
+    throw(FakeOperatorException())
 
 immutable FakeLinearEndomorphism{E} <: LinearEndomorphism{E} end
 
@@ -409,21 +421,21 @@ FakeLinearEndomorphism{E}(::Type{E}) =
     FakeLinearEndomorphism{E}()
 
 apply_direct{E}(::FakeLinearEndomorphism{E}, ::E) =
-    error("attempt to apply fake linear operator")
+    throw(FakeOperatorException())
 apply_direct!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
-    error("attempt to apply fake linear operator")
+    throw(FakeOperatorException())
 apply_adjoint{E}(::FakeLinearEndomorphism{E}, ::E) =
-    error("attempt to apply adjoint of fake linear operator")
+    throw(FakeOperatorException())
 apply_adjoint!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
-    error("attempt to apply adjoint of fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse{E}(::FakeLinearEndomorphism{E}, ::E) =
-    error("attempt to apply inverse of fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
-    error("attempt to apply inverse of fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse_adjoint{E}(::FakeLinearEndomorphism{E}, ::E) =
-    error("attempt to apply inverse adjoint of fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse_adjoint!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
-    error("attempt to apply inverse adjoint of fake linear operator")
+    throw(FakeOperatorException())
 
 immutable FakeSelfAdjointOperator{E} <: SelfAdjointOperator{E} end
 
@@ -433,13 +445,13 @@ FakeSelfAdjointOperator{E}(::Type{E}) =
     FakeSelfAdjointOperator{E}()
 
 apply_direct{E}(::FakeSelfAdjointOperator{E}, ::E) =
-    error("attempt to apply fake linear operator")
+    throw(FakeOperatorException())
 apply_direct!{E}(::E, ::FakeSelfAdjointOperator{E}, ::E) =
-    error("attempt to apply fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse{E}(::FakeSelfAdjointOperator{E}, ::E) =
-    error("attempt to apply inverse of fake linear operator")
+    throw(FakeOperatorException())
 apply_inverse!{E}(::E, ::FakeSelfAdjointOperator{E}, ::E) =
-    error("attempt to apply inverse of fake linear operator")
+    throw(FakeOperatorException())
 
 is_fake(::LinearOperator) = false
 is_fake(::FakeLinearOperator) = true
@@ -745,6 +757,135 @@ function _zeropad!{T,N}(dst::Array{T,N}, region::Region{N}, src::Array{T,N})
     fill!(dst, zero(T))
     dst[region...] = src
 end
+
+#------------------------------------------------------------------------------
+# OPERATORS BUILT ON TOP OF FUNCTIONS
+
+immutable FunctionalLinearOperator{E,F} <: LinearOperator{E,F}
+    direct::Function
+    direct!::Function
+    adjoint::Function
+    adjoint!::Function
+    inverse::Function
+    inverse!::Function
+    inverse_adjoint::Function
+    inverse_adjoint!::Function
+end
+
+function FunctionalLinearOperator{E,F}(::Type{E}, ::Type{F};
+                                       direct::Function=unimplemented_operation,
+                                       direct!::Function=unimplemented_operation,
+                                       adjoint::Function=unimplemented_operation,
+                                       adjoint!::Function=unimplemented_operation,
+                                       inverse::Function=unimplemented_operation,
+                                       inverse!::Function=unimplemented_operation,
+                                       inverse_adjoint::Function=unimplemented_operation,
+                                       inverse_adjoint!::Function=unimplemented_operation)
+    FunctionalLinearOperator{E,F}(direct, direct!, adjoint, adjoint!, inverse,
+                                  inverse!, inverse_adjoint, inverse_adjoint!)
+end
+
+apply_direct{E,F}(A::FunctionalLinearOperator{E,F}, x::F) =
+    A.direct(x)
+
+apply_direct!{E,F}(y::E, A::FunctionalLinearOperator{E,F}, x::F) =
+    A.direct!(y, x)
+
+apply_adjoint{E,F}(A::FunctionalLinearOperator{E,F}, x::E) =
+    A.adjoint(x)
+
+apply_adjoint!{E,F}(y::F, A::FunctionalLinearOperator{E,F}, x::E) =
+    A.adjoint!(y, x)
+
+apply_inverse{E,F}(A::FunctionalLinearOperator{E,F}, x::E) =
+    A.inverse(x)
+
+apply_inverse!{E,F}(y::F, A::FunctionalLinearOperator{E,F}, x::E) =
+    A.inverse!(y, x)
+
+apply_inverse_adjoint{E,F}(A::FunctionalLinearOperator{E,F}, x::F) =
+    A.inverse_adjoint(x)
+
+apply_inverse_adjoint!{E,F}(y::E, A::FunctionalLinearOperator{E,F}, x::F) =
+    A.inverse_adjoint!(y, x)
+
+
+immutable FunctionalLinearEndomorphism{E} <: LinearEndomorphism{E}
+    direct::Function
+    direct!::Function
+    adjoint::Function
+    adjoint!::Function
+    inverse::Function
+    inverse!::Function
+    inverse_adjoint::Function
+    inverse_adjoint!::Function
+end
+
+function FunctionalLinearEndomorphism{E}(::Type{E};
+                                         direct::Function=unimplemented_operation,
+                                         direct!::Function=unimplemented_operation,
+                                         adjoint::Function=unimplemented_operation,
+                                         adjoint!::Function=unimplemented_operation,
+                                         inverse::Function=unimplemented_operation,
+                                         inverse!::Function=unimplemented_operation,
+                                         inverse_adjoint::Function=unimplemented_operation,
+                                         inverse_adjoint!::Function=unimplemented_operation)
+    FunctionalLinearEndomorphism{E}(direct, direct!, adjoint, adjoint!, inverse,
+                                    inverse!, inverse_adjoint, inverse_adjoint!)
+end
+
+apply_direct{E}(A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.direct(x)
+
+apply_direct!{E}(y::E, A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.direct!(y, x)
+
+apply_adjoint{E}(A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.adjoint(x)
+
+apply_adjoint!{E}(y::E, A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.adjoint!(y, x)
+
+apply_inverse{E}(A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.inverse(x)
+
+apply_inverse!{E}(y::E, A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.inverse!(y, x)
+
+apply_inverse_adjoint{E}(A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.inverse_adjoint(x)
+
+apply_inverse_adjoint!{E}(y::E, A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.inverse_adjoint!(y, x)
+
+
+immutable FunctionalSelfAdjointOperator{E} <: SelfAdjointOperator{E}
+    direct::Function
+    direct!::Function
+    inverse::Function
+    inverse!::Function
+end
+
+function FunctionalSelfAdjointOperator{E}(::Type{E};
+                                          direct::Function=unimplemented_operation,
+                                          direct!::Function=unimplemented_operation,
+                                          inverse::Function=unimplemented_operation,
+                                          inverse!::Function=unimplemented_operation)
+    FunctionalSelfAdjointOperator{E}(direct, direct!, inverse, inverse!)
+end
+
+apply_direct{E}(A::FunctionalSelfAdjointOperator{E}, x::E) =
+    A.direct(x)
+
+apply_direct!{E}(y::E, A::FunctionalSelfAdjointOperator{E}, x::E) =
+    A.direct!(y, x)
+
+apply_inverse{E}(A::FunctionalSelfAdjointOperator{E}, x::E) =
+    A.inverse(x)
+
+apply_inverse!{E}(y::E, A::FunctionalSelfAdjointOperator{E}, x::E) =
+    A.inverse!(y, x)
+
 
 #------------------------------------------------------------------------------
 # CHECKING OPERATOR
