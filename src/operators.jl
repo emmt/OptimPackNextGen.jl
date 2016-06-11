@@ -126,14 +126,14 @@ apply_inverse_adjoint!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) =
 
 
 """
-An `Endomorphism` is a `LinearOperator` with the same input and output spaces.
+A `LinearEndomorphism` is a `LinearOperator` with the same input and output spaces.
 """
-abstract Endomorphism{E} <: LinearOperator{E,E}
+abstract LinearEndomorphism{E} <: LinearOperator{E,E}
 
 """
-A `SelfAdjointOperator` is an `Endomorphism` which is its own adjoint.
+A `SelfAdjointOperator` is a `LinearEndomorphism` which is its own adjoint.
 """
-abstract SelfAdjointOperator{E} <: Endomorphism{E}
+abstract SelfAdjointOperator{E} <: LinearEndomorphism{E}
 
 apply_direct{E}(A::SelfAdjointOperator{E}, x::E) =
     apply_direct!(vcreate(x), A, x)
@@ -377,6 +377,7 @@ and behaves as follows:
 immutable DiagonalOperator{E} <: AbstractDiagonalOperator{E}
     diag::E
 end
+contents(A::DiagonalOperator) = A.diag
 
 function apply_direct{E}(A::DiagonalOperator{E}, src::E)
     vproduct(A.diag, src)

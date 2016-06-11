@@ -13,7 +13,7 @@ module Convolution
 
 import Base: eltype, size, ndims
 
-import TiPi: Endomorphism,
+import TiPi: LinearEndomorphism,
              input_size, output_size,
              input_ndims, output_ndims,
              input_eltype, output_eltype,
@@ -25,7 +25,7 @@ import Base.FFTW: fftwNumber, fftwReal, fftwComplex
 
 export CirculantConvolution
 
-type CirculantConvolution{T<:fftwNumber,C<:fftwComplex,N} <: Endomorphism{Array{T,N}}
+type CirculantConvolution{T<:fftwNumber,C<:fftwComplex,N} <: LinearEndomorphism{Array{T,N}}
     xdims::NTuple{N,Int}      # input dimensions
     zdims::NTuple{N,Int}      # complex dimensions
     mtf::Array{C,N}           # pre-scaled modulation transfer function

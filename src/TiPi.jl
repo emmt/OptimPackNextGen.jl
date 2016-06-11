@@ -25,14 +25,14 @@ export goodfftdim,
        check_gradient,
        prox,
        prox!,
-       AbstractCost,
+       AbstractCost, Hessian,
        CirculantConvolution,
        HyperbolicEdgePreserving,
        QuadraticCost,
        QuadraticSmoothness,
        CompactRegCauchy
 
-"""
+doc"""
 `Float` is the type of all floating point scalar, it is currently an alias to
 `Float64`.
 """
@@ -42,7 +42,7 @@ include("utils.jl")
 
 include("algebra.jl")
 import .Algebra: LinearOperator,
-                 Endomorphism,
+                 LinearEndomorphism,
                  SelfAdjointOperator,
                  Identity,
                  NormalEquations,
@@ -98,6 +98,7 @@ import .FFT: FFTOperator
 
 include("convolution.jl")
 using .Convolution
+
 include("AffineTransforms.jl")
 include("kernels.jl")
 include("interp.jl")
@@ -109,6 +110,10 @@ include("weights.jl")
 include("cost.jl")
 include("smooth.jl")
 include("hypersmooth.jl")
+
+include("invprob.jl")
+import .InverseProblems: QuadraticInverseProblem
+
 include("deconv.jl")
 include("compactRegCauchy.jl")
 
