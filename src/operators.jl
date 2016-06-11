@@ -359,6 +359,96 @@ end
 
 
 #------------------------------------------------------------------------------
+# FAKE OPERATORS
+
+doc"""
+
+Fake linear operators are sometimes needed as placeholders for optional
+arguments or keywords in methods to indicate that their value has not
+been specified while keeping a specific signature.  They came in several
+flavors:
+
+* `FakeLinearOperator{E,F}` inherits from `LinearOperator{E,F}`;
+
+* `FakeLinearEndomorphism{E}` inherits from `LinearEndomorphism{E}`;
+
+* `FakeSelfAdjointOperator{E}` inherits from `SelfAdjointOperator{E}`;
+
+To check whether a linear operator, say `A`, is a "fake" one:
+
+    is_fake(A)
+
+"""
+immutable FakeLinearOperator{E,F} <: LinearOperator{E,F} end
+
+FakeLinearOperator{E,F}(::Type{E},::Type{F}) =
+    FakeLinearOperator{E,F}()
+
+apply_direct{E,F}(::FakeLinearOperator{E,F}, ::F) =
+    error("attempt to apply fake linear operator")
+apply_direct!{E,F}(::E, ::FakeLinearOperator{E,F}, ::F) =
+    error("attempt to apply fake linear operator")
+apply_adjoint{E,F}(::FakeLinearOperator{E,F}, ::E) =
+    error("attempt to apply adjoint of fake linear operator")
+apply_adjoint!{E,F}(::F, ::FakeLinearOperator{E,F}, ::E) =
+    error("attempt to apply adjoint of fake linear operator")
+apply_inverse{E,F}(::FakeLinearOperator{E,F}, ::E) =
+    error("attempt to apply inverse of fake linear operator")
+apply_inverse!{E,F}(::F, ::FakeLinearOperator{E,F}, ::E) =
+    error("attempt to apply inverse of fake linear operator")
+apply_inverse_adjoint{E,F}(::FakeLinearOperator{E,F}, ::F) =
+    error("attempt to apply inverse adjoint of fake linear operator")
+apply_inverse_adjoint!{E,F}(::E, ::FakeLinearOperator{E,F}, ::F) =
+    error("attempt to apply inverse adjoint of fake linear operator")
+
+immutable FakeLinearEndomorphism{E} <: LinearEndomorphism{E} end
+
+@doc @doc(FakeLinearOperator) FakeLinearEndomorphism
+
+FakeLinearEndomorphism{E}(::Type{E}) =
+    FakeLinearEndomorphism{E}()
+
+apply_direct{E}(::FakeLinearEndomorphism{E}, ::E) =
+    error("attempt to apply fake linear operator")
+apply_direct!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
+    error("attempt to apply fake linear operator")
+apply_adjoint{E}(::FakeLinearEndomorphism{E}, ::E) =
+    error("attempt to apply adjoint of fake linear operator")
+apply_adjoint!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
+    error("attempt to apply adjoint of fake linear operator")
+apply_inverse{E}(::FakeLinearEndomorphism{E}, ::E) =
+    error("attempt to apply inverse of fake linear operator")
+apply_inverse!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
+    error("attempt to apply inverse of fake linear operator")
+apply_inverse_adjoint{E}(::FakeLinearEndomorphism{E}, ::E) =
+    error("attempt to apply inverse adjoint of fake linear operator")
+apply_inverse_adjoint!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
+    error("attempt to apply inverse adjoint of fake linear operator")
+
+immutable FakeSelfAdjointOperator{E} <: SelfAdjointOperator{E} end
+
+@doc @doc(FakeLinearOperator) FakeSelfAdjointOperator
+
+FakeSelfAdjointOperator{E}(::Type{E}) =
+    FakeSelfAdjointOperator{E}()
+
+apply_direct{E}(::FakeSelfAdjointOperator{E}, ::E) =
+    error("attempt to apply fake linear operator")
+apply_direct!{E}(::E, ::FakeSelfAdjointOperator{E}, ::E) =
+    error("attempt to apply fake linear operator")
+apply_inverse{E}(::FakeSelfAdjointOperator{E}, ::E) =
+    error("attempt to apply inverse of fake linear operator")
+apply_inverse!{E}(::E, ::FakeSelfAdjointOperator{E}, ::E) =
+    error("attempt to apply inverse of fake linear operator")
+
+is_fake(::LinearOperator) = false
+is_fake(::FakeLinearOperator) = true
+is_fake(::FakeLinearEndomorphism) = true
+is_fake(::FakeSelfAdjointOperator) = true
+
+@doc @doc(FakeLinearOperator) is_fake
+
+#------------------------------------------------------------------------------
 # DIAGONAL OPERATOR
 
 abstract AbstractDiagonalOperator{E} <: SelfAdjointOperator{E}
