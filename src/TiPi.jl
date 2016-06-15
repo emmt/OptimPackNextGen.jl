@@ -117,6 +117,9 @@ include("mda.jl")
 include("lnsrch.jl")
 include("quasi-newton.jl")
 include("step_globmin.jl")
+include("spg.jl")
+using .SPG
+
 include("weights.jl")
 include("cost.jl")
 include("smooth.jl")
