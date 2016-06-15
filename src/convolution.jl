@@ -13,7 +13,8 @@ module Convolution
 
 import Base: eltype, size, ndims
 
-import TiPi: LinearEndomorphism,
+import TiPi: ifftshift,
+             LinearEndomorphism,
              input_size, output_size,
              input_ndims, output_ndims,
              input_eltype, output_eltype,
@@ -76,16 +77,29 @@ and `mtf` the modulation transfer function.
 
 The operator `H` can be created by:
 
-    H = CirculantConvolution(psf, flags=FFTW.ESTIMATE, timelimit=Inf)
+    H = CirculantConvolution(psf, flags=FFTW.ESTIMATE, timelimit=Inf, shift=false)
 
-where `psf` is the point spread function (PSF).  Keyword `flags` is a
-bitwise-or of FFTW planner flags, defaulting to `FFTW.ESTIMATE`.  Keyword
-`timelimit` specifies a rough upper bound on the allowed planning time, in
-seconds.
+where `psf` is the point spread function (PSF).  Note that the PSF is assumed
+to be centered according to the convention of the discrete Fourier transform.
+You may use `ifftshift` or the keyword `shift` if the PSF is geometrically centered:
 
-If the operator is to be used many times (as in interative methods), it is
-recommended to use at least `flags=FFTW.MEASURE` which generally yields faster
-transforms compared to the default `flags=FFTW.ESTIMATE`.
+    H = CirculantConvolution(ifftshift(psf))
+    H = CirculantConvolution(psf, shift=true)
+
+The following keywords can be specified:
+
+* `shift` (`false` by default) indicates whether to apply `ifftshift` to `psf`.
+
+* `normalize` (`false` by default) indicates whether to divide `psf` by the sum
+  of its values.  This keyword is only available for real-valued PSF.
+
+* `flags` is a bitwise-or of FFTW planner flags, defaulting to `FFTW.ESTIMATE`.
+  If the operator is to be used many times (as in interative methods), it is
+  recommended to use at least `flags=FFTW.MEASURE` which generally yields
+  faster transforms compared to the default `flags=FFTW.ESTIMATE`.
+
+* `timelimit` specifies a rough upper bound on the allowed planning time, in
+  seconds.
 
 The operator can be used as a regular linear operator: `H(x)` or `H*x` to
 compute the convolution of `x` and `H'(x)` or `H'*x` to apply the adjoint of
@@ -105,7 +119,7 @@ If provided, `y` must be at a different memory location than `x`.
 # doc/convolution.md for explanations).
 function CirculantConvolution{T<:fftwReal,N}(psf::Array{Complex{T},N};
                                              flags::Integer=FFTW.ESTIMATE,
-                                             kws...)
+                                             shift::Bool=false, kws...)
     # Check arguments and get dimensions.
     planning = check_flags(flags)
     n = length(psf)
@@ -113,7 +127,7 @@ function CirculantConvolution{T<:fftwReal,N}(psf::Array{Complex{T},N};
 
     # Allocate array for the scaled MTF, will also be used
     # as a scratch array for planning which may destroy its input.
-    mtf = similar(psf)
+    mtf = Array(Complex{T}, dims)
 
     # Compute the plans with FFTW flags suitable for out-of-place forward
     # transform and in-place backward transform.
@@ -121,7 +135,7 @@ function CirculantConvolution{T<:fftwReal,N}(psf::Array{Complex{T},N};
     backward = plan_bfft!(mtf; flags=(planning | FFTW.DESTROY_INPUT), kws...)
 
     # Compute the scaled MTF.
-    A_mul_B!(mtf, forward, psf)
+    A_mul_B!(mtf, forward, (shift ? ifftshift(psf) : psf))
     scale!(mtf, T(1/n))
 
     # Build the operator.
@@ -132,7 +146,8 @@ end
 # Create a circular convolution operator for real arrays.
 function CirculantConvolution{T<:fftwReal,N}(psf::Array{T,N};
                                              flags::Integer=FFTW.ESTIMATE,
-                                             normalize::Bool=false, kws...)
+                                             normalize::Bool=false,
+                                             shift::Bool=false, kws...)
     # Check arguments and compute dimensions.
     planning = check_flags(flags)
     n = length(psf)
@@ -157,7 +172,7 @@ function CirculantConvolution{T<:fftwReal,N}(psf::Array{T,N};
                           kws...)
 
     # Compute the scaled MTF.
-    A_mul_B!(mtf, forward, psf)
+    A_mul_B!(mtf, forward, (shift ? ifftshift(psf) : psf))
     if normalize
         if real(mtf[1]) <= zero(T)
             throw(ArgumentError("cannot normalize: sum(PSF) ≤ 0"))
