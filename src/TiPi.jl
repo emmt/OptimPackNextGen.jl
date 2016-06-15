@@ -11,7 +11,14 @@
 
 module TiPi
 
+# The `apply` method is marked as deprecated but it is widely used in TiPi to
+# apply an operator, so we import it from `Base`.  The `apply!` method is not
+# defined elsewhere, so we export it.
+import Base: apply
+export apply!
+
 export MDA
+
 export goodfftdim,
        fftfreq,
        bounding_box,
@@ -31,6 +38,7 @@ export goodfftdim,
        QuadraticCost,
        QuadraticSmoothness,
        CompactRegCauchy
+
 
 doc"""
 `Float` is the type of all floating point scalar, it is currently an alias to
@@ -63,7 +71,6 @@ import .Algebra: LinearOperator,
                  output_ndims,
                  output_size,
                  output_type,
-                 apply,
                  apply!,
                  apply_direct,
                  apply_direct!,

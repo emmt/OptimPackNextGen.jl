@@ -9,7 +9,7 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-import Base: *, ⋅, \, ctranspose, call, diag, showerror
+import Base: *, ⋅, \, ctranspose, call, diag, showerror, apply, A_mul_B!
 
 import TiPi: subrange, dimlist, contents
 
@@ -114,6 +114,8 @@ apply_inverse_adjoint{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
     Product(Inverse(Adjoint(A)),B)
 
 # Shortcuts:
+A_mul_B!{E,F}(y::E, A::LinearOperator{E,F}, x::F) =
+    apply_direct!(y, A, x)
 apply!{E,F}(y::E, A::LinearOperator{E,F}, x::F) =
     apply_direct!(y, A, x)
 apply{E,F}(A::LinearOperator{E,F}, x::F) =
