@@ -491,8 +491,8 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
         color = (stage > 3 ? :red : :green)
         prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
         print_with_color(color, output, "# ", prefix, reason, "\n")
-    elseif stage > 3
-        warn(reason)
+    #elseif stage > 3
+        #warn(reason)
     end
 end
 
