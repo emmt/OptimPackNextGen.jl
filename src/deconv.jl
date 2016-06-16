@@ -58,7 +58,7 @@ function fast_deconv{T<:fftwNumber,R<:fftwReal,N}(dat::Array{T,N},
                                                   rgl::Array{R,N};
                                                   F::FFTOperator=FFTOperator(dat))
     R === real(T) || throw(ArgumentError("bad regularization weights type"))
-    size(rgl) == size(dat) || throw(ArgumentError("bad regularization weights size"))
+    size(rgl) != output_size(F) || throw(ArgumentError("bad regularization weights size"))
     h, z, wrk = prepare_fast_deconv(dat, psf, F)
     const scale = convert(R, 1/length(dat))
     @inbounds @simd for k in 1:length(z)
