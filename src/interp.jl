@@ -9,7 +9,7 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-import Base.sparse
+import Base: sparse, eltype
 
 immutable Interpolator{T<:AbstractFloat,N} <: LinearOperator{AbstractArray{T,N},
                                                              AbstractArray{T,1}}
