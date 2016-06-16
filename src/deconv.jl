@@ -9,15 +9,180 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-# FIXME: use real-complex FFT
 module Deconv
 
-using ..Algebra
-import ..Algebra: apply_direct, apply_adjoint, apply_direct!
+import Base: size, convert
 
-import TiPi: cost, cost!, AbstractCost
-import TiPi: defaultweights, pad, zeropad
-import TiPi.MDA
+import TiPi: Float, MDA,
+             AbstractCost, cost, cost!,
+             default_weights, pad, zeropad,
+             NormalEquations,
+             LinearOperator, SelfAdjointOperator, FFTOperator,
+             apply_direct, apply_direct!,
+             apply_adjoint, apply_adjoint!,
+             input_size, output_size,
+             vcreate, vupdate!, vcombine!, vcopy!, vdot, vscale, vscale!
+
+import Base: DFT, FFTW
+import Base.FFTW: fftwNumber, fftwReal, fftwComplex
+
+doc"""
+
+    fast_deconv(dat, psf, rgl)
+
+Perform a fast deconvolution using a simplified Wiener filter.  Argument `dat`
+is the input data (blurred and noisy).  The result has the same dimensions as
+`dat`.  Argument `psf` is the point spread function.  It is assumed to be
+geometrically centered (same convetions as `TiPi.ifftshift`).  It is
+automatically zero-padded if its dimensions are smaller than those of the data.
+Argument `rgl` is the regularization level, its value should be nonnegative,
+the higher the smoother the result.
+
+Keyword `F` can be set with an instance of `TiPi.FFTOperator` suitable for
+computing the discrete Fourier transform of the data.  The default is:
+
+    F = TiPi.FFTOperator(dat)
+
+"""
+function fast_deconv{T<:fftwNumber,N}(dat::Array{T,N}, psf::Array{T,N},
+                                      rgl::Real;
+                                      F::Union{FFTOperator,Void}=nothing)
+    @assert rgl ≥ 0
+    if fast_deconv_check_dims(dat, psf)
+        psf = zeropad(psf, size(dat))
+    end
+    if is(F, nothing)
+        F = FFTOperator(dat)
+    end
+    tmp = ifftshift(psf) # will also serve to store the resulting image
+    h = F(tmp)
+    z = F(dat)
+    const alpha = convert(real(T), rgl)
+    const scale = convert(real(T), 1/length(dat))
+    @simd for k in 1:length(z)
+        @inbounds z[k] *= scale/(abs2(h[k]) + alpha)*conj(h[k])
+    end
+    return apply_adjoint!(tmp, F, z)
+end
+
+function fast_deconv{T<:fftwReal,N}(dat::Array{T,N}, psf::Array{T,N},
+                                    rgl::Array{T,N}; kws...)
+    _fast_deconv_helper(dat, psf, rgl; kws...)
+end
+
+function fast_deconv{T<:fftwReal,N}(dat::Array{Complex{T},N},
+                                    psf::Array{Complex{T},N},
+                                    rgl::Array{T,N}; kws...)
+    _fast_deconv_helper(dat, psf, rgl; kws...)
+end
+
+typealias RealComplexArray{T,N} Union{Array{T,N},Array{Complex{T},N}}
+
+function _fast_deconv_helper{T<:fftwReal,N}(dat::RealComplexArray{T,N},
+                                            psf::RealComplexArray{T,N},
+                                            rgl::Array{T,N};
+                                            F::Union{FFTOperator,Void}=nothing)
+    if fast_deconv_check_dims(dat, psf)
+        psf = zeropad(psf, size(dat))
+    end
+    if is(F, nothing)
+        F = FFTOperator(dat)
+    end
+    @assert size(rgl) == output_size(F)
+    tmp = ifftshift(psf) # will also serve to store the resulting image
+    h = F(tmp)
+    z = F(dat)
+    const scale = convert(T, 1/length(dat))
+    @simd for k in 1:length(z)
+        @inbounds z[k] *= scale/(abs2(h[k]) + rgl[k])*conj(h[k])
+    end
+    return apply_adjoint!(tmp, F, z)
+end
+
+function fast_deconv_check_dims{R,S,N}(dat::Array{R,N}, psf::Array{S,N})
+    padding = false
+    for i in 1:N
+        if size(psf, i) < size(dat, i)
+            padding = true
+        end
+        if size(psf, i) > size(dat, i)
+            error("dimensions of PSF must not be larger than those of data")
+        end
+    end
+    return padding
+end
+
+function deconv_check_dims{T,N}(dat::Array{T,N}, psf::Array{T,N},
+                                dims::NTuple{N,Int})
+    for i in 1:N
+        dims[i] < 1 && error("bad dimension")
+        dims[i] < max(size(dat,i) + size(psf,i)) && error("too small dimension")
+    end
+end
+
+function padding{T,N}(arr::Array{T,N}, dims::NTuple{N,Int})
+    answer = false
+    for i in 1:N
+        dims[i] < 1 && error("bad dimension")
+        dims[i] < size(arr,i) && error("too small dimension")
+        if dims[i] > size(arr,i)
+            answer = true
+        end
+    end
+    return answer
+end
+
+function quad_deconv{T<:fftwNumber,N}(dat::Array{T,N}, psf::Array{T,N},
+                                      rgl::Real;
+                                      wgt::Union{Array{T,N},Void}=nothing,
+                                      dims::Union{NTuple{N,Int},Void}=nothing,
+                                      fftwflags::Integer=FFTW.ESTIMATE,
+                                      timelimits::Real=FFTW.NO_TIME_LIMIT,
+                                      kws...)
+    @assert rgl ≥ 0
+    if is(dims, nothing)
+        if ! is(F, nothing)
+            dims = input_dims(F)
+            deconv_check_dims(dat, psf, dims)
+        else
+            dims = ntuple(i -> goodfftdim(size(dat,i) + size(psf,i) - 1), N)
+        end
+    else
+        deconv_check_dims(dat, psf, dims)
+    end
+
+    W::SelfAdjointOperator{Array{T,N}}
+    if is(wgt, nothing)
+        if padding(dat, dims)
+            W = ScalingOperator(pad(default_weights(dat)))
+            dat = pad(dat, dims)
+        else
+            W = Identity(Array{T,N})
+        end
+    else
+        @assert size(wgt) == size(dat)
+        check_weights(dat, wgt) # FIXME:
+        if padding(dat, dims)
+            dat = pad(dat, dims)
+            wgt = pad(wgt, dims)
+        end
+        W = ScalingOperator(wgt)
+    end
+
+    work::Array{T,N} # will also serve to store the resulting image
+    if padding(psf, dims)
+        psf = pad(psf, dims)
+        work = psf
+    else
+        work = Array(T, dims)
+    end
+    H = CirculantConvolution(psf, shift=true, flags=fftwflags,
+                             timelimits=timelimits)
+
+    ip = QuadraticInverseProblem(H, dat, W; µ=rgl)
+    vfill!(sol, 0)
+    solve!(ip, sol; kws...)
+end
 
 type DeconvolutionParam{T<:AbstractFloat,N} <: AbstractCost
     # Settings from the data.
@@ -40,50 +205,88 @@ type DeconvolutionParam{T<:AbstractFloat,N} <: AbstractCost
     end
 end
 
-function buildmask{T<:AbstractFloat,N}(y::Array{T,N}, w::Array{T,N})
-    @assert size(w) == size(y)
-    msk = Array(Bool, size(y))
+function fix_data!{T<:AbstractFloat,N}(dat::Array{T,N}, wgt::Array{T,N};
+                                       bad::Real=NaN)
+
+    @assert size(wgt) == size(dat)
+    bad::T = bad
     cnt = 0
-    for i in 1:length(y)
-        if isnan(w[i]) || isinf(w[i]) || w[i] < zero(T)
-            error("invalid weights")
-        end
-        if isnan(y[i]) && w[i] > zero(T)
-            error("invalid data must have zero-weight")
-        end
-        if isinf(y[i])
-            error("invalid data value(s)")
-        end
-        msk[i] = (w[i] > zero(T))
-        if msk[i]
-            cnt += 1
+    @inbounds begin
+        for i in 1:length(dat)
+            if isnan(wgt[i]) || isinf(wgt[i]) || wgt[i] < zero(T)
+                error("invalid weights")
+            end
+            if isinf(dat[i])
+                if wgt[i] > zero(T)
+                    error("invalid infinite data value(s) with non-zero weights")
+                end
+                dat[i] = zero(T) # to avoid problems later
+            elseif isnan(dat[i])
+                wgt[i] = zero(T)
+                dat[i] = zero(T) # to avoid problems later
+            elseif wgt[i] > zero(T)
+                cnt += 1
+            end
         end
     end
-    return (cnt, msk)
+    return cnt
 end
 
-function compute_mtf{T<:AbstractFloat,N}(h::Array{T,N},
-                                         dims::NTuple{N,Int};
-                                         normalize::Bool=false,
-                                         verbose::Bool=false)
+function compute_mtf{T<:AbstractFloat,N}(psf::Array{T,N},
+                                         dims::NTuple{N,Int}, flags::UInt)
     # Check PSF values.
     s::T = zero(T)
-    for i in 1:length(h)
-        if isnan(h[i]) || isinf(h[i])
-            error("invalid PSF value(s)")
+    @inbounds begin
+        for i in 1:length(psf)
+            if isnan(psf[i]) || isinf(psf[i])
+                error("invalid PSF value(s)")
+            end
+            s += psf[i]
         end
-        s += h[i]
     end
 
     # Normalize PSF if requested.
-    if normalize && s != 1
-        verbose && warn("the PSF is not normalized ($s)")
+    if (flags & NORMALIZE) != 0 && s != 1
+        if (flags & VERBOSE) != 0
+            warn("the PSF is not normalized ($s)")
+        end
         s != 0 || error("sum(PSF) = 0")
-        h = scale(convert(T,1/s), h)
+        psf = scale(one(T)/s, psf)
     end
 
     # Compute the MTF.
-    mtf = ifftshift(pad(zero(Complex{T}), h, dims))
+    if (flags & USE_RFFT) != 0
+        mtf = rfft(ifftshift(pad(zero(T), psf, dims)))
+    else
+        mtf = ifftshift(pad(zero(Complex{T}), psf, dims))
+        fft!(mtf)
+    end
+    return mtf
+end
+
+function compute_mtf{T<:AbstractFloat,N}(psf::Array{Complex{T},N},
+                                         dims::NTuple{N,Int}, flags::UInt)
+    # Check flags.
+    if (flags & NORMALIZE) != 0
+        error("normalization of complex PSF not implemented")
+    end
+    if (flags & USE_RFFT) != 0
+        error("real-complex transform not possible with complex PSF")
+    end
+
+    # Check PSF values.
+    @inbounds begin
+        for i in 1:length(psf)
+            re = psf[i].re
+            im = psf[i].im
+            if isnan(re) || isinf(re) || isnan(im) || isinf(im)
+                error("invalid PSF value(s)")
+            end
+        end
+    end
+
+    # Compute the MTF.
+    mtf = ifftshift(pad(zero(Complex{T}), psf, dims))
     fft!(mtf)
     return mtf
 end
@@ -91,10 +294,8 @@ end
 function deconvparam{T<:AbstractFloat,N}(h::Array{T,N},
                                          y::Array{T,N},
                                          xdims::NTuple{N,Int};
-                                         normalize::Bool=false,
-                                         verbose::Bool=false)
-    deconvparam(h, y, defaultweights(y), xdims;
-                normalize=normalize, verbose=verbose)
+                                         keywords...)
+    deconvparam(h, y, default_weights(y), xdims; keywords...)
 end
 
 function deconvparam{T<:AbstractFloat,N}(h::Array{T,N},
@@ -138,11 +339,12 @@ function deconvparam{T<:AbstractFloat,N}(h::Array{T,N},
 
 end
 
+
 function cost{T,N}(alpha::Real, param::DeconvolutionParam{T,N},
                    x::Array{T,N})
 
     # Integrate un-weighted cost.
-    @assert(size(x) == size(param.msk))
+    @assert size(x) == size(param.msk)
 
     # Short circuit if weight is zero.
     if alpha == 0
@@ -157,8 +359,11 @@ function cost{T,N}(alpha::Real, param::DeconvolutionParam{T,N},
 
     # Every FFT if done in-place in the workspace z
     const n = length(z)
-    for i in 1:n
-        z[i] = x[i]
+    const m = length(y)
+    @inbounds begin
+        @simd for i in 1:n
+            z[i] = x[i]
+        end
     end
     fft!(z)
     # FIXME: check whether z[i] *= h[i] or, better, z *= h is as fast
@@ -174,11 +379,14 @@ function cost{T,N}(alpha::Real, param::DeconvolutionParam{T,N},
     const scl::T = 1/n
     j = 0
     err::Cdouble = 0
-    for i in 1:n
-        if msk[i]
-            j += 1
-            r = scl*z[i].re - y[j]
-            err += wgt[j]*r*r
+    @inbounds begin
+        for i in 1:n
+            if msk[i]
+                j < m || throw(BoundsError())
+                j += 1
+                r = scl*z[i].re - y[j]
+                err += wgt[j]*r*r
+            end
         end
     end
     return alpha*err
@@ -187,7 +395,8 @@ end
 function cost!{T,N}(alpha::Real, param::DeconvolutionParam{T,N},
                     x::Array{T,N}, g::Array{T,N}, clr::Bool=false)
     # Minimal checking.
-    @assert(size(x) == size(g))
+    @assert size(x) == size(g)
+    @assert size(x) == size(param.h)
 
     # Clear gradient if requested.
     clr && vfill!(g, 0)
@@ -204,48 +413,35 @@ function cost!{T,N}(alpha::Real, param::DeconvolutionParam{T,N},
 
     # Every FFT if done in-place in the workspace z
     const n = length(z)
-    for i in 1:n
-        z[i] = x[i]
-    end
+    const m = length(y)
+    _copy!(z, x)
     fft!(z)
-    # FIXME: check whether z[i] *= h[i] or, better, z *= h is as fast
-    for i in 1:n
-        z_re = z[i].re
-        z_im = z[i].im
-        h_re = h[i].re
-        h_im = h[i].im
-        z[i] = complex(h_re*z_re - h_im*z_im,
-                       h_re*z_im + h_im*z_re)
-    end
+    _multiply!(z, h, false)
     bfft!(z)
     scl::T = 1/n
     j = 0
     err::Cdouble = 0
-    for i in 1:n
-        if msk[i]
-            j += 1
-            r = scl*z[i].re - y[j]
-            wr = wgt[j]*r
-            err += wr*r
-            z[i] = wr
-        else
-            z[i] = 0
+    @inbounds begin
+        @simd for i in 1:n
+            if msk[i]
+                j += 1
+                r = scl*z[i].re - y[j]
+                wr = wgt[j]*r
+                err += wr*r
+                z[i] = wr
+            else
+                z[i] = 0
+            end
         end
     end
     fft!(z)
-    # FIXME: check whether z[i] *= conj(h[i]) or, better, z *= conj(h) is as fast
-    for i in 1:n
-        z_re = z[i].re
-        z_im = z[i].im
-        h_re = h[i].re
-        h_im = h[i].im
-        z[i] = complex(h_re*z_re + h_im*z_im,
-                       h_re*z_im - h_im*z_re)
-    end
+    _multiply!(z, h, true)
     bfft!(z)
     scl = 2*alpha/n
-    for i in 1:n
-        g[i] += scl*z[i].re
+    @inbounds begin
+        @simd for i in 1:n
+            g[i] += scl*z[i].re
+        end
     end
 
     return alpha*err
@@ -274,7 +470,7 @@ end
 
 function init{T<:AbstractFloat,N}(h::Array{T,N}, y::Array{T,N},
                                   xdims::NTuple{N,Int}, alpha)
-    return init(h, y, defaultweights(y), xdims, alpha)
+    return init(h, y, default_weights(y), xdims, alpha)
 end
 
 
@@ -294,14 +490,14 @@ function init{S<:Real,T<:AbstractFloat,N}(h::Array{T,N},
                                           alpha::Vector{S};
                                           normalize::Bool=false,
                                           verbose::Bool=false)
-    @assert(length(alpha) == N)
+    @assert length(alpha) == N
     size(w) == size(y) || error("incompatible $(k)-th dimension of weights")
 
     a = Array(Float64, N)
     other = Array(Vector{Int}, N)
     for k in 1:N
         if max(size(y,k), size(h,k)) > xdims[k]
-            error("output $(k)-th dimension too small")
+            error("output "*nth(k)*" dimension too small")
         end
         if isnan(alpha[k]) || isinf(alpha[k]) || alpha[k] < zero(S)
             error("invalid regularization weights")
@@ -321,14 +517,7 @@ function init{S<:Real,T<:AbstractFloat,N}(h::Array{T,N},
     end
     z = pad(zero(Complex{T}), wy, xdims)
     fft!(z)
-    for i in 1:length(z)
-        z_re = z[i].re
-        z_im = z[i].im
-        h_re = mtf[i].re
-        h_im = mtf[i].im
-        z[i] = complex(h_re*z_re + h_im*z_im,
-                       h_re*z_im - h_im*z_re)
-    end
+    _multiply!(z, h, true)
     bfft!(z)
     b = Array(T, xdims)
     scl::T = 1/length(z)
@@ -346,7 +535,7 @@ function init{S<:Real,T<:AbstractFloat,N}(h::Array{T,N},
                 tmp[j] = w[i]
             end
         end
-        @assert(j == cnt)
+        @assert j == cnt
         w = tmp
     end
 
@@ -372,20 +561,13 @@ function apply_direct!{T,N}(dst::Array{T,N},
     # Compute dst = H'.W.H.src
     #########################
 
-    # Every FFT if done in-place in the workspace z
+    # Every FFT is done in-place in the workspace z
     const n = length(z)
     for i in 1:n
         z[i] = src[i]
     end
     fft!(z)
-    for i in 1:n
-        z_re = z[i].re
-        z_im = z[i].im
-        h_re = h[i].re
-        h_im = h[i].im
-        z[i] = complex(h_re*z_re - h_im*z_im,
-                       h_re*z_im + h_im*z_re)
-    end
+    _multiply!(z, h, false)
     bfft!(z)
     const scl::T = 1/(n*n)
     j = 0
@@ -398,14 +580,7 @@ function apply_direct!{T,N}(dst::Array{T,N},
         end
     end
     fft!(z)
-    for i in 1:n
-        z_re = z[i].re
-        z_im = z[i].im
-        h_re = h[i].re
-        h_im = h[i].im
-        z[i] = complex(h_re*z_re + h_im*z_im,
-                       h_re*z_im - h_im*z_re)
-    end
+    _multiply!(z, h, true)
     bfft!(z)
     for i in 1:n
         dst[i] = z[i].re
@@ -423,8 +598,8 @@ function DtD!{S<:Real, T<:AbstractFloat}(alpha::Vector{S},
                                          other::Array{Vector{Int}},
                                          q::Array{T,1},
                                          p::Array{T,1})
-    @assert(length(alpha) == 1)
-    @assert(length(other) == 1)
+    @assert length(alpha) == 1
+    @assert length(other) == 1
     #vfill!(q, zero(T))
     alpha1::T = alpha[1]
     other1 = other[1]
@@ -439,8 +614,8 @@ end
 function DtD!{S<:Real, T<:AbstractFloat}(alpha::Vector{S},
                                          other::Vector{Vector{Int}},
                                          q::Array{T,2}, p::Array{T,2})
-    @assert(length(alpha) == 2)
-    @assert(length(other) == 2)
+    @assert length(alpha) == 2
+    @assert length(other) == 2
     #vfill!(q, zero(T))
     dim1 = size(p, 1)
     dim2 = size(p, 2)
@@ -448,8 +623,8 @@ function DtD!{S<:Real, T<:AbstractFloat}(alpha::Vector{S},
     alpha2 = alpha[2]
     other1 = other[1]
     other2 = other[2]
-    @assert(length(other1) == dim1)
-    @assert(length(other2) == dim2)
+    @assert length(other1) == dim1
+    @assert length(other2) == dim2
     for i2 in 1:dim2
         i2o = other2[i2]
         for i1 in 1:dim1
@@ -462,5 +637,134 @@ function DtD!{S<:Real, T<:AbstractFloat}(alpha::Vector{S},
         end
     end
 end
+
+#------------------------------------------------------------------------------
+
+# FIXME: should be part of utils.jl
+
+function _copy!{T,N}(dst::Array{T,N}, src::Array{T,N})
+    if !is(dst, src)
+        @assert size(dst) == size(src)
+        @inbounds begin
+            @simd for i in 1:length(dst)
+                dst[i] = src[i]
+            end
+        end
+    end
+end
+
+function _copy!{D,S,N}(dst::Array{D,N}, src::Array{S,N})
+    @assert size(dst) == size(src)
+    @inbounds begin
+        @simd for i in 1:length(dst)
+            dst[i] = src[i]
+        end
+    end
+end
+
+"""
+    _copy!(dst, src)
+
+copies the values of the source `src` into the destination `dst`.  An error is
+thrown if the source and destination do not have the same dimensions.  The
+types of their elements may be different.
+
+""" _copy!
+
+function _scale!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                     scl::T,
+                                     src::Array{T,N})
+    @assert size(dst) == size(src)
+    @inbounds begin
+        @simd for i in 1:length(dst)
+            dst[i] = scl*src[i]
+        end
+    end
+end
+
+function _scale!{T<:AbstractFloat,N}(dst::Array{Complex{T},N},
+                                     scl::T,
+                                     src::Array{Complex{T},N})
+    @assert size(dst) == size(src)
+    @inbounds begin
+        @simd for i in 1:length(dst)
+            dst[i] = scl*src[i]
+        end
+    end
+end
+
+function _scale!{T<:AbstractFloat,N}(dst::Array{T,N},
+                                     scl::T,
+                                     src::Array{Complex{T},N})
+    @assert size(dst) == size(src)
+    @inbounds begin
+        @simd for i in 1:length(dst)
+            dst[i] = scl*src[i].re
+        end
+    end
+end
+
+function _scale!{T<:AbstractFloat,N}(dst::Array{Complex{T},N},
+                                     scl::T,
+                                     src::Array{T,N})
+    @assert size(dst) == size(src)
+    @inbounds begin
+        @simd for i in 1:length(dst)
+            dst[i] = scl*src[i].re
+        end
+    end
+end
+
+"""
+    _scale!(dst, alpha, src)
+
+copies the values of the source `src` scaled by the factor `alpha` into the
+destination `dst`.  An error is thrown if the source and destination do not
+have the same dimensions.  The types of their elements may be different.
+
+""" _scale!
+
+# Fast in-place multiplication by the MTF.
+function _multiply!{T,N}(arr::Array{Complex{T},N},
+                         mtf::Array{Complex{T},N},
+                         conjugate::Bool=false)
+    @assert size(arr) == size(mtf)
+    if conjugate
+        @inbounds begin
+            @simd for i in 1:length(arr)
+                arr_re = arr[i].re
+                arr_im = arr[i].im
+                mtf_re = mtf[i].re
+                mtf_im = mtf[i].im
+                arr[i] = complex(mtf_re*arr_re + mtf_im*arr_im,
+                                 mtf_re*arr_im - mtf_im*arr_re)
+            end
+        end
+    else
+        @inbounds begin
+            @simd for i in 1:length(arr)
+                arr_re = arr[i].re
+                arr_im = arr[i].im
+                mtf_re = mtf[i].re
+                mtf_im = mtf[i].im
+                arr[i] = complex(mtf_re*arr_re - mtf_im*arr_im,
+                                 mtf_re*arr_im + mtf_im*arr_re)
+            end
+        end
+    end
+end
+
+"""
+    _multiply!(arr, mtf)
+    _multiply!(arr, mtf, false)
+
+stores in `arr` the elementwise multiplication of `arr` by `mtf`, while:
+
+    _multiply!(arr, mtf, true)
+
+stores in `arr` the elementwise multiplication of `arr` by `conj(mtf)`.  An
+error is thrown if the arrays do not have the same dimensions.
+
+""" _multiply!
 
 end # module
