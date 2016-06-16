@@ -2,21 +2,34 @@ module Test
 
 using TiPi
 import TiPi: apply_direct, apply_adjoint, apply_inverse, apply_inverse_adjoint,
-             vcombine
+             vcombine, vcreate, vcopy!
 
 abstract VectorSpace
 
-type SpaceE <: VectorSpace; name::AbstractString; end
-type SpaceF <: VectorSpace; name::AbstractString; end
-type SpaceG <: VectorSpace; name::AbstractString; end
-type SpaceH <: VectorSpace; name::AbstractString; end
+for space in (:SpaceE, :SpaceF, :SpaceG, :SpaceH)
+    @eval type $space <: VectorSpace
+        name::AbstractString
+        $space(name::AbstractString) = new(preserve(name))
+    end
+end
 
 type TestOperator{E,F} <: LinearOperator{E,F}
     name::AbstractString
+    TestOperator(name::AbstractString) = new(preserve(name))
 end
 
 type BogusOperator{E,F} <: LinearOperator{E,F}
     name::AbstractString
+    BogusOperator(name::AbstractString) = new(preserve(name))
+end
+
+function preserve(str::ASCIIString)
+    str = strip(str)
+    if length(str) == 0 || (ismatch(r"[-+*/\\']", str) && (str[1] != '(' || str[end] != ')'))
+        return "("*str*")"
+    else
+        return str
+    end
 end
 
 import Base: show
@@ -28,7 +41,12 @@ show{T<:VectorSpace}(io::IO, x::T) = print(io, x.name)
 apply_direct{E,F}(A::TestOperator{E,F}, x::F) = E(A.name * "*" * x.name)
 apply_adjoint{E,F}(A::TestOperator{E,F}, x::E) = F(A.name * "'*" * x.name)
 
-vcombine{E<:Union{TestOperator,BogusOperator}}(alpha::Real, x::E, beta::Real, y::E) = E(string(alpha,"*",x.name," + ",beta,"*",y.name))
+vcreate{E<:VectorSpace}(x::E) = E("")
+
+vcopy!{E<:VectorSpace}(dst::E, src::E) = (dst.name = src.name; dst)
+
+vcombine{E<:Union{TestOperator,BogusOperator,VectorSpace}}(alpha::Real, A::E, beta::Real, B::E) =
+    E(string(alpha,"*",A.name," + ",beta,"*",B.name))
 
 apply_direct{E,F}(A::BogusOperator{E,F}, x::F) = F(A.name * "*" * x.name)
 apply_adjoint{E,F}(A::BogusOperator{E,F}, x::E) = E(A.name * "'*" * x.name)
@@ -78,6 +96,7 @@ function runtests()
     M = 2F'F + (3U*A')'
     N = F*M
     println(M*w)
+    println(N*w)
 
     println(A*x)
     println(A(x))
