@@ -15,7 +15,7 @@ module Deconv
 using ..Algebra
 import ..Algebra: apply_direct, apply_adjoint, apply_direct!
 
-import TiPi: cost, cost!, AbstractCost
+import TiPi: cost, cost!, AbstractCost, SelfAdjointOperator
 import TiPi: defaultweights, pad, zeropad
 import TiPi.MDA
 
