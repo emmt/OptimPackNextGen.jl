@@ -22,9 +22,11 @@
 
 module SPG
 
+using TiPi
+import TiPi.Float
+using TiPi.Algebra
+
 export spg2, spg2!, spg2_reason
-import TiPi: Float, vcreate, vcopy, vcopy!, vcombine!, vfill!, vdot,
-             vnorm2, vnorminf
 
 const WORK_IN_PROGRESS     =  0
 const INFNORM_CONVERGENCE  =  1

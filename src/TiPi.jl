@@ -17,9 +17,8 @@ module TiPi
 import Base: apply
 export apply!
 
-export MDA
-
-export goodfftdim,
+export MDA,
+       goodfftdim,
        fftfreq,
        bounding_box,
        crop,
@@ -38,6 +37,7 @@ export goodfftdim,
        QuadraticCost,
        QuadraticSmoothness,
        CompactRegCauchy,
+       Algebra,
        Operator,
        NonlinearOperator,
        NonlinearEndomorphism,
@@ -63,67 +63,13 @@ typealias Float Float64
 include("utils.jl")
 
 include("algebra.jl")
-import .Algebra: Operator,
-                 NonlinearOperator,
-                 NonlinearEndomorphism,
-                 LinearOperator,
-                 LinearEndomorphism,
-                 SelfAdjointOperator,
-                 Identity,
-                 NormalEquations,
-                 DiagonalOperator,
-                 RankOneOperator,
-                 ScalingOperator,
-                 CroppingOperator,
-                 ZeroPaddingOperator,
-                 FakeLinearOperator,
-                 is_fake,
-                 input_eltype,
-                 input_ndims,
-                 input_size,
-                 input_type,
-                 output_eltype,
-                 output_ndims,
-                 output_size,
-                 output_type,
-                 apply!,
-                 apply_direct,
-                 apply_direct!,
-                 apply_adjoint,
-                 apply_adjoint!,
-                 apply_inverse,
-                 apply_inverse!,
-                 apply_inverse_adjoint,
-                 apply_inverse_adjoint!,
-                 check_operator,
-                 is_identity,
-                 vcombine,
-                 vcombine!,
-                 vcopy,
-                 vcopy!,
-                 vcreate,
-                 vdot,
-                 vfill!,
-                 vnorm1,
-                 vnorm2,
-                 vnorminf,
-                 vproduct,
-                 vproduct!,
-                 vscale,
-                 vscale!,
-                 vswap!,
-                 vupdate!,
-                 conjgrad,
-                 project_variables!,
-                 project_direction!,
-                 step_limits,
-                 get_free_variables
+importall .Algebra
 
 include("fft.jl")
-import .FFT: FFTOperator
+importall .FFT
 
 include("convolution.jl")
-using .Convolution
+importall .Convolution
 
 include("AffineTransforms.jl")
 include("kernels.jl")
@@ -133,7 +79,7 @@ include("lnsrch.jl")
 include("quasi-newton.jl")
 include("step_globmin.jl")
 include("spg.jl")
-using .SPG
+importall .SPG
 
 include("weights.jl")
 include("cost.jl")
@@ -141,8 +87,7 @@ include("smooth.jl")
 include("hypersmooth.jl")
 
 include("invprob.jl")
-import .InverseProblems: QuadraticInverseProblem,
-                         solve, solve!
+importall .InverseProblems
 
 include("deconv.jl")
 include("compactRegCauchy.jl")

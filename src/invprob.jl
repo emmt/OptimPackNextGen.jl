@@ -13,25 +13,11 @@ module InverseProblems
 
 import Base: size, convert
 
-import TiPi: Float, MDA,
-             AbstractCost, cost, cost!,
-             Hessian,
-             default_weights, pad, zeropad,
-             NormalEquations,
-             LinearOperator, SelfAdjointOperator, FakeLinearOperator,
-             Identity, ScalingOperator, DiagonalOperator,
-             is_fake,
-             apply, apply!,
-             apply_direct, apply_direct!,
-             apply_adjoint, apply_adjoint!,
-             input_size, output_size,
-             input_type, output_type,
-             vcreate,
-             vupdate!,
-             vcombine, vcombine!,
-             vcopy, vcopy!,
-             vdot,
-             vscale, vscale!
+using TiPi
+import TiPi.Float
+importall TiPi.Algebra
+
+export QuadraticInverseProblem, solve, solve!
 
 doc"""
 # General Quadratic Inverse Problem

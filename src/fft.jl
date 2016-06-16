@@ -11,17 +11,11 @@
 
 module FFT
 
-import TiPi: LinearOperator,
-             apply_direct, apply_direct!,
-             apply_adjoint, apply_adjoint!,
-             apply_inverse, apply_inverse!,
-             apply_inverse_adjoint, apply_inverse_adjoint!,
-             input_size, output_size,
-             input_ndims, output_ndims,
-             input_eltype, output_eltype
-
 import Base: DFT, FFTW
 import Base.FFTW: fftwNumber, fftwReal, fftwComplex
+
+using TiPi
+importall TiPi.Algebra
 
 export FFTOperator
 

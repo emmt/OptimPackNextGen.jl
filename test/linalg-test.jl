@@ -1,8 +1,7 @@
 module Test
 
 using TiPi
-import TiPi: apply_direct, apply_adjoint, apply_inverse, apply_inverse_adjoint,
-             vcombine, vcreate, vcopy!
+importall TiPi.Algebra
 
 abstract VectorSpace
 

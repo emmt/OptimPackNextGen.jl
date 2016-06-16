@@ -12,17 +12,11 @@
 module Convolution
 
 import Base: eltype, size, ndims
-
-import TiPi: ifftshift,
-             LinearEndomorphism,
-             input_size, output_size,
-             input_ndims, output_ndims,
-             input_eltype, output_eltype,
-             apply_direct, apply_direct!,
-             apply_adjoint, apply_adjoint!
-
 import Base: DFT, FFTW
 import Base.FFTW: fftwNumber, fftwReal, fftwComplex
+
+using TiPi
+importall TiPi.Algebra
 
 export CirculantConvolution
 
