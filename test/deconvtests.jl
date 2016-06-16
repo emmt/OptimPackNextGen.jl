@@ -1,4 +1,53 @@
-include("../src/TiPi.jl")
+module Test
+
+using Base.Test
+using TiPi
+
+function runtests()
+    n1, n2, n3 = 384, 128, 32
+    for dims in ((n1,), (n1,n2), (n1,n2,n3))
+        println("\nTesting $(length(dims))-D convolution with dims = $dims")
+        println(" * Real convolution:")
+        x = rand(dims)
+        h = rand(dims)
+        H = CirculantConvolution(h, flags=FFTW.MEASURE)
+        y = H*x
+        z = real(ifft(fft(h).*fft(x)))
+        err = maximum(abs(y - z))/maximum(abs(z))
+        println("    > max. err. with fft:  $err")
+        z = irfft(rfft(h).*rfft(x), n1)
+        err = maximum(abs(y - z))/maximum(abs(z))
+        println("    > max. err. with rfft: $err")
+        n = length(x)
+        m = max(1, round(Int, 1e9/(n*log2(n))))
+        println("    > timings for $m convolutions ($(round(Int,m*n*log2(n))) operations):")
+        print("       - simple code with fft:   ")
+        @time for k in 1:m; z = real(ifft(fft(h).*fft(x))); end
+        print("       - simple code with rfft:  ")
+        @time for k in 1:m; z = irfft(rfft(h).*rfft(x), n1); end
+        print("       - TiPi operator (apply):  ")
+        @time for k in 1:m; y = H*x; end
+        print("       - TiPi operator (apply!): ")
+        @time for k in 1:m; apply!(y, H, x); end
+
+        println(" * Complex convolution:")
+        x = complex(rand(dims),rand(dims))
+        h = complex(rand(dims),rand(dims))
+        H = CirculantConvolution(h, flags=FFTW.MEASURE)
+        y = H*x
+        z = ifft(fft(h).*fft(x))
+        err = maximum(abs(y - z))/maximum(abs(z))
+        println("    > max. err. with fft:  $err")
+        println("    > timings for $m convolutions ($(round(Int,m*n*log2(n))) operations):")
+        print("       - simple code with fft:   ")
+        @time for k in 1:m; z = ifft(fft(h).*fft(x)); end
+        print("       - TiPi operator (apply):  ")
+        @time for k in 1:m; y = H*x; end
+        print("       - TiPi operator (apply!): ")
+        @time for k in 1:m; apply!(y, H, x); end
+    end
+
+end
 
 function deconvtest(test::ASCIIString="conjgrad"; single::Bool=false)
     dir = "../data/"
@@ -54,3 +103,5 @@ function deconvtest(test::ASCIIString="conjgrad"; single::Bool=false)
 end
 
 nothing
+
+end # module

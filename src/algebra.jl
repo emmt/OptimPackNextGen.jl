@@ -11,48 +11,8 @@
 
 module Algebra
 
-export LinearOperator,
-       Endomorphism,
-       SelfAdjointOperator,
-       Identity,
-       NormalEquations,
-       DiagonalOperator,
-       RankOneOperator,
-       ScalingOperator,
-       CroppingOperator,
-       ZeroPaddingOperator,
-       input_type,
-       output_type,
-       apply_direct,
-       apply_direct!,
-       apply_adjoint,
-       apply_adjoint!,
-       check_operator,
-       is_identity,
-       vcombine,
-       vcombine!,
-       vcopy,
-       vcopy!,
-       vcreate,
-       vdot,
-       vfill!,
-       vnorm1,
-       vnorm2,
-       vnorminf,
-       vproduct,
-       vproduct!,
-       vscale,
-       vscale!,
-       vswap!,
-       vupdate!,
-       conjgrad,
-       project_variables!,
-       project_direction!,
-       step_limits,
-       get_free_variables
-
 # Use the same floating point type for scalars as in TiPi.
-import ..Float
+import TiPi.Float
 
 include("operators.jl")
 include("vectors.jl")

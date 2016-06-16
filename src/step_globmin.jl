@@ -21,8 +21,7 @@ module Step
 export globmin, globmax
 
 # Use the same floating point type for scalars as in TiPi.
-import ..Float
-#typealias Float Cdouble
+import TiPi.Float
 
 """
 # Cyclic singly linked list

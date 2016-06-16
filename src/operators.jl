@@ -9,9 +9,16 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-import Base: *, ⋅, ctranspose, call, diag
+import Base: *, ⋅, \, ctranspose, call, diag, showerror
 
-import ..subrange, ..dimlist
+import TiPi: subrange, dimlist, contents
+
+immutable UnimplementedOperation <: Exception end
+
+showerror(io::IO, e::UnimplementedOperation) =
+    print(io, "attempt to apply unimplemented operation")
+
+unimplemented_operation(args...) = throw(UnimplementedOperation())
 
 """
 `LinearOperator{OUT,INP}` is the abstract type from which inherit all linear
@@ -43,89 +50,121 @@ Although TiPi provides default versions, the methods `apply_direct!` and
     apply_adjoint!(dst, A, x)
 
 which store in the destination `dst` the result of applying the operator `A` or
-its adjoint to the source `src`.
+its adjoint to the source `src`.  It is assumed that `dst` is returned by
+these methods.
+
+Finally, if a linear operator `A` is invertible, it shall implement the
+following methods:
+
+    apply_inverse(A, x)
+    apply_inverse!(dst, A, x)
+
+and (unless `A` is self-adjoint):
+
+    apply_inverse_adjoint(A, x)
+    apply_inverse_adjoint!(dst, A, x)
+
+Remember that it is assumed that the destination `dst` is returned by the
+`apply_...!` methods which take this argument.
 
 """
 abstract LinearOperator{OUT,INP}
 
-
-# Default methods for a linear operator:
-
-input_type{E,F}(A::LinearOperator{E,F}) = F
-output_type{E,F}(A::LinearOperator{E,F}) = E
-
-function apply_direct{E,F}(A::LinearOperator{E,F}, x::F)
-    error("method `apply_direct` not implemented for this operator")
-end
-
-function apply_direct{E,F,G}(A::LinearOperator{E,G},
-                             B::LinearOperator{G,F})
-    Product(A,B)
-end
-
-function apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F)
-    vcopy!(dst, apply_direct(A, src))
-end
-
-function apply_adjoint{E,F}(A::LinearOperator{E,F}, x::E)
-    error("method `apply_adjoint` not implemented for this operator")
-end
-
-function apply_adjoint{E,F,G}(A::LinearOperator{G,E},
-                              B::LinearOperator{G,F})
-    Product(Adjoint(A),B)
-end
-
-function apply_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, src::E)
-    vcopy!(dst, apply_adjoint(A, src))
-end
-
+# Declare basic methods and link their documentation.
+function apply end
+function apply! end
+function apply_direct end
+function apply_direct! end
+function apply_adjoint end
+function apply_adjoint! end
+function apply_inverse end
+function apply_inverse! end
+function apply_inverse_adjoint end
+function apply_inverse_adjoint! end
+@doc @doc(LinearOperator) apply
+@doc @doc(LinearOperator) apply!
 @doc @doc(LinearOperator) apply_direct
 @doc @doc(LinearOperator) apply_direct!
 @doc @doc(LinearOperator) apply_adjoint
 @doc @doc(LinearOperator) apply_adjoint!
+@doc @doc(LinearOperator) apply_inverse
+@doc @doc(LinearOperator) apply_inverse!
+@doc @doc(LinearOperator) apply_inverse_adjoint
+@doc @doc(LinearOperator) apply_inverse_adjoint!
 
-# Overload the `call` method so that `A(x)` makes sense for `A` a linear
-# operator and `x` a "vector", or another operator.
 
-call{E,F}(A::LinearOperator{E,F}, x::F) = apply_direct(A, x) ::E
+# Terminal methods:
+apply_direct{E,F}(A::LinearOperator{E,F}, x::F) =
+    error("method `apply_direct` not implemented by this operator")
+apply_adjoint{E,F}(A::LinearOperator{E,F}, x::E) =
+    error("method `apply_adjoint` not implemented by this operator")
+apply_inverse{E,F}(A::LinearOperator{E,F}, x::E) =
+    error("method `apply_inverse` not implemented by this operator")
+apply_inverse_adjoint{E,F}(A::LinearOperator{E,F}, x::F) =
+    error("method `apply_inverse_adjoint` not implemented by this operator")
 
-call{E,F,G}(A::LinearOperator{E,F}, B::LinearOperator{F,G}) = Product(A, B)
+# Operations between operators.
+apply_direct{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
+    Product(A,B)
+apply_adjoint{E,F,G}(A::LinearOperator{G,E}, B::LinearOperator{G,F}) =
+    Product(Adjoint(A),B)
+apply_inverse{E,F,G}(A::LinearOperator{G,E}, B::LinearOperator{G,F}) =
+    Product(Inverse(A),B)
+apply_inverse_adjoint{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
+    Product(Inverse(Adjoint(A)),B)
 
-function call{E,F}(A::LinearOperator{E,F}, x)
-    error("argument of operator has wrong type or incompatible input/output types in product of operators")
-end
+# Shortcuts:
+apply!{E,F}(y::E, A::LinearOperator{E,F}, x::F) =
+    apply_direct!(y, A, x)
+apply{E,F}(A::LinearOperator{E,F}, x::F) =
+    apply_direct(A, x)
+apply{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
+    apply_direct(A, B)
 
-function apply!{E,F}(dst::F, A::LinearOperator{E,F}, src::E)
+# Default methods for a linear operator when destination is given:
+apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) =
+    vcopy!(dst, apply_direct(A, src))
+apply_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, src::E) =
+    vcopy!(dst, apply_adjoint(A, src))
+apply_inverse!{E,F}(dst::F, A::LinearOperator{E,F}, src::E) =
+    vcopy!(dst, apply_inverse(A, src))
+apply_inverse_adjoint!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) =
+    vcopy!(dst, apply_inverse_adjoint(A, src))
+
+
+"""
+A `LinearEndomorphism` is a `LinearOperator` with the same input and output spaces.
+"""
+abstract LinearEndomorphism{E} <: LinearOperator{E,E}
+
+"""
+A `SelfAdjointOperator` is a `LinearEndomorphism` which is its own adjoint.
+"""
+abstract SelfAdjointOperator{E} <: LinearEndomorphism{E}
+
+apply_direct{E}(A::SelfAdjointOperator{E}, x::E) =
+    apply_direct!(vcreate(x), A, x)
+apply_adjoint{E}(A::SelfAdjointOperator{E}, x::E) =
+    apply_direct(A, x)
+apply_adjoint!{E}(y::E, A::SelfAdjointOperator{E}, x::E) =
     apply_direct!(dst, A, src)
-end
+apply_inverse_adjoint{E}(A::SelfAdjointOperator{E}, x::E) =
+    apply_inverse(A, x)
+apply_inverse_adjoint!{E}(y::E, A::SelfAdjointOperator{E}, x::E) =
+    apply_inverse!(y, A, x)
 
-apply{E,F}(A::LinearOperator{E,F}, x::E) = A(x)
 
+doc"""
 
-"""
-An `Endomorphism` is a `LinearOperator` with the same input and output spaces.
-"""
-abstract Endomorphism{E} <: LinearOperator{E,E}
+`Product(A,B)` is used to represent the product `A*B` where `A` and `B`
+(respectively the "left" and "right" operands) are linear operators.
 
-"""
-A `SelfAdjointOperator` is an `Endomorphism` which is its own adjoint.
-"""
-abstract SelfAdjointOperator{E} <: Endomorphism{E}
-
-apply_adjoint{E}(A::SelfAdjointOperator{E}, x::E) = apply_direct(A, x)
-
-function apply_adjoint!{E}(dst::E, A::SelfAdjointOperator{E}, src::E)
-    apply_direct!(dst, A, src)
-end
-
-"""
 `Product{E,F,L,R}` is used to mark the product of two linear operators from `F`
 to `E`, parameters `L` and `R` are the types of the left and right operands.
 They must be such that:
 
-    L <: LinearOperator{E,G}
-    R <: LinearOperator{G,F}
+    A :: L <: LinearOperator{E,G}
+    B :: R <: LinearOperator{G,F}
 
 for some intermediate type `G`.
 """
@@ -134,28 +173,41 @@ immutable Product{E,F,L<:LinearOperator,R<:LinearOperator} <: LinearOperator{E,F
     rop::R
 end
 
-function Product{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F})
+contents(A::Product) = (A.lop, A.rop)
+
+Product{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
     Product{E,F,typeof(A),typeof(B)}(A,B)
-end
 
-function apply_direct{E,F,G}(A::Product{E,F,G}, x::F)
+apply_direct{E,F,L,R}(A::Product{E,F,L,R}, x::F) =
     apply_direct(A.lop, apply_direct(A.rop, x))
-end
 
-function apply_direct!{E,F,G}(dst::E, A::Product{E,F,G}, src::F)
-    apply_direct!(dst, A.lop, apply_direct(A.rop, x))
-end
+apply_direct!{E,F,L,R}(y::E, A::Product{E,F,L,R}, src::F) =
+    apply_direct!(y, A.lop, apply_direct(A.rop, x))
 
-function apply_adjoint{E,F,G}(A::Product{E,F,G}, x::E)
+apply_adjoint{E,F,L,R}(A::Product{E,F,L,R}, x::E) =
     apply_adjoint(A.rop, apply_adjoint(A.lop, x))
-end
 
-function apply_adjoint!{E,F,G}(dst::F, A::Product{E,F,G}, src::E)
-    apply_adjoint!(dst, A.rop, apply_adjoint(A.lop, x))
-end
+apply_adjoint!{E,F,L,R}(y::F, A::Product{E,F,L,R}, src::E) =
+    apply_adjoint!(y, A.rop, apply_adjoint(A.lop, x))
+
+apply_inverse{E,F,L,R}(A::Product{E,F,L,R}, x::E) =
+    apply_inverse(A.rop, apply_inverse(A.lop, x))
+
+apply_inverse!{E,F,L,R}(y::F, A::Product{E,F,L,R}, src::E) =
+    apply_inverse!(y, A.rop, apply_inverse(A.lop, x))
+
+apply_inverse_adjoint{E,F,L,R}(A::Product{E,F,L,R}, x::F) =
+    apply_inverse_adjoint(A.lop, apply_inverse_adjoint(A.rop, x))
+
+apply_inverse_adjoint!{E,F,L,R}(y::E, A::Product{E,F,L,R}, src::F) =
+    apply_inverse_adjoint!(y, A.lop, apply_inverse_adjoint(A.rop, x))
 
 
-"""
+doc"""
+
+`Adjoint(A)` is used to represent the adjoint of the linear operator `A`, for
+instance as in the expression `A'`.
+
 `Adjoint{E,F,T}` is used to mark the adjoint of a linear operator of type
 `T <: LinearOperator{E,F}`.
 """
@@ -163,28 +215,250 @@ immutable Adjoint{E,F,T<:LinearOperator} <: LinearOperator{F,E}
     op::T
 end
 
+contents(A::Adjoint) = A.op
+
 Adjoint{E}(A::SelfAdjointOperator{E}) = A
 Adjoint{E,F}(A::LinearOperator{E,F}) = Adjoint{E,F,typeof(A)}(A)
 Adjoint{E,F,T}(A::Adjoint{E,F,T}) = A.op
 Adjoint{E,F,L,R}(A::Product{E,F,L,R}) = Product(Adjoint(A.rop), Adjoint(A.lop))
 
-apply_direct{E,F,T}(A::Adjoint{E,F,T}, x::E) = apply_adjoint(A.op, x)
 
-function apply_direct!{E,F,T}(dst::F, A::Adjoint{E,F,T}, src::E)
-    apply_adjoint!(dst, A.op, src)
+apply_direct{E,F,T}(A::Adjoint{E,F,T}, x::E) =
+    apply_adjoint(A.op, x)
+
+apply_direct!{E,F,T}(y::F, A::Adjoint{E,F,T}, src::E) =
+    apply_adjoint!(y, A.op, src)
+
+apply_adjoint{E,F,T}(A::Adjoint{E,F,T}, x::F) =
+    apply_direct(A.op, x)
+
+apply_adjoint!{E,F,T}(y::E, A::Adjoint{E,F,T}, src::F) =
+    apply_direct!(y, A.op, src)
+
+apply_inverse{E,F,T}(A::Adjoint{E,F,T}, x::F) =
+    apply_inverse_adjoint(A.op, x)
+
+apply_inverse!{E,F,T}(y::E, A::Adjoint{E,F,T}, x::F) =
+    apply_inverse_adjoint!(y, A.op, x)
+
+apply_inverse_adjoint{E,F,T}(A::Adjoint{E,F,T}, x::E) =
+    apply_inverse(A.op, x)
+
+apply_inverse_adjoint!{E,F,T}(y::F, A::Adjoint{E,F,T}, x::E) =
+    apply_inverse!(y, A.op, x)
+
+
+doc"""
+
+`Inverse(A)` is used to represent the inverse of the linear operator `A`.
+For instance, 'A\B` yields `Inverse(A)*B`.
+
+`Inverse{E,F,T}` is used to mark the inverse of a linear operator of type
+`T <: LinearOperator{E,F}`.
+"""
+immutable Inverse{E,F,T<:LinearOperator} <: LinearOperator{F,E}
+    op::T
 end
 
-apply_adjoint{E,F,T}(A::Adjoint{E,F,T}, x::F) = apply_direct(A.op, x)
+contents(A::Inverse) = A.op
 
-function apply_adjoint!{E,F,T}(dst::E, A::Adjoint{E,F,T}, src::F)
-    apply_direct!(dst, A.op, src)
-end
+Inverse{E,F}(A::LinearOperator{E,F}) = Inverse{E,F,typeof(A)}(A)
+Inverse{E,F,T}(A::Inverse{E,F,T}) = A.op
+Inverse{E,F,L,R}(A::Product{E,F,L,R}) = Product(Inverse(A.rop), Inverse(A.lop))
+
+apply_direct{E,F,T}(A::Inverse{E,F,T}, x::E) =
+    apply_inverse(A.op, x)
+
+apply_direct!{E,F,T}(y::F, A::Inverse{E,F,T}, src::E) =
+    apply_inverse!(y, A.op, src)
+
+apply_adjoint{E,F,T}(A::Inverse{E,F,T}, x::F) =
+    apply_inverse_adjoint(A.op, x)
+
+apply_adjoint!{E,F,T}(y::E, A::Inverse{E,F,T}, src::F) =
+    apply_inverse_adjoint!(y, A.op, src)
+
+apply_inverse{E,F,T}(A::Inverse{E,F,T}, x::F) =
+    apply_direct(A.op, x)
+
+apply_inverse!{E,F,T}(y::E, A::Inverse{E,F,T}, x::F) =
+    apply_direct!(y, A.op, x)
+
+apply_inverse_adjoint{E,F,T}(A::Inverse{E,F,T}, x::E) =
+    apply_adjoint(A.op, x)
+
+apply_inverse_adjoint!{E,F,T}(y::F, A::Inverse{E,F,T}, x::E) =
+    apply_adjoint!(y, A.op, x)
+
+# Overload the `call` method so that `A(x)` makes sense for `A` a linear
+# operator and `x` a "vector", or another operator.
+call{E,F}(A::LinearOperator{E,F}, x::F) = apply_direct(A, x) ::E
+call{E,F,G}(A::LinearOperator{E,F}, B::LinearOperator{F,G}) = apply_direct(A, B)
+call{E,F}(A::LinearOperator{E,F}, x) =
+    error("argument of operator has wrong type or incompatible input/output types in product of operators")
 
 # Overload `*` and `ctranspose` so that are no needs to overload `Ac_mul_B`
 # `Ac_mul_Bc`, etc. to have `A'*x`, `A*B*C*x`, etc. yield the expected result.
 ctranspose{E,F}(A::LinearOperator{E,F}) = Adjoint(A)
 *{E,F}(A::LinearOperator{E,F}, x) = A(x)
 ⋅{E,F}(A::LinearOperator{E,F}, x) = A(x)
+\{E,F}(A::LinearOperator{E,F}, x) = apply_inverse(A, x)
+#\{E,F}(A::Adjoint{E,F,T}, x) = apply_inverse_adjoint(A.op, x)
+
+# Basic methods:
+function input_type end
+function input_eltype end
+function input_size end
+function input_ndims end
+function output_type end
+function output_eltype end
+function output_size end
+function output_ndims end
+doc"""
+The calls:
+
+    input_type(A)
+    output_type(A)
+
+yield the type of the input argument and of the output of the linear operator
+`A`.  If `A` operate on Julia arrays, the element type, list of dimensions,
+`i`-th dimension and number of dimensions for the input and output are given
+by:
+
+    input_eltype(A)          output_eltype(A)
+    input_size(A)            output_size(A)
+    input_size(A, i)         output_size(A, i)
+    input_ndims(A)           output_ndims(A)
+
+""" input_type
+@doc @doc(input_type) input_eltype
+@doc @doc(input_type) input_size
+@doc @doc(input_type) input_ndims
+@doc @doc(input_type) output_type
+@doc @doc(input_type) output_eltype
+@doc @doc(input_type) output_size
+@doc @doc(input_type) output_ndims
+
+input_type{E,F}(::LinearOperator{E,F}) = F
+output_type{E,F}(::LinearOperator{E,F}) = E
+for f in (:input_eltype, :output_eltype,
+          :input_ndims,  :output_ndims)
+    @eval $f(::LinearOperator) =
+        error($(string("method `",f,"` not implemented by this operator")))
+end
+for f in (:input_size, :output_size)
+    @eval $f(::LinearOperator) =
+        error($(string("method `",f,"` not implemented by this operator")))
+    @eval $f(::LinearOperator, ::Integer) =
+        error($(string("method `",f,"` not implemented by this operator")))
+end
+
+for T in (:Adjoint, :Inverse)
+    for f in (:type, :eltype, :size, :ndims)
+        inpf = Symbol("input_"*string(f))
+        outf = Symbol("output_"*string(f))
+        @eval $inpf(A::$T) = $outf(A.op)
+        @eval $outf(A::$T) = $inpf(A.op)
+    end
+    @eval input_size(A::$T, i::Integer) = output_size(A,i)
+    @eval output_size(A::$T, i::Integer) = input_size(A,i)
+end
+
+
+#------------------------------------------------------------------------------
+# FAKE OPERATORS
+
+doc"""
+
+Fake linear operators are sometimes needed as placeholders for optional
+arguments or keywords in methods to indicate that their value has not
+been specified while keeping a specific signature.  They came in several
+flavors:
+
+* `FakeLinearOperator{E,F}` inherits from `LinearOperator{E,F}`;
+
+* `FakeLinearEndomorphism{E}` inherits from `LinearEndomorphism{E}`;
+
+* `FakeSelfAdjointOperator{E}` inherits from `SelfAdjointOperator{E}`;
+
+To check whether a linear operator, say `A`, is a "fake" one:
+
+    is_fake(A)
+
+"""
+immutable FakeLinearOperator{E,F} <: LinearOperator{E,F} end
+
+FakeLinearOperator{E,F}(::Type{E},::Type{F}) =
+    FakeLinearOperator{E,F}()
+
+immutable FakeOperatorException <: Exception end
+
+showerror(io::IO, e::FakeOperatorException) =
+    print(io, "attempt to apply fake linear operator")
+
+apply_direct{E,F}(::FakeLinearOperator{E,F}, ::F) =
+    throw(FakeOperatorException())
+apply_direct!{E,F}(::E, ::FakeLinearOperator{E,F}, ::F) =
+    throw(FakeOperatorException())
+apply_adjoint{E,F}(::FakeLinearOperator{E,F}, ::E) =
+    throw(FakeOperatorException())
+apply_adjoint!{E,F}(::F, ::FakeLinearOperator{E,F}, ::E) =
+    throw(FakeOperatorException())
+apply_inverse{E,F}(::FakeLinearOperator{E,F}, ::E) =
+    throw(FakeOperatorException())
+apply_inverse!{E,F}(::F, ::FakeLinearOperator{E,F}, ::E) =
+    throw(FakeOperatorException())
+apply_inverse_adjoint{E,F}(::FakeLinearOperator{E,F}, ::F) =
+    throw(FakeOperatorException())
+apply_inverse_adjoint!{E,F}(::E, ::FakeLinearOperator{E,F}, ::F) =
+    throw(FakeOperatorException())
+
+immutable FakeLinearEndomorphism{E} <: LinearEndomorphism{E} end
+
+@doc @doc(FakeLinearOperator) FakeLinearEndomorphism
+
+FakeLinearEndomorphism{E}(::Type{E}) =
+    FakeLinearEndomorphism{E}()
+
+apply_direct{E}(::FakeLinearEndomorphism{E}, ::E) =
+    throw(FakeOperatorException())
+apply_direct!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
+    throw(FakeOperatorException())
+apply_adjoint{E}(::FakeLinearEndomorphism{E}, ::E) =
+    throw(FakeOperatorException())
+apply_adjoint!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
+    throw(FakeOperatorException())
+apply_inverse{E}(::FakeLinearEndomorphism{E}, ::E) =
+    throw(FakeOperatorException())
+apply_inverse!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
+    throw(FakeOperatorException())
+apply_inverse_adjoint{E}(::FakeLinearEndomorphism{E}, ::E) =
+    throw(FakeOperatorException())
+apply_inverse_adjoint!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
+    throw(FakeOperatorException())
+
+immutable FakeSelfAdjointOperator{E} <: SelfAdjointOperator{E} end
+
+@doc @doc(FakeLinearOperator) FakeSelfAdjointOperator
+
+FakeSelfAdjointOperator{E}(::Type{E}) =
+    FakeSelfAdjointOperator{E}()
+
+apply_direct{E}(::FakeSelfAdjointOperator{E}, ::E) =
+    throw(FakeOperatorException())
+apply_direct!{E}(::E, ::FakeSelfAdjointOperator{E}, ::E) =
+    throw(FakeOperatorException())
+apply_inverse{E}(::FakeSelfAdjointOperator{E}, ::E) =
+    throw(FakeOperatorException())
+apply_inverse!{E}(::E, ::FakeSelfAdjointOperator{E}, ::E) =
+    throw(FakeOperatorException())
+
+is_fake(::LinearOperator) = false
+is_fake(::FakeLinearOperator) = true
+is_fake(::FakeLinearEndomorphism) = true
+is_fake(::FakeSelfAdjointOperator) = true
+
+@doc @doc(FakeLinearOperator) is_fake
 
 #------------------------------------------------------------------------------
 # DIAGONAL OPERATOR
@@ -206,15 +480,22 @@ immutable DiagonalOperator{E} <: AbstractDiagonalOperator{E}
     diag::E
 end
 
-function apply_direct{E}(A::DiagonalOperator{E}, src::E)
+contents(A::DiagonalOperator) = A.diag
+
+diag(A::DiagonalOperator) = A.diag
+
+apply_direct{E}(A::DiagonalOperator{E}, src::E) =
     vproduct(A.diag, src)
-end
 
-function apply_direct!{E}(dst::E, A::DiagonalOperator{E}, src::E)
+apply_direct!{E}(dst::E, A::DiagonalOperator{E}, src::E) =
     vproduct!(dst, A.diag, src)
-end
 
-diag{E}(A::DiagonalOperator{E}) = A.diag
+for f in (:eltype, :ndims, :size, :type)
+    @eval $(Symbol(string("input_",f)))(A::DiagonalOperator) = $f(A.diag)
+    @eval $(Symbol(string("output_",f)))(A::DiagonalOperator) = $f(A.diag)
+end
+input_size(A::DiagonalOperator, i::Integer) = size(A.diag, i)
+output_size(A::DiagonalOperator, i::Integer) = size(A.diag, i)
 
 #------------------------------------------------------------------------------
 # IDENTITY OPERATOR
@@ -225,9 +506,11 @@ Identity{T}(::Type{T}) = Identity{T}()
 
 Identity() = Identity{Any}()
 
-apply_direct{T}(::Identity{T}, x::T) = x
-
-#const identity = Identity()
+for op in (:direct, :inverse)
+    @eval $(Symbol(string("apply_",op))){T}(::Identity{T}, x::T) = x
+    @eval $(Symbol(string("apply_",op,"!"))){T}(y::T, ::Identity{T}, x::T) =
+        vcopy!(y, x)
+end
 
 is_identity{E}(A::LinearOperator{E,E}) = is(A, Identity(E)) || is(A, Identity())
 
@@ -274,13 +557,13 @@ ScalingOperator{E}(::Type{E}, alpha::Real) = ScalingOperator{E}(E, Float(alpha))
 ScalingOperator{E}(alpha::Real, ::Type{E}) = ScalingOperator{E}(E, Float(alpha))
 ScalingOperator(alpha::Real) = ScalingOperator{Any}(Any, Float(alpha))
 
-function apply_direct{E}(A::ScalingOperator{E}, src::E)
-    vscale(A.alpha, src)
-end
+contents(A::ScalingOperator) = A.alpha
 
-function apply_direct!{E}(dst::E, A::ScalingOperator{E}, src::E)
+apply_direct{E}(A::ScalingOperator{E}, src::E) =
+    vscale(A.alpha, src)
+
+apply_direct!{E}(dst::E, A::ScalingOperator{E}, src::E) =
     vscale!(dst, A.alpha, src)
-end
 
 #------------------------------------------------------------------------------
 # RANK-1 OPERATOR
@@ -301,21 +584,17 @@ immutable RankOneOperator{E,F} <: LinearOperator{E,F}
     RankOneOperator(lvect::E, rvect::F) = new(lvect, rvect)
 end
 
-function apply_direct{E,F}(op::RankOneOperator{E,F}, src::F)
+apply_direct{E,F}(op::RankOneOperator{E,F}, src::F) =
     vscale(vdot(op.rvect, src), op.lvect)
-end
 
-function apply_direct!{E,F}(dst::E, op::RankOneOperator{E,F}, src::F)
+apply_direct!{E,F}(dst::E, op::RankOneOperator{E,F}, src::F) =
     vscale!(dst, vdot(op.rvect, src), op.lvect)
-end
 
-function apply_adjoint{E,F}(op::RankOneOperator{E,F}, src::E)
+apply_adjoint{E,F}(op::RankOneOperator{E,F}, src::E) =
     vscale(vdot(op.lvect, src), op.rvect)
-end
 
-function apply_adjoint!{E,F}(dst::F, op::RankOneOperator{E,F}, src::E)
+apply_adjoint!{E,F}(dst::F, op::RankOneOperator{E,F}, src::E) =
     vscale!(dst, vdot(op.lvect, src), op.rvect)
-end
 
 #------------------------------------------------------------------------------
 # CROPPING AND ZERO-PADDING OPERATORS
@@ -478,6 +757,135 @@ function _zeropad!{T,N}(dst::Array{T,N}, region::Region{N}, src::Array{T,N})
     fill!(dst, zero(T))
     dst[region...] = src
 end
+
+#------------------------------------------------------------------------------
+# OPERATORS BUILT ON TOP OF FUNCTIONS
+
+immutable FunctionalLinearOperator{E,F} <: LinearOperator{E,F}
+    direct::Function
+    direct!::Function
+    adjoint::Function
+    adjoint!::Function
+    inverse::Function
+    inverse!::Function
+    inverse_adjoint::Function
+    inverse_adjoint!::Function
+end
+
+function FunctionalLinearOperator{E,F}(::Type{E}, ::Type{F};
+                                       direct::Function=unimplemented_operation,
+                                       direct!::Function=unimplemented_operation,
+                                       adjoint::Function=unimplemented_operation,
+                                       adjoint!::Function=unimplemented_operation,
+                                       inverse::Function=unimplemented_operation,
+                                       inverse!::Function=unimplemented_operation,
+                                       inverse_adjoint::Function=unimplemented_operation,
+                                       inverse_adjoint!::Function=unimplemented_operation)
+    FunctionalLinearOperator{E,F}(direct, direct!, adjoint, adjoint!, inverse,
+                                  inverse!, inverse_adjoint, inverse_adjoint!)
+end
+
+apply_direct{E,F}(A::FunctionalLinearOperator{E,F}, x::F) =
+    A.direct(x)
+
+apply_direct!{E,F}(y::E, A::FunctionalLinearOperator{E,F}, x::F) =
+    A.direct!(y, x)
+
+apply_adjoint{E,F}(A::FunctionalLinearOperator{E,F}, x::E) =
+    A.adjoint(x)
+
+apply_adjoint!{E,F}(y::F, A::FunctionalLinearOperator{E,F}, x::E) =
+    A.adjoint!(y, x)
+
+apply_inverse{E,F}(A::FunctionalLinearOperator{E,F}, x::E) =
+    A.inverse(x)
+
+apply_inverse!{E,F}(y::F, A::FunctionalLinearOperator{E,F}, x::E) =
+    A.inverse!(y, x)
+
+apply_inverse_adjoint{E,F}(A::FunctionalLinearOperator{E,F}, x::F) =
+    A.inverse_adjoint(x)
+
+apply_inverse_adjoint!{E,F}(y::E, A::FunctionalLinearOperator{E,F}, x::F) =
+    A.inverse_adjoint!(y, x)
+
+
+immutable FunctionalLinearEndomorphism{E} <: LinearEndomorphism{E}
+    direct::Function
+    direct!::Function
+    adjoint::Function
+    adjoint!::Function
+    inverse::Function
+    inverse!::Function
+    inverse_adjoint::Function
+    inverse_adjoint!::Function
+end
+
+function FunctionalLinearEndomorphism{E}(::Type{E};
+                                         direct::Function=unimplemented_operation,
+                                         direct!::Function=unimplemented_operation,
+                                         adjoint::Function=unimplemented_operation,
+                                         adjoint!::Function=unimplemented_operation,
+                                         inverse::Function=unimplemented_operation,
+                                         inverse!::Function=unimplemented_operation,
+                                         inverse_adjoint::Function=unimplemented_operation,
+                                         inverse_adjoint!::Function=unimplemented_operation)
+    FunctionalLinearEndomorphism{E}(direct, direct!, adjoint, adjoint!, inverse,
+                                    inverse!, inverse_adjoint, inverse_adjoint!)
+end
+
+apply_direct{E}(A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.direct(x)
+
+apply_direct!{E}(y::E, A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.direct!(y, x)
+
+apply_adjoint{E}(A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.adjoint(x)
+
+apply_adjoint!{E}(y::E, A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.adjoint!(y, x)
+
+apply_inverse{E}(A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.inverse(x)
+
+apply_inverse!{E}(y::E, A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.inverse!(y, x)
+
+apply_inverse_adjoint{E}(A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.inverse_adjoint(x)
+
+apply_inverse_adjoint!{E}(y::E, A::FunctionalLinearEndomorphism{E}, x::E) =
+    A.inverse_adjoint!(y, x)
+
+
+immutable FunctionalSelfAdjointOperator{E} <: SelfAdjointOperator{E}
+    direct::Function
+    direct!::Function
+    inverse::Function
+    inverse!::Function
+end
+
+function FunctionalSelfAdjointOperator{E}(::Type{E};
+                                          direct::Function=unimplemented_operation,
+                                          direct!::Function=unimplemented_operation,
+                                          inverse::Function=unimplemented_operation,
+                                          inverse!::Function=unimplemented_operation)
+    FunctionalSelfAdjointOperator{E}(direct, direct!, inverse, inverse!)
+end
+
+apply_direct{E}(A::FunctionalSelfAdjointOperator{E}, x::E) =
+    A.direct(x)
+
+apply_direct!{E}(y::E, A::FunctionalSelfAdjointOperator{E}, x::E) =
+    A.direct!(y, x)
+
+apply_inverse{E}(A::FunctionalSelfAdjointOperator{E}, x::E) =
+    A.inverse(x)
+
+apply_inverse!{E}(y::E, A::FunctionalSelfAdjointOperator{E}, x::E) =
+    A.inverse!(y, x)
+
 
 #------------------------------------------------------------------------------
 # CHECKING OPERATOR

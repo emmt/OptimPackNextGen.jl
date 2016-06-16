@@ -27,7 +27,7 @@ types).  Vector spaces implement the following methods:
 
 * `vcopy!{T}(dst::T, src::T)` to copy the contents of `src` into `dst`;
 
-* `swap!{T}(x::T, y::T)` to exchange the contents of `x` and `y`;
+* `vswap!{T}(x::T, y::T)` to exchange the contents of `x` and `y`;
 
 * `vfill!{T}(x::T, alpha::Float)` to set all values of `x` with `alpha`;
 
@@ -57,7 +57,8 @@ The following methods may optionally be implemented:
   update!{T}(dst::T, alpha::Float, x::T) = vcombine!(dst, 1.0, dst, alpha, x)`
   ```
 
-* `vcombine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T, gamma::Float, z::T)` to perform `dst = alpha*x + beta*y + gamma*z` the default implementation is:
+* `vcombine!{T}(dst::T, alpha::Float, x::T, beta::Float, y::T, gamma::Float, z::T)`
+  to perform `dst = alpha*x + beta*y + gamma*z` the default implementation is:
   ```julia
   function vcombine!{T}(dst::T, alpha::Float, x::T,
                         beta::Float, y::T, gamma::Float, z::T)
@@ -157,13 +158,13 @@ The input and output types of a linear operator are respectively obtained by:
 
 To benefit from this framework, an operator must be an instance of a concrete
 type inherited from one of the abstract type `LinearOperator` or one of its
-descendant (like `Endomorphism` or `SelfAdjointOperator`).
+descendant (like `LinearEndomorphism` or `SelfAdjointOperator`).
 
 * `LinearOperator{OUT,INP}` is the parametric abstract type from which inherit
   all linear operators.  The parameters `INP` and `OUT` are respectively the
   input and output types of the "vectors".
 
-* An `Endomorphism` is a `LinearOperator` with the same input and output
+* A `LinearEndomorphism` is a `LinearOperator` with the same input and output
   spaces.
 
 * A `SelfAdjointOperator{E}` is a more specialized `LinearOperator` which is
@@ -237,3 +238,9 @@ required).  Implementing a self-adjoint operator amounts to:
     apply_direct{E}(A::MyOperator{E}, x::E) = ...
 
 
+## Developer notes
+
+* `LinearEndomorphism{E}` cannot just be a type alias to `LinearOperator{E,E}`
+  because for Julia, the same type `E` may correspond to very diffrent things.
+  For instance, the type `Array{Int,2}` corresponds to any 2-dimensional arrays
+  with elements of type `Int`.

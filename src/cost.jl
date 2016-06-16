@@ -100,16 +100,39 @@ cost(alpha::Real, f::AbstractCost, x) = cost(Float(alpha), f, x) :: Float
 #    error("cost() method not implemented")
 #end
 
-function cost!{T}(f::AbstractCost, x::T, g::T, ovr::Bool)
+cost!{T}(f::AbstractCost, x::T, g::T, ovr::Bool=true) =
     cost!(one(Float), f, x, g, ovr)
-end
-function cost!{T}(alpha::Real, f::AbstractCost, x::T, g::T, ovr::Bool)
+cost!{T}(alpha::Real, f::AbstractCost, x::T, g::T, ovr::Bool) =
     cost!(Float(alpha), f, x, g, ovr) ::Float
-end
 
-function prox!{T}(alpha::Float, f::AbstractCost, x::T, xp::T)
-   error("proximal operator not implemented for $(typeof(f))")
+doc"""
+# Hessian of a cost function
+
+An instance of the `Hessian` type is a linear operator which applies the
+Hessian matrix of a given cost function to its argument.
+
+The `Hessian` type is just a container with a specific signature, it has a
+single member which can be retrieved by the `contents` method:
+
+    H = Hessian(somedata, E)
+    contents(H) -> somedata
+
+where `E` is the data type of the variables onto which the Hessian will operate
+and `somedata` is anything.  The `apply_direct!` and `apply_direct` methods
+should be impleneted for the specific type `Hessian{T,E}` with `E` the same
+type as above and `T = typeof(somedata)`.
+
+"""
+immutable Hessian{T,E} <: SelfAdjointOperator{E}
+    data::T
 end
+contents(obj::Hessian) = obj.data
+Hessian{T,E}(data::T, ::Type{E}) = Hessian{T,E}(data)
+apply_direct{T,E}(A::Hessian{T,E}, x::E) = apply_direct!(vcreate(x), A, x)
+
+
+prox!{T}(alpha::Float, f::AbstractCost, x::T, xp::T) =
+   error("proximal operator not implemented for $(typeof(f))")
 
 function prox(alpha::Real, f::AbstractCost, x)
    xp = vcreate(x)
@@ -157,6 +180,17 @@ end
 #------------------------------------------------------------------------------
 # QUADRATIC COST
 
+doc"""
+A general formulation of a quadratic cost is:
+
+    f(x) = (1/2)*(A*x - b)'*W*(A*x - b)
+
+with `A` a linear operator, `b` a "vector" and `W` a weighting operator.  The
+gradient is given by:
+
+    g(x) = A'*W*(A*x - b)
+
+"""
 immutable QuadraticCost{E,F} <: AbstractCost
     A::LinearOperator{E,F}
     b::Union{E,Void}
@@ -251,17 +285,30 @@ function cost!{E,F}(alpha::Float, q::QuadraticCost{E,F}, x::F, g, ovr::Bool)
     return Float((alpha/2)*vdot(r, Wr))
 end
 
-"""
-A general formulation of a quadratic cost is:
+function apply_hessian!{E,F}(y::F, alpha::Float, q::QuadraticCost{E,F},
+                             x::F, ovr::Bool)
+    if alpha == zero(Float)
+        ovr && vfill!(y, 0)
+    else
+        r = apply_direct(q.A, x)
+        apply_direct!(r, q.W, r)
+        if ovr
+            apply_adjoint!(y, q.A, r)
+            if alpha != one(T)
+                vscale!(y, alpha)
+            end
+        else
+            vupdate!(y, alpha, apply_adjoint(q.A, r))
+        end
+    end
+    return y
+end
 
-    f(x) = (1/2)*(A*x - b)'*W*(A*x - b)
+apply_hessian!{E,F}(y::F, q::QuadraticCost{E,F}, x::F) =
+    apply_hessian!(y, Float(1), q, x, true)
 
-with `A` a linear operator, `b` a "vector" and `W` a weighting operator.  The
-gradient is given by:
-
-    g(x) = A'*W*(A*x - b)
-
-""" QuadraticCost
+apply_hessian{E,F}(q::QuadraticCost{E,F}, x::F) =
+    apply_hessian!(vcreate!(x), q, x)
 
 #------------------------------------------------------------------------------
 # CHECKING OF GRADIENTS

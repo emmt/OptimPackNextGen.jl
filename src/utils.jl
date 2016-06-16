@@ -1,7 +1,7 @@
 #
 # utils.jl --
 #
-# General purpose routines for TiPi.
+# General purpose methods for TiPi.
 #
 #------------------------------------------------------------------------------
 #
@@ -9,13 +9,43 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-function defaultweights{T<:AbstractFloat,N}(y::Array{T,N})
-    wgt = Array(T, size(y))
-    for i in 1:length(wgt)
-        wgt[i] = (isnan(y[i]) ? zero(T) : one(T))
-    end
-    return wgt
+doc"""
+`nth(n)` yields a human readable string for `n` integer like `1-st`, `2-nd`,
+etc.
+"""
+function nth(n::Integer)
+    k = abs(n)%10
+    k == 1 ? string(n,"-th") :
+    k == 2 ? string(n,"-nd") :
+    k == 3 ? string(n,"-rd") :
+    string(n,"-th")
 end
+
+doc"""
+# Containers and Marked Objects
+
+Julia typing system can be exploited to "mark" some object instances so that
+they are seen as another specific type.  For instance, this feature is used to
+mark linear operators as being transposed (so that they behave as their
+adjoint) or inverted (so that they behave as their inverse).
+
+These marked objects have a single member: the object that is marked.  This
+single member can be retrieved by the `contents` method.  The following piece
+of code shows the idea:
+
+    immutable MarkedType{T}
+        data::T
+    end
+    MarkedType{T}(obj::T) = MarkedType{T}(obj)
+    contents(obj::MarkedType) = obj.data
+
+More generally, the `contents` method can be used to retrieve the contents of a
+"container" object:
+
+    contents(container)
+
+"""
+function contents end
 
 """
 ### Get good dimension length for the FFT
@@ -206,3 +236,114 @@ dimension of the source.
 ### See Also
 crop, crop!, pad, zeropad.
 """ paste!
+
+doc"""
+
+    box = bounding_box(a)
+
+yields the bounding-box of the non-zero values in array `a`.  The result is a
+tuple of index bounds:
+
+    (i1min, i1max)                   # for a 1D array
+    (i1min, i1max, i2min, i2max)     # for a 2D array
+    etc.
+
+one pair for each dimension of `a`; if `i1min > i1max`, then the bounding-box
+is empty.  An additional scalar argument `b` can be provided to find the
+bounding-box of the region where the elements of `a` are different from `b`:
+
+    box = bounding_box(a, b)
+
+""" function bounding_box end
+
+# also work for T = Bool because zero(Bool) = false.
+function bounding_box{T,N}(a::AbstractArray{T,N})
+    bounding_box(a, zero(T))
+end
+
+function bounding_box{T,N,B}(a::AbstractArray{T,N}, b::B)
+    bounding_box(a, T(b))
+end
+
+function bounding_box{T}(a::AbstractArray{T,1}, b::T)
+    n1 = length(a)
+    i1min, i1max = n1 + 1, 0
+    @inbounds begin
+        for i1 in 1:n1
+            if a[i1] != b
+                i1min = i1
+                break
+            end
+        end
+        for i1 in n1:-1:i1min
+            if a[i1] != b
+                i1max = i1
+                break
+            end
+        end
+    end
+    return (i1min, i1max)
+end
+
+function bounding_box{T}(a::AbstractArray{T,2}, b::T)
+    i1min, i1max = size(a,1) + 1, 0
+    i2min, i2max = size(a,2) + 1, 0
+    @inbounds begin
+        for i2 in 1:size(a,2)
+            si1min, si1max = bounding_box(slice(a,:,i2), b)
+            if si1min ≤ si1max
+                i1min = min(i1min, si1min)
+                i1max = max(i1max, si1max)
+                i2min = min(i2min, i2)
+                i2max = max(i2max, i2)
+            end
+        end
+    end
+    return (i1min, i1max, i2min, i2max)
+end
+
+function bounding_box{T}(a::AbstractArray{T,3}, b::T)
+    i1min, i1max = size(a,1) + 1, 0
+    i2min, i2max = size(a,2) + 1, 0
+    i3min, i3max = size(a,3) + 1, 0
+    @inbounds begin
+        for i3 in 1:size(a,3)
+            si1min, si1max, si2min, si2max = bounding_box(slice(a,:,:,i3), b)
+            if si1min ≤ si1max
+                i1min = min(i1min, si1min)
+                i1max = max(i1max, si1max)
+                i2min = min(i2min, si2min)
+                i2max = max(i2max, si2max)
+                i3min = min(i3min, i3)
+                i3max = max(i3max, i3)
+            end
+        end
+    end
+    return (i1min, i1max, i2min, i2max, i3min, i3max)
+end
+
+function bounding_box{T}(a::AbstractArray{T,4}, b::T)
+    i1min, i1max = size(a,1) + 1, 0
+    i2min, i2max = size(a,2) + 1, 0
+    i3min, i3max = size(a,3) + 1, 0
+    i4min, i3max = size(a,4) + 1, 0
+    @inbounds begin
+        for i4 in 1:size(a,4)
+            si1min, si1max, si2min, si2max, si3min, si3max =
+                bounding_box(slice(a,:,:,:,i4), b)
+            if si1min ≤ si1max
+                i1min = min(i1min, si1min)
+                i1max = max(i1max, si1max)
+                i2min = min(i2min, si2min)
+                i2max = max(i2max, si2max)
+                i3min = min(i3min, si3min)
+                i3max = max(i3max, si3max)
+                i4min = min(i4min, i4)
+                i4max = max(i4max, i4)
+            end
+        end
+    end
+    return (i1min, i1max, i2min, i2max, i3min, i3max, i4min, i4max)
+end
+
+#------------------------------------------------------------------------------

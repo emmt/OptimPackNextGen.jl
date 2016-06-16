@@ -11,66 +11,77 @@
 
 
 # A NormalEquations stores the components of the normal equations.
-type NormalEquations{T}
+immutable NormalEquations{T}
     lhs::SelfAdjointOperator{T}    # left hand side matrix
     rhs::T                         # right hand side vector
 end
 
-function conjgrad{T}(p::NormalEquations{T}, x0::T, tol, maxiter::Integer)
-    conjgrad(p.lhs, p.rhs, x0, tol, maxiter)
+doc"""
+# Linear Conjugate Gradient Algorithm
+
+This method iteratively solves the linear system:
+
+    A⋅x = b
+
+where `A` is the so-called left-hand-side operator (which must be positive
+definite) of the normal equations, `b` is the right-hand-side vector of the
+normal equations and `x` are the unknowns.
+
+To use this method, an anitial solution, say `x0`, must be provided:
+
+    x = conjgrad(A, b, x0)
+
+the intial solution may be used to store the final result:
+
+    conjgrad!(A, b, x) -> x
+
+will overwrite the contents of the initial solution `x` with the final result
+and will return it.
+
+Alternatively, the input of the algorithm may be an instance, say `eq`, of
+`NormalEquations`:
+
+    x = conjgrad(eq, x0)
+    conjgrad!(eq, x) -> x
+
+
+There are several keywords to control the algorithm:
+
+* `tol` specifies the tolerances for convergence, it is a tuple of two values
+  `(atol, rtol)` where `atol` and `rtol` are the absolute and relative
+  tolerances.  Convergence occurs when the Euclidean norm of the residuals is
+  less or equal the largest of `atol` and `rtol` times the Eucliden norm of the
+  initial residuals.  By default, `tol = (0.0, 1.0e-3)`.
+
+* `maxiter` specifies the maximum number of iterations.
+
+"""
+function conjgrad end
+
+function conjgrad{T}(A::SelfAdjointOperator{T}, b::T, x0::T; kws...)
+    conjgrad!(A, b, vcopy(x0); kws...)
 end
 
-function conjgrad!{T}(p::NormalEquations{T}, x::T, tol, maxiter::Integer)
-    conjgrad!(p.lhs, p.rhs, x, tol, maxiter)
-end
-
-# conjgrad - conjugate gradient algorithm.
-#
-# This routine iteratively solves the linear system:
-#
-#     A.x = b
-#
-# Arguments:
-#    A   - The left-hand-side operator.
-#    b   - The right-hand-side vector of the normal equations.
-#    x0  - The initial guess for the solution `x`.
-#    tol - The tolerance(s) for convergence, can be one or two values: `atol`
-#           (as if `rtol` = 0) or [`atol`, `rtol`] where `atol` and `rtol` are
-#           the absolute and relative tolerances.  Convergence occurs when the
-#           Euclidean norm of the residuals is less or equal the largest of
-#           `atol` and `rtol` times the Eucliden norm of the initial
-#           residuals.
-#    maxiter - The maximum number of iterations.
-#
-function conjgrad{T}(A::SelfAdjointOperator{T}, b::T, x0::T, tol,
-                     maxiter::Integer)
-    x = vcreate(x0)
-    vcopy!(x, x0)
-    conjgrad!(A, b, x, tol, maxiter)
-    return x
-end
-
-function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T, tol,
-                      maxiter::Integer)
+function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T;
+                      tol::NTuple{2,Real}=(0.0,1e-3),
+                      maxiter::Integer=typemax(Int))
     # Initialization.
-    p = vcreate(x)
-    q = vcreate(x)
-    r = vcreate(x)
-    apply_direct!(r, A, x)
-    vcombine!(r, 1, b, -1, r)
-    rho::Float = 0
+    @assert tol[1] ≥ 0
+    @assert tol[2] ≥ 0
+    p::T
+    q::T
+    r::T
+    if vdot(x,x) > 0 # cheap trick to check whether x is non-zero
+        r = apply_direct!(vcreate(x), A, x)
+        vcombine!(r, 1, b, -1, r)
+    else
+        r = vcopy(b)
+    end
+    rho::Float = vdot(r, r)
     rho0::Float = 0
     alpha::Float = 0
     gamma::Float = 0
-    epsilon::Float = 0
-    rho = vdot(r, r)
-    if length(tol) == 1
-        epsilon = tol[1]
-    elseif length(tol) == 2
-        epsilon = tol[1] + tol[2]*sqrt(rho)
-    else
-        error("bad tolerance")
-    end
+    epsilon::Float = epsilon = Float(tol[1]) + Float(tol[2])*sqrt(rho)
 
     # Conjugate gradient iterations.
     k = 0
@@ -85,7 +96,8 @@ function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T, tol,
         end
         if k == 1
             # First iteration.
-            vcopy!(p, r)
+            p = vcopy(r)
+            q = vcreate(x)
         else
             vcombine!(p, 1, r, (rho/rho0), p)
         end
@@ -101,4 +113,13 @@ function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T, tol,
         rho0 = rho
         rho = vdot(r, r)
     end
+    return x
+end
+
+function conjgrad{T}(eq::NormalEquations{T}, x0::T; kws...)
+    conjgrad(eq.lhs, eq.rhs, x0; kws...)
+end
+
+function conjgrad!{T}(eq::NormalEquations{T}, x::T; kws...)
+    conjgrad!(eq.lhs, eq.rhs, x0; kws...)
 end
