@@ -37,8 +37,22 @@ export goodfftdim,
        HyperbolicEdgePreserving,
        QuadraticCost,
        QuadraticSmoothness,
-       CompactRegCauchy
-
+       CompactRegCauchy,
+       Operator,
+       NonlinearOperator,
+       NonlinearEndomorphism,
+       LinearOperator,
+       LinearEndomorphism,
+       SelfAdjointOperator,
+       Identity,
+       NormalEquations,
+       DiagonalOperator,
+       RankOneOperator,
+       ScalingOperator,
+       CroppingOperator,
+       ZeroPaddingOperator,
+       FakeLinearOperator,
+       is_fake
 
 doc"""
 `Float` is the type of all floating point scalar, it is currently an alias to
@@ -49,7 +63,10 @@ typealias Float Float64
 include("utils.jl")
 
 include("algebra.jl")
-import .Algebra: LinearOperator,
+import .Algebra: Operator,
+                 NonlinearOperator,
+                 NonlinearEndomorphism,
+                 LinearOperator,
                  LinearEndomorphism,
                  SelfAdjointOperator,
                  Identity,
@@ -60,8 +77,6 @@ import .Algebra: LinearOperator,
                  CroppingOperator,
                  ZeroPaddingOperator,
                  FakeLinearOperator,
-                 FakeLinearEndomorphism,
-                 FakeSelfAdjointOperator,
                  is_fake,
                  input_eltype,
                  input_ndims,

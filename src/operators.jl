@@ -9,7 +9,10 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-import Base: *, ⋅, \, ctranspose, call, diag, showerror, apply, A_mul_B!
+# FIXME: fix doc. self-adjoint, endomorphism, etc. ScalingOperator --> Scaled(Identity)
+
+import Base: *, ⋅, +, -, \, /, ctranspose, call, diag, inv, apply, A_mul_B!,
+             show, showerror
 
 import TiPi: subrange, dimlist, contents
 
@@ -20,11 +23,402 @@ showerror(io::IO, e::UnimplementedOperation) =
 
 unimplemented_operation(args...) = throw(UnimplementedOperation())
 
+#------------------------------------------------------------------------------
+# ABSTRACT TYPES
+
+# Traits are part of the signature of an operators.  For now that's a bitwise
+# combination.
+const Nonlinear = 0
+const Linear    = 1
+
+abstract Operator{T,E,F} # T = traits, E = output space, F = input space
+typealias NonlinearOperator{E,F}   Operator{Nonlinear,E,F}
+typealias LinearOperator{E,F}      Operator{Linear,E,F}
+typealias NonlinearEndomorphism{E} NonlinearOperator{E,E}
+typealias LinearEndomorphism{E}    LinearOperator{E,E}
+typealias SelfAdjointOperator{E}   LinearEndomorphism{E}
+
+# Type to store the product of two operators.
+immutable Product{T,E,F} <: Operator{T,E,F}
+    lop::Operator
+    rop::Operator
+end
+
+# Type to store the product of an operator by a scalar.
+immutable Scaled{T,E,F} <: Operator{T,E,F}
+    sc::Float
+    op::Operator{T,E,F}
+end
+
+# Type to store the linear combination of two operators (preferred over storage
+# of a simple `Addition` of `Scaled` operators because it corresponds to the
+# `vcombine!` method with no intermediate temporaries).
+immutable Combination{T,E,F} <: Operator{T,E,F}
+    lsc::Float
+    lop::Operator
+    rsc::Float
+    rop::Operator
+end
+
+# Type to store the adjoint of a linear operator, as in the expression `A'`.
+immutable Adjoint{E,F} <: LinearOperator{E,F}
+    op::LinearOperator{F,E}
+end
+
+# Type to represent the inverse of an operator.  For instance, 'A\B` yields
+# `Inverse(A)*B`.
+immutable Inverse{T,E,F} <: Operator{T,E,F}
+    op::Operator{T,F,E}
+end
+
+doc"""
+# Linear Combination of Operators
+
+    combine(α, A, β, B)
+
+yields an operator with performs as `α*A + β*B`.  Parameters `α` and `β` are
+scalars, parameters `A` and `B` are operators which must have the same input
+and output types.
+
 """
-`LinearOperator{OUT,INP}` is the abstract type from which inherit all linear
-operators.  It is parameterized by `INP` and `OUT` respectively the input and
-output types of the "vectors".  The input and output types of a linear operator
-are respectively obtained by:
+function combine end
+
+for (L, lsc, lop) in     ((:Scaled,   :(alpha*A.sc), :(A.op)),
+                          (:Operator, :alpha,        :A))
+    for (R, rsc, rop) in ((:Scaled,   :(beta*B.sc),  :(B.op)),
+                          (:Operator, :beta,         :B))
+        @eval function combine{Ta,Tb,E,F}(alpha::Real, A::$L{Ta,E,F},
+                                          beta::Real, B::$R{Tb,E,F})
+            Combination{Ta&Tb,E,F}($lsc, $lop, $rsc, $rop)
+        end
+    end
+end
+combine{Ta,Tb,Ea,Eb,F}(::Real, ::Operator{Ta,Ea,F}, ::Real, ::Operator{Tb,Eb,F}) =
+    throw(ArgumentError("cannot add/subtract operators with different input types"))
+combine{Ta,Tb,E,Fa,Fb}(::Real, ::Operator{Ta,E,Fa}, ::Real, ::Operator{Tb,E,Fb}) =
+    throw(ArgumentError("cannot add/subtract operators with different ouput types"))
+combine{Ta,Tb,Ea,Eb,Fa,Fb}(::Real, ::Operator{Ta,Ea,Fa}, ::Real, ::Operator{Tb,Eb,Fb}) =
+    throw(ArgumentError("cannot add/subtract operators with different input and ouput types"))
+
+# Methods for multiplying, scaling, combining, etc., the operators.  To allow
+# for some simplications to occur at compile time (FIXME: check this), the
+# scale factor is factorized outside of the construction while the adjoint is
+# propagated inside the construction.
+#
+#
+# Ultimately, I want something like:
+#
+#     A = H'*W*H + µ*D'*D
+#
+# to work properly, in particular:
+#
+#     A*x -> H'*(W*(H*x)) + µ*(D'*(D*x))
+#
+# with parenthesis to indicate order of operations and
+#
+#     A' === A
+#
+# should be true.
+#
+# Outer constructors are not provided, instead there are methods like `combine`
+# which filter the result and perform simplifications.
+
+# Product of two operators.
+for (L, R, sc, lop, rop) in
+    ((:Scaled,   :Scaled,   :(A.sc*B.sc), :(A.op), :(B.op)),
+     (:Operator, :Scaled,   :(B.sc),      :A,      :(B.op)),
+     (:Scaled,   :Operator, :(A.sc),      :(A.op), :B))
+
+    @eval *{Ta,Tb,E,F,G}(A::$L{Ta,E,G}, B::$R{Tb,G,F}) = ($sc)*(($lop)*($rop))
+end
+*{Ta,Tb,E,F,G}(A::Operator{Ta,E,G}, B::Operator{Tb,G,F}) =
+    Product{Ta&Tb,E,F}(A, B)
+
+# Left scalar muliplication of an operator (using parenthesis to emphasize
+# order of operations).
+*(alpha::Real, A::Scaled) = (alpha*A.sc)*(A.op)
+*(alpha::Real, A::Combination) =
+    combine(alpha*A.lsc, A.lop, alpha*A.rsc, A.rop)
+*{R<:Real,T,E,F}(alpha::R, A::Operator{T,E,F}) =
+    (alpha == one(R) ? A : Scaled{T,E,F}(alpha, A))
+
+# Right vector muliplication.
+*{T,E,F}(A::Operator{T,E,F}, x::F) = apply_direct(A, x) ::E
+
+# Unary minus and unary plus.
+-(A::Operator) = -1*A
++(A::Operator) = A
+
+# Dot notation.
+⋅(A::Operator, x) = A*x
+
+# Right scalar division of an operator.
+/(A::Scaled, alpha::Real) = (A.sc/alpha)*A.op
+/{T<:Real}(A::Combination, alpha::T) =
+    (alpha == one(T) ? A : combine(A.lsc/alpha, A.lop, A.rsc/alpha, A.rop))
+/{T,E,F,R<:Real}(A::Operator{T,E,F}, alpha::R) =
+    (alpha == one(R) ? A : Scaled{T,E,F}(1/alpha, A))
+
+# For the `+` and `-` binary operators, we rely on the `combine` methods.
++(A::Operator, B::Operator) = combine(1, A,  1, B)
+-(A::Operator, B::Operator) = combine(1, A, -1, B)
+
+# The adjoint of a linear operator is implemented via the `ctranspose` method.
+ctranspose(A::Adjoint) = A.op
+ctranspose(A::Scaled{Linear}) = (A.sc)*(A.op')
+ctranspose(A::Product{Linear}) = (A.rop')*(A.lop')
+ctranspose(A::Combination{Linear}) = combine(A.lsc, (A.lop'), A.rsc, (A.rop'))
+ctranspose{E,F}(A::LinearOperator{E,F}) = Adjoint{F,E}(A)
+ctranspose(::Operator) =
+    throw(ArgumentError("cannot take the adjoint of a nonlinear operator"))
+
+# The inverse of an operator is implemented via the `inv` method and the '\'
+# binary operator.  It is assumed that the inverse exists, thus `inv(inv(A))`
+# yields `A`. (FIXME: is this really a good idea?)
+inv(A::Inverse) = A.op
+inv(A::Scaled{Linear}) = (1/A.sc)*inv(A.op)
+inv{T,E,F}(A::Operator{T,E,F}) = Inverse{T,F,E}(A.op)
+\{T,E,F}(A::Operator{T,E,F}, x::E) = apply_inverse(A, x)
+\{Ta,Tb,E,F,G}(A::Operator{Ta,E,F}, B::Operator{Tb,E,G}) = inv(A)*B
+\(::Operator, ::Operator) = throw(ArgumentError("type mismath in left division of operators"))
+\(::Operator, ::Any) = throw(ArgumentError("bad argument type for inverse operator"))
+
+
+# Overload `call` and `A_mul_B!` so that are no needs to overload `Ac_mul_B`
+# `Ac_mul_Bc`, etc. to have `A'*x`, `A*B*C*x`, etc. yield the expected result.
+call(A::Operator, x::Any) = A*x
+
+A_mul_B!{T,E,F}(y::E, A::Operator{T,E,F}, x::F) = apply_direct!(y, A, x) ::E
+A_mul_B!{T,E,F}(::Any, ::Operator{T,E,F}, ::F) =
+    throw(ArgumentError("bad output type for calling operator"))
+A_mul_B!{T,E,F}(::E, ::Operator{T,E,F}, ::Any) =
+    throw(ArgumentError("bad input type for calling operator"))
+A_mul_B!{T,E,F}(::Any, ::Operator{T,E,F}, ::F) =
+    throw(ArgumentError("bad output and input types for calling operator"))
+
+
+is_self_adjoint{T,E,F}(A::Operator{T,E,F}) = (A' === A)
+
+is_linear{T,E,F}(::Operator{T,E,F}) = ((T|Linear) == Linear)
+
+input_type{T,E,F}(::Operator{T,E,F}) = F
+output_type{T,E,F}(::Operator{T,E,F}) = E
+
+function apply_direct end
+function apply_direct! end
+
+function apply_inverse end
+function apply_inverse! end
+
+function apply_adjoint end
+function apply_adjoint! end
+
+function apply_inverse_adjoint end
+function apply_inverse_adjoint! end
+
+# Implement `apply_*` methods for `Adjoint` and `Inverse` subtypes.
+for (class, direct, adjoint, inverse, inverse_adjoint) in
+    ((:Adjoint, :adjoint, :direct, :inverse_adjoint, :inverse),
+     (:Inverse, :inverse, :inverse_adjoint, :direct, :adjoint))
+
+    @eval apply_direct{E,F}(A::$class{E,F}, x::F) =
+        $(symbol("apply_", direct))(A.op, x)
+    @eval apply_adjoint{E,F}(A::$class{E,F}, x::E) =
+        $(symbol("apply_", adjoint))(A.op, x)
+    @eval apply_inverse{E,F}(A::$class{E,F}, x::E) =
+        $(symbol("apply_", inverse))(A.op, x)
+    @eval apply_inverse_adjoint{E,F}(A::$class{E,F}, x::F) =
+        $(symbol("apply_", inverse_adjoint))(A.op, x)
+
+    @eval apply_direct!{E,F}(y::E, A::$class{E,F}, x::F) =
+        $(symbol("apply_", direct, "!"))(y, A.op, x)
+    @eval apply_adjoint!{E,F}(y::F, A::$class{E,F}, x::E) =
+        $(symbol("apply_", adjoint, "!"))(y, A.op, x)
+    @eval apply_inverse!{E,F}(y::F, A::$class{E,F}, x::E) =
+        $(symbol("apply_", inverse, "!"))(y, A.op, x)
+    @eval apply_inverse_adjoint!{E,F}(y::E, A::$class{E,F}, x::F) =
+        $(symbol("apply_", inverse_adjoint, "!"))(y, A.op, x)
+end
+
+
+# Implement `apply_*` methods for other subtypes.
+
+apply_direct{T,E,F}(A::Product{T,E,F}, x::F) =
+    apply_direct(A.lop, apply_direct(A.rop, x))
+apply_adjoint{T,E,F}(A::Product{T,E,F}, x::E) =
+    apply_adjoint(A.rop, apply_adjoint(A.lop, x))
+apply_inverse{T,E,F}(A::Product{T,E,F}, x::E) =
+    apply_inverse(A.rop, apply_inverse(A.lop, x))
+apply_inverse_adjoint{T,E,F}(A::Product{T,E,F}, x::F) =
+    apply_inverse_adjoint(A.lop, apply_inverse_adjoint(A.rop, x))
+
+apply_direct!{T,E,F}(y::E, A::Product{T,E,F}, x::F) =
+    apply_direct!(y, A.lop, apply_direct(A.rop, x))
+apply_adjoint!{T,E,F}(y::F, A::Product{T,E,F}, x::E) =
+    apply_adjoint!(y, A.rop, apply_adjoint(A.lop, x))
+apply_inverse!{T,E,F}(A::Product{T,E,F}, x::E) =
+    apply_inverse!(y, A.rop, apply_inverse(A.lop, x))
+apply_inverse_adjoint!{T,E,F}(A::Product{T,E,F}, x::F) =
+    apply_inverse_adjoint!(y, A.lop, apply_inverse_adjoint(A.rop, x))
+
+
+apply_direct{T,E,F}(A::Scaled{T,E,F}, x::F) =
+    vscale!(apply_direct(A.op, x), A.sc) ::E
+
+apply_direct{T,E,F}(A::Combination{T,E,F}, x::F) =
+    vcombine(A.lsc, apply_direct(A.lop, x), A.rsc, apply_direct(A.rop, x)) ::E
+
+
+# Default methods for a linear operator when destination is given:
+apply_direct!{T,E,F}(y::E, A::Operator{T,E,F}, x::F) =
+    vcopy!(y, apply_direct(A, x))
+apply_adjoint!{E,F}(y::F, A::LinearOperator{E,F}, x::E) =
+    vcopy!(y, apply_adjoint(A, x))
+apply_inverse!{T,E,F}(y::F, A::Operator{T,E,F}, x::E) =
+    vcopy!(y, apply_inverse(A, x))
+apply_inverse_adjoint!{E,F}(y::E, A::LinearOperator{E,F}, x::F) =
+    vcopy!(y, apply_inverse_adjoint(A, x))
+
+# Illegal arguments.
+apply_direct{T,E,F,G}(::Operator{T,E,F}, ::G) =
+    throw(ArgumentError("invalid input type for applying operator"))
+apply_adjoint{T,E,F,G}(::Operator{T,E,F}, ::G) =
+    throw(ArgumentError("invalid input type for applying adjoint of operator"))
+apply_inverse{T,E,F,G}(::Operator{T,E,F}, ::G) =
+    throw(ArgumentError("invalid input type for applying inverse of operator"))
+apply_inverse_adjoint{T,E,F,G}(::Operator{T,E,F}, ::G) =
+    throw(ArgumentError("invalid input type for applying inverse adjoint of operator"))
+
+apply_direct!{T,E,F,G,H}(::G, ::Operator{T,E,F}, ::H) =
+    throw(badtype(G === E, H === F, "operator"))
+apply_adjoint!{T,E,F,G,H}(::G, ::Operator{T,E,F}, ::H) =
+    throw(badtype(G === F, H === E, "adjoint of operator"))
+apply_inverse!{T,E,F,G,H}(::G, ::Operator{T,E,F}, ::H) =
+    throw(badtype(G === F, H === E, "inverse of operator"))
+apply_inverse_adjoint!{T,E,F,G,H}(::G, ::Operator{T,E,F}, ::H) =
+    throw(badtype(G === E, H === F, "inverse adjoint of operator"))
+
+function badtype(out::Bool, inp::Bool, oper::ASCIIString)
+    ArgumentError("invalid " * (inp ? "output type" :
+                                out ? "input type" :
+                                "input and output types") *
+                  " for applying " * oper)
+end
+
+
+#------------------------------------------------------------------------------
+# OPERATORS
+
+doc"""
+# Operators
+
+`Operator{OUT,INP}` is the abstract type from which inherit all operators, an
+operator is like a function which takes a single argument (the "input") and
+produces a single result (the "output") whose types are known in advance.  An
+operator is is parameterized by `OUT` and `INP` respectively the output and
+input types.  The input and output types of an operator are respectively
+obtained by:
+
+    input_type(A)
+    output_type(A)
+
+The methods `apply` and `apply!` are assumed to be implemented for any
+operator types:
+
+    apply(A, x) -> y
+    apply!(y, A, x) ->y
+
+respectively yield the result of applying the linear operator `A` or its
+adjoint to the "vector" `x`.
+
+The `Base.call` method and the `*` operator are overloaded so that:
+
+    A*x  = A(x)  = call(A, x)  = apply_direct(A, x)
+    A'*x = A'(x) = call(A', x) = apply_adjoint(A, x)
+
+Although TiPi provides default versions, the methods `apply_direct!` and
+`apply_adjoint!` may also be implemented:
+
+    apply_direct!(dst, A, x)
+    apply_adjoint!(dst, A, x)
+
+which store in the destination `dst` the result of applying the operator `A` or
+its adjoint to the source `src`.  It is assumed that `dst` is returned by
+these methods.
+
+Finally, if a linear operator `A` is invertible, it shall implement the
+following methods:
+
+    apply_inverse(A, x)
+    apply_inverse!(dst, A, x)
+
+and (unless `A` is self-adjoint):
+
+    apply_inverse_adjoint(A, x)
+    apply_inverse_adjoint!(dst, A, x)
+
+Remember that it is assumed that the destination `dst` is returned by the
+`apply_...!` methods which take this argument.
+
+""" Operator
+
+# Basic methods:
+function input_type end
+function input_eltype end
+function input_size end
+function input_ndims end
+function output_type end
+function output_eltype end
+function output_size end
+function output_ndims end
+doc"""
+The calls:
+
+    input_type(A)
+    output_type(A)
+
+yield the type of the input argument and of the output of the operator `A`.  If
+`A` operates on Julia arrays, the element type, list of dimensions, `i`-th
+dimension and number of dimensions for the input and output are given by:
+
+    input_eltype(A)          output_eltype(A)
+    input_size(A)            output_size(A)
+    input_size(A, i)         output_size(A, i)
+    input_ndims(A)           output_ndims(A)
+
+""" input_type
+@doc @doc(input_type) input_eltype
+@doc @doc(input_type) input_size
+@doc @doc(input_type) input_ndims
+@doc @doc(input_type) output_type
+@doc @doc(input_type) output_eltype
+@doc @doc(input_type) output_size
+@doc @doc(input_type) output_ndims
+
+input_type{E,F}(::Operator{E,F}) = F
+output_type{E,F}(::Operator{E,F}) = E
+for f in (:input_eltype, :output_eltype,
+          :input_ndims,  :output_ndims)
+    @eval $f(::Operator) =
+        error($(string("method `",f,"` not implemented by this operator")))
+end
+for f in (:input_size, :output_size)
+    @eval $f(::Operator) =
+        error($(string("method `",f,"` not implemented by this operator")))
+    @eval $f(::Operator, ::Integer) =
+        error($(string("method `",f,"` not implemented by this operator")))
+end
+
+#------------------------------------------------------------------------------
+# LINEAR OPERATORS
+
+doc"""
+# Linear Operators
+
+ `LinearOperator{OUT,INP}` is the abstract type from which inherit all
+linear operators.  It is parameterized by `OUT` and `INP` respectively the
+output and input types of the "vectors" onto which operate the linear operator.
+The input and output types of a linear operator are respectively obtained by:
 
     input_type(A)
     output_type(A)
@@ -67,8 +461,7 @@ and (unless `A` is self-adjoint):
 Remember that it is assumed that the destination `dst` is returned by the
 `apply_...!` methods which take this argument.
 
-"""
-abstract LinearOperator{OUT,INP}
+""" LinearOperator
 
 # Declare basic methods and link their documentation.
 function apply end
@@ -92,278 +485,16 @@ function apply_inverse_adjoint! end
 @doc @doc(LinearOperator) apply_inverse_adjoint
 @doc @doc(LinearOperator) apply_inverse_adjoint!
 
-
-# Terminal methods:
-apply_direct{E,F}(A::LinearOperator{E,F}, x::F) =
-    error("method `apply_direct` not implemented by this operator")
-apply_adjoint{E,F}(A::LinearOperator{E,F}, x::E) =
-    error("method `apply_adjoint` not implemented by this operator")
-apply_inverse{E,F}(A::LinearOperator{E,F}, x::E) =
-    error("method `apply_inverse` not implemented by this operator")
-apply_inverse_adjoint{E,F}(A::LinearOperator{E,F}, x::F) =
-    error("method `apply_inverse_adjoint` not implemented by this operator")
-
-# Operations between operators.
-apply_direct{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
-    Product(A,B)
-apply_adjoint{E,F,G}(A::LinearOperator{G,E}, B::LinearOperator{G,F}) =
-    Product(Adjoint(A),B)
-apply_inverse{E,F,G}(A::LinearOperator{G,E}, B::LinearOperator{G,F}) =
-    Product(Inverse(A),B)
-apply_inverse_adjoint{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
-    Product(Inverse(Adjoint(A)),B)
-
-# Shortcuts:
-A_mul_B!{E,F}(y::E, A::LinearOperator{E,F}, x::F) =
-    apply_direct!(y, A, x)
-apply!{E,F}(y::E, A::LinearOperator{E,F}, x::F) =
-    apply_direct!(y, A, x)
-apply{E,F}(A::LinearOperator{E,F}, x::F) =
-    apply_direct(A, x)
-apply{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
-    apply_direct(A, B)
-
-# Default methods for a linear operator when destination is given:
-apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) =
-    vcopy!(dst, apply_direct(A, src))
-apply_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, src::E) =
-    vcopy!(dst, apply_adjoint(A, src))
-apply_inverse!{E,F}(dst::F, A::LinearOperator{E,F}, src::E) =
-    vcopy!(dst, apply_inverse(A, src))
-apply_inverse_adjoint!{E,F}(dst::E, A::LinearOperator{E,F}, src::F) =
-    vcopy!(dst, apply_inverse_adjoint(A, src))
-
-
-"""
-A `LinearEndomorphism` is a `LinearOperator` with the same input and output spaces.
-"""
-abstract LinearEndomorphism{E} <: LinearOperator{E,E}
-
-"""
-A `SelfAdjointOperator` is a `LinearEndomorphism` which is its own adjoint.
-"""
-abstract SelfAdjointOperator{E} <: LinearEndomorphism{E}
-
-apply_direct{E}(A::SelfAdjointOperator{E}, x::E) =
-    apply_direct!(vcreate(x), A, x)
-apply_adjoint{E}(A::SelfAdjointOperator{E}, x::E) =
-    apply_direct(A, x)
-apply_adjoint!{E}(y::E, A::SelfAdjointOperator{E}, x::E) =
-    apply_direct!(dst, A, src)
-apply_inverse_adjoint{E}(A::SelfAdjointOperator{E}, x::E) =
-    apply_inverse(A, x)
-apply_inverse_adjoint!{E}(y::E, A::SelfAdjointOperator{E}, x::E) =
-    apply_inverse!(y, A, x)
-
-
-doc"""
-
-`Product(A,B)` is used to represent the product `A*B` where `A` and `B`
-(respectively the "left" and "right" operands) are linear operators.
-
-`Product{E,F,L,R}` is used to mark the product of two linear operators from `F`
-to `E`, parameters `L` and `R` are the types of the left and right operands.
-They must be such that:
-
-    A :: L <: LinearOperator{E,G}
-    B :: R <: LinearOperator{G,F}
-
-for some intermediate type `G`.
-"""
-immutable Product{E,F,L<:LinearOperator,R<:LinearOperator} <: LinearOperator{E,F}
-    lop::L
-    rop::R
-end
-
-contents(A::Product) = (A.lop, A.rop)
-
-Product{E,F,G}(A::LinearOperator{E,G}, B::LinearOperator{G,F}) =
-    Product{E,F,typeof(A),typeof(B)}(A,B)
-
-apply_direct{E,F,L,R}(A::Product{E,F,L,R}, x::F) =
-    apply_direct(A.lop, apply_direct(A.rop, x))
-
-apply_direct!{E,F,L,R}(y::E, A::Product{E,F,L,R}, src::F) =
-    apply_direct!(y, A.lop, apply_direct(A.rop, x))
-
-apply_adjoint{E,F,L,R}(A::Product{E,F,L,R}, x::E) =
-    apply_adjoint(A.rop, apply_adjoint(A.lop, x))
-
-apply_adjoint!{E,F,L,R}(y::F, A::Product{E,F,L,R}, src::E) =
-    apply_adjoint!(y, A.rop, apply_adjoint(A.lop, x))
-
-apply_inverse{E,F,L,R}(A::Product{E,F,L,R}, x::E) =
-    apply_inverse(A.rop, apply_inverse(A.lop, x))
-
-apply_inverse!{E,F,L,R}(y::F, A::Product{E,F,L,R}, src::E) =
-    apply_inverse!(y, A.rop, apply_inverse(A.lop, x))
-
-apply_inverse_adjoint{E,F,L,R}(A::Product{E,F,L,R}, x::F) =
-    apply_inverse_adjoint(A.lop, apply_inverse_adjoint(A.rop, x))
-
-apply_inverse_adjoint!{E,F,L,R}(y::E, A::Product{E,F,L,R}, src::F) =
-    apply_inverse_adjoint!(y, A.lop, apply_inverse_adjoint(A.rop, x))
-
-
-doc"""
-
-`Adjoint(A)` is used to represent the adjoint of the linear operator `A`, for
-instance as in the expression `A'`.
-
-`Adjoint{E,F,T}` is used to mark the adjoint of a linear operator of type
-`T <: LinearOperator{E,F}`.
-"""
-immutable Adjoint{E,F,T<:LinearOperator} <: LinearOperator{F,E}
-    op::T
-end
-
-contents(A::Adjoint) = A.op
-
-Adjoint{E}(A::SelfAdjointOperator{E}) = A
-Adjoint{E,F}(A::LinearOperator{E,F}) = Adjoint{E,F,typeof(A)}(A)
-Adjoint{E,F,T}(A::Adjoint{E,F,T}) = A.op
-Adjoint{E,F,L,R}(A::Product{E,F,L,R}) = Product(Adjoint(A.rop), Adjoint(A.lop))
-
-
-apply_direct{E,F,T}(A::Adjoint{E,F,T}, x::E) =
-    apply_adjoint(A.op, x)
-
-apply_direct!{E,F,T}(y::F, A::Adjoint{E,F,T}, src::E) =
-    apply_adjoint!(y, A.op, src)
-
-apply_adjoint{E,F,T}(A::Adjoint{E,F,T}, x::F) =
-    apply_direct(A.op, x)
-
-apply_adjoint!{E,F,T}(y::E, A::Adjoint{E,F,T}, src::F) =
-    apply_direct!(y, A.op, src)
-
-apply_inverse{E,F,T}(A::Adjoint{E,F,T}, x::F) =
-    apply_inverse_adjoint(A.op, x)
-
-apply_inverse!{E,F,T}(y::E, A::Adjoint{E,F,T}, x::F) =
-    apply_inverse_adjoint!(y, A.op, x)
-
-apply_inverse_adjoint{E,F,T}(A::Adjoint{E,F,T}, x::E) =
-    apply_inverse(A.op, x)
-
-apply_inverse_adjoint!{E,F,T}(y::F, A::Adjoint{E,F,T}, x::E) =
-    apply_inverse!(y, A.op, x)
-
-
-doc"""
-
-`Inverse(A)` is used to represent the inverse of the linear operator `A`.
-For instance, 'A\B` yields `Inverse(A)*B`.
-
-`Inverse{E,F,T}` is used to mark the inverse of a linear operator of type
-`T <: LinearOperator{E,F}`.
-"""
-immutable Inverse{E,F,T<:LinearOperator} <: LinearOperator{F,E}
-    op::T
-end
-
-contents(A::Inverse) = A.op
-
-Inverse{E,F}(A::LinearOperator{E,F}) = Inverse{E,F,typeof(A)}(A)
-Inverse{E,F,T}(A::Inverse{E,F,T}) = A.op
-Inverse{E,F,L,R}(A::Product{E,F,L,R}) = Product(Inverse(A.rop), Inverse(A.lop))
-
-apply_direct{E,F,T}(A::Inverse{E,F,T}, x::E) =
-    apply_inverse(A.op, x)
-
-apply_direct!{E,F,T}(y::F, A::Inverse{E,F,T}, src::E) =
-    apply_inverse!(y, A.op, src)
-
-apply_adjoint{E,F,T}(A::Inverse{E,F,T}, x::F) =
-    apply_inverse_adjoint(A.op, x)
-
-apply_adjoint!{E,F,T}(y::E, A::Inverse{E,F,T}, src::F) =
-    apply_inverse_adjoint!(y, A.op, src)
-
-apply_inverse{E,F,T}(A::Inverse{E,F,T}, x::F) =
-    apply_direct(A.op, x)
-
-apply_inverse!{E,F,T}(y::E, A::Inverse{E,F,T}, x::F) =
-    apply_direct!(y, A.op, x)
-
-apply_inverse_adjoint{E,F,T}(A::Inverse{E,F,T}, x::E) =
-    apply_adjoint(A.op, x)
-
-apply_inverse_adjoint!{E,F,T}(y::F, A::Inverse{E,F,T}, x::E) =
-    apply_adjoint!(y, A.op, x)
-
-# Overload the `call` method so that `A(x)` makes sense for `A` a linear
-# operator and `x` a "vector", or another operator.
-call{E,F}(A::LinearOperator{E,F}, x::F) = apply_direct(A, x) ::E
-call{E,F,G}(A::LinearOperator{E,F}, B::LinearOperator{F,G}) = apply_direct(A, B)
-call{E,F}(A::LinearOperator{E,F}, x) =
-    error("argument of operator has wrong type or incompatible input/output types in product of operators")
-
-# Overload `*` and `ctranspose` so that are no needs to overload `Ac_mul_B`
-# `Ac_mul_Bc`, etc. to have `A'*x`, `A*B*C*x`, etc. yield the expected result.
-ctranspose{E,F}(A::LinearOperator{E,F}) = Adjoint(A)
-*{E,F}(A::LinearOperator{E,F}, x) = A(x)
-⋅{E,F}(A::LinearOperator{E,F}, x) = A(x)
-\{E,F}(A::LinearOperator{E,F}, x) = apply_inverse(A, x)
-#\{E,F}(A::Adjoint{E,F,T}, x) = apply_inverse_adjoint(A.op, x)
-
-# Basic methods:
-function input_type end
-function input_eltype end
-function input_size end
-function input_ndims end
-function output_type end
-function output_eltype end
-function output_size end
-function output_ndims end
-doc"""
-The calls:
-
-    input_type(A)
-    output_type(A)
-
-yield the type of the input argument and of the output of the linear operator
-`A`.  If `A` operate on Julia arrays, the element type, list of dimensions,
-`i`-th dimension and number of dimensions for the input and output are given
-by:
-
-    input_eltype(A)          output_eltype(A)
-    input_size(A)            output_size(A)
-    input_size(A, i)         output_size(A, i)
-    input_ndims(A)           output_ndims(A)
-
-""" input_type
-@doc @doc(input_type) input_eltype
-@doc @doc(input_type) input_size
-@doc @doc(input_type) input_ndims
-@doc @doc(input_type) output_type
-@doc @doc(input_type) output_eltype
-@doc @doc(input_type) output_size
-@doc @doc(input_type) output_ndims
-
-input_type{E,F}(::LinearOperator{E,F}) = F
-output_type{E,F}(::LinearOperator{E,F}) = E
-for f in (:input_eltype, :output_eltype,
-          :input_ndims,  :output_ndims)
-    @eval $f(::LinearOperator) =
-        error($(string("method `",f,"` not implemented by this operator")))
-end
-for f in (:input_size, :output_size)
-    @eval $f(::LinearOperator) =
-        error($(string("method `",f,"` not implemented by this operator")))
-    @eval $f(::LinearOperator, ::Integer) =
-        error($(string("method `",f,"` not implemented by this operator")))
-end
-
-for T in (:Adjoint, :Inverse)
+# Provide basic methods for inverse and adjoint:
+for class in (:Adjoint, :Inverse)
     for f in (:type, :eltype, :size, :ndims)
-        inpf = Symbol("input_"*string(f))
-        outf = Symbol("output_"*string(f))
-        @eval $inpf(A::$T) = $outf(A.op)
-        @eval $outf(A::$T) = $inpf(A.op)
+        inpf = symbol("input_",f)
+        outf = symbol("output_",f)
+        @eval $inpf(A::$class) = $outf(A.op)
+        @eval $outf(A::$class) = $inpf(A.op)
     end
-    @eval input_size(A::$T, i::Integer) = output_size(A,i)
-    @eval output_size(A::$T, i::Integer) = input_size(A,i)
+    @eval input_size(A::$class, i::Integer) = output_size(A,i)
+    @eval output_size(A::$class, i::Integer) = input_size(A,i)
 end
 
 
@@ -415,57 +546,13 @@ apply_inverse_adjoint{E,F}(::FakeLinearOperator{E,F}, ::F) =
 apply_inverse_adjoint!{E,F}(::E, ::FakeLinearOperator{E,F}, ::F) =
     throw(FakeOperatorException())
 
-immutable FakeLinearEndomorphism{E} <: LinearEndomorphism{E} end
-
-@doc @doc(FakeLinearOperator) FakeLinearEndomorphism
-
-FakeLinearEndomorphism{E}(::Type{E}) =
-    FakeLinearEndomorphism{E}()
-
-apply_direct{E}(::FakeLinearEndomorphism{E}, ::E) =
-    throw(FakeOperatorException())
-apply_direct!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
-    throw(FakeOperatorException())
-apply_adjoint{E}(::FakeLinearEndomorphism{E}, ::E) =
-    throw(FakeOperatorException())
-apply_adjoint!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
-    throw(FakeOperatorException())
-apply_inverse{E}(::FakeLinearEndomorphism{E}, ::E) =
-    throw(FakeOperatorException())
-apply_inverse!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
-    throw(FakeOperatorException())
-apply_inverse_adjoint{E}(::FakeLinearEndomorphism{E}, ::E) =
-    throw(FakeOperatorException())
-apply_inverse_adjoint!{E}(::E, ::FakeLinearEndomorphism{E}, ::E) =
-    throw(FakeOperatorException())
-
-immutable FakeSelfAdjointOperator{E} <: SelfAdjointOperator{E} end
-
-@doc @doc(FakeLinearOperator) FakeSelfAdjointOperator
-
-FakeSelfAdjointOperator{E}(::Type{E}) =
-    FakeSelfAdjointOperator{E}()
-
-apply_direct{E}(::FakeSelfAdjointOperator{E}, ::E) =
-    throw(FakeOperatorException())
-apply_direct!{E}(::E, ::FakeSelfAdjointOperator{E}, ::E) =
-    throw(FakeOperatorException())
-apply_inverse{E}(::FakeSelfAdjointOperator{E}, ::E) =
-    throw(FakeOperatorException())
-apply_inverse!{E}(::E, ::FakeSelfAdjointOperator{E}, ::E) =
-    throw(FakeOperatorException())
-
-is_fake(::LinearOperator) = false
 is_fake(::FakeLinearOperator) = true
-is_fake(::FakeLinearEndomorphism) = true
-is_fake(::FakeSelfAdjointOperator) = true
+is_fake(::LinearOperator) = false
 
 @doc @doc(FakeLinearOperator) is_fake
 
 #------------------------------------------------------------------------------
 # DIAGONAL OPERATOR
-
-abstract AbstractDiagonalOperator{E} <: SelfAdjointOperator{E}
 
 # FIXME: assume real weights
 """
@@ -478,7 +565,7 @@ and behaves as follows:
 
     W(x) = vproduct(w, x)
 """
-immutable DiagonalOperator{E} <: AbstractDiagonalOperator{E}
+immutable DiagonalOperator{E} <: LinearEndomorphism{E}
     diag::E
 end
 
@@ -486,6 +573,8 @@ contents(A::DiagonalOperator) = A.diag
 
 diag(A::DiagonalOperator) = A.diag
 
+# FIXME: add rules so that A' = A or reintroduce inheritage
+# FIXME: implement vdivide and apply_inverse
 apply_direct{E}(A::DiagonalOperator{E}, src::E) =
     vproduct(A.diag, src)
 
@@ -502,12 +591,14 @@ output_size(A::DiagonalOperator, i::Integer) = size(A.diag, i)
 #------------------------------------------------------------------------------
 # IDENTITY OPERATOR
 
-immutable Identity{T} <: AbstractDiagonalOperator{T}; end
+immutable Identity{T} <: LinearEndomorphism{T}; end
 
 Identity{T}(::Type{T}) = Identity{T}()
 
 Identity() = Identity{Any}()
 
+# FIXME: add rules so that A' = A or reintroduce inheritage
+# FIXME: implement vdivide and apply_inverse
 for op in (:direct, :inverse)
     @eval $(Symbol(string("apply_",op))){T}(::Identity{T}, x::T) = x
     @eval $(Symbol(string("apply_",op,"!"))){T}(y::T, ::Identity{T}, x::T) =
@@ -550,7 +641,7 @@ If `E` is not provided, the operator operates on any "vector":
     A = ScalingOperator(alpha)
 
 """
-immutable ScalingOperator{E} <: AbstractDiagonalOperator{E}
+immutable ScalingOperator{E} <: LinearEndomorphism{E}
     alpha::Float
     ScalingOperator{E}(::Type{E}, alpha::Float) = new(alpha)
 end
@@ -683,32 +774,32 @@ function apply_adjoint!{T,N}(dst::Array{T,N}, A::ZeroPaddingOperator{T,N},
     _crop!(dst, src, A.region)
 end
 
-for Operator in (:CroppingOperator, :ZeroPaddingOperator)
+for class in (:CroppingOperator, :ZeroPaddingOperator)
     @eval begin
 
-        function $Operator{T,N}(::Type{T},
+        function $class{T,N}(::Type{T},
                                 outdims::NTuple{N,Integer},
                                 inpdims::NTuple{N,Integer})
-            $Operator{T,N}(T, dimlist(outdims), dimlist(inpdims))
+            $class{T,N}(T, dimlist(outdims), dimlist(inpdims))
         end
 
-        function $Operator{T,N}(out::Array{T,N}, inp::Array{T,N})
-            $Operator{T,N}(T, size(out), size(inp))
+        function $class{T,N}(out::Array{T,N}, inp::Array{T,N})
+            $class{T,N}(T, size(out), size(inp))
         end
 
-        function $Operator{T,N}(out::Array{T,N}, inpdims::NTuple{N,Integer})
-            $Operator{T,N}(T, size(out), dimlist(inpdims))
+        function $class{T,N}(out::Array{T,N}, inpdims::NTuple{N,Integer})
+            $class{T,N}(T, size(out), dimlist(inpdims))
         end
 
-        function $Operator{T,N}(outdims::NTuple{N,Integer}, inp::Array{T,N})
-            $Operator{T,N}(T, dimlist(outdims), size(inp))
+        function $class{T,N}(outdims::NTuple{N,Integer}, inp::Array{T,N})
+            $class{T,N}(T, dimlist(outdims), size(inp))
         end
 
-        eltype{T,N}(A::$Operator{T,N}) = T
+        eltype{T,N}(A::$class{T,N}) = T
 
-        input_size{T,N}(A::$Operator{T,N}) = A.inpdims
+        input_size{T,N}(A::$class{T,N}) = A.inpdims
 
-        output_size{T,N}(A::$Operator{T,N}) = A.outdims
+        output_size{T,N}(A::$class{T,N}) = A.outdims
 
     end
 end
@@ -861,7 +952,7 @@ apply_inverse_adjoint!{E}(y::E, A::FunctionalLinearEndomorphism{E}, x::E) =
     A.inverse_adjoint!(y, x)
 
 
-immutable FunctionalSelfAdjointOperator{E} <: SelfAdjointOperator{E}
+immutable FunctionalSelfAdjointOperator{E} <: LinearEndomorphism{E}
     direct::Function
     direct!::Function
     inverse::Function
