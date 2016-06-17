@@ -20,7 +20,7 @@ export apply!
 export MDA,
        goodfftdim,
        fftfreq,
-       bounding_box,
+       BoundingBox,
        crop,
        crop!,
        pad,

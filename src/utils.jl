@@ -9,6 +9,9 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
+import Base: size, convert, length, ndims, get, getindex,
+             start, done, next, range, first, last
+
 doc"""
 `nth(n)` yields a human readable string for `n` integer like `1-st`, `2-nd`,
 etc.
@@ -237,6 +240,100 @@ dimension of the source.
 crop, crop!, pad, zeropad.
 """ paste!
 
+#------------------------------------------------------------------------------
+# BOUNDING BOXES
+
+doc"""
+# Bounding Boxes
+
+A bounding-box is meant to represent a rectangular region of interest in an
+array-like object.
+
+It is possible to automatically detect the region with significant values
+of an array `A`:
+
+    BoundingBox(A, b)
+    BoundingBox(A)
+
+where `b` is the value of the elements of `A` that shloub be considered as
+being outside of the region of interest.  If not specified, `b =
+zero(eltype(A))`.
+
+Some array-like methods are implemented for a bounding box `bbox`:
+
+* `length(bbox)` yields the number of elements enclosed in the bounding box.
+
+* `size(bbox)` yields the dimensions of the region enclosed by the bounding box.
+  `size(bbox, i)` yields the `i`-th dimension of this region.
+
+* `ndims(bbox)` yields the number of dimensions of the region enclosed by the
+  bounding box.
+
+Bounding boxes can be used as a `CartesianRange` to iterate in the positions of
+the bounding boxes:
+
+    for i in box
+        A[i] = ...
+    end
+
+Bounding boxes are indexable:
+
+    bbox[i]
+
+yields the `UnitRange` of indices corresponding to the `i`-th dimension of the
+region enclosed by the bounding box.
+
+Finally:
+
+    first(bbox)  :: CartesianIndex
+    last(bbox)   :: CartesianIndex
+    range(bbox)  :: CartesianRange
+
+yields the Cartesian index corresponding the the first and last corner of the
+bounding box and Cartesian range of the whole region.
+
+"""
+immutable BoundingBox{N}
+    rng::CartesianRange{CartesianIndex{N}}
+    siz::NTuple{N,Int}
+    len::Int
+end
+
+# FIXME: this constructor is not very efficient
+function BoundingBox{N}(rng::CartesianRange{CartesianIndex{N}})
+    tmp = last(rng) - start(rng)
+    siz = ntuple(d->max(tmp[d] + 1, 0), N)
+    len = 1
+    for d in 1:N
+        len *= siz[d]
+    end
+    BoundingBox{N}(rng, siz, len)
+end
+
+BoundingBox{N}(siz::NTuple{N,Int}) = BoundingBox(CartesianRange(siz))
+
+function BoundingBox{T,N}(a::AbstractArray{T,N}, b=zero(T))
+    tup = bounding_box(a, b)
+    @assert length(tup) == 2*N
+    first = CartesianIndex(ntuple(d->tup[2*d-1], N))
+    last = CartesianIndex(ntuple(d->tup[2*d], N))
+    BoundingBox(CartesianRange(first, last))
+end
+
+convert{N}(::Type{CartesianRange{CartesianIndex{N}}}, bbox::BoundingBox{N}) = bbox.rng
+size(bbox::BoundingBox) = bbox.siz
+size(bbox::BoundingBox, i::Integer) = bbox.siz[i]
+length(bbox::BoundingBox) = bbox.len
+ndims{N}(::BoundingBox{N}) = N
+getindex{N}(bbox::BoundingBox{N}, i::Integer) = first(bbox)[i]:last(bbox)[i]
+get{N}(bbox::BoundingBox{N}, i::Integer, def) = (1 ≤ i ≤ N ? bbox[i] : def)
+start(bbox::BoundingBox) = start(bbox.rng)
+done(bbox::BoundingBox, state) = done(bbox.rng, state)
+next(bbox::BoundingBox, state) = next(bbox.rng, state)
+first(bbox::BoundingBox) = first(bbox.rng)
+last(bbox::BoundingBox) = last(bbox.rng)
+range(bbox::BoundingBox) = bbox.rng
+
 doc"""
 
     box = bounding_box(a)
@@ -261,7 +358,7 @@ function bounding_box{T,N}(a::AbstractArray{T,N})
     bounding_box(a, zero(T))
 end
 
-function bounding_box{T,N,B}(a::AbstractArray{T,N}, b::B)
+function bounding_box{T,N}(a::AbstractArray{T,N}, b)
     bounding_box(a, T(b))
 end
 
