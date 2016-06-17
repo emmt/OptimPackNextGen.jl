@@ -60,7 +60,11 @@ export MDA,
        is_fake,
        FFTOperator,
        fast_deconv,
-       OperatorD, OperatorDtD
+       OperatorD, OperatorDtD,
+       fix_weighted_data,
+       compute_weights,
+       compute_weights!,
+       default_weights
 
 doc"""
 `Float` is the type of all floating point scalar, it is currently an alias to

@@ -183,3 +183,236 @@ end
 @doc @doc(compute_weights!) default_weights
 
 #------------------------------------------------------------------------------
+
+const ALLOW_NEGATIVE_WEIGHTS   = (1 << 0)
+const ALLOW_NONFINITE_WEIGHTS  = (1 << 1)
+const FORBID_NONFINITE_DATA    = (1 << 2)
+const FORBID_NO_VALID_DATA     = (1 << 3)
+
+doc"""
+
+    fix_weighted_data(wgt, dat) -> wgt, dat
+
+check the validity of the data `dat` with their corresponding weights `wgt` and
+may apply some corrections.  Input weights may be `nothing` or simply omitted
+as in:
+
+    fix_weighted_data(dat) -> wgt, dat
+
+which is the same as assuming that all input weights are equal to one.
+
+The returned value is a tuple of weights and data after corrections have been
+applied if necessary.  Input parameters `wgt` and `dat` are left unchanged so
+there is no side effects.  The returned values are either the input ones (if no
+changes were necessary) or new arrays otherwise.  If the input weights are
+unspecifed, the ouput weights are `nothing` if no bad data were found or a new
+array of the same type and size as `dat` and with ones where data are valid and
+zero elsewhere.
+
+The purpose of this routine is to provide weighted data suitable for fast
+numerical processing.  To that end, the following rules are checked according
+to the value of keyword `policy` (which is zero by default):
+
+* `! isfinite(wgt[i])` yields an error unless the bit
+  `TiPi.ALLOW_NONFINITE_WEIGHTS` is set in `policy`;
+
+* `wgt[i] < 0` yields an error unless the bit `TiPi.ALLOW_NEGATIVE_WEIGHTS` is
+  set in `policy`;
+
+* `! isfinite(dat[i])` while `wgt[i] > 0` yields an error if the bit
+  `TiPi.FORBID_NONFINITE_DATA` is set in `policy`;
+
+If no such errors occur, weights and data may be fixed so that all weights are
+finite and nonnegative with a zero value indicating invalid data and the value
+of nonfinite data are replaced by the value specified by the keyword `bad`,
+defaulting to zero.  The keyword `bad` may take any finite value.
+
+Finally, an error is raised if there are no valid data and bit
+`TiPi.FORBID_NO_VALID_DATA` of `policy` is set.
+
+The variant
+
+    fix_weighted_data!(wgt, dat) -> cnt
+
+performs the same operations but modifies the input arguments if corrections
+are needed.  The number of valid data is returnd.
+
+"""
+function fix_weighted_data end
+
+function fix_weighted_data{T<:Real,N}(wgt::AbstractArray{T,N},
+                                      dat::AbstractArray{T,N};
+                                      bad::Real=zero(T),
+                                      policy::Integer=0)
+    # Basic check.
+    if ! isfinite(bad)
+        throw(ArgumentError("\"bad\" value must be finite"))
+    end
+    if size(wgt) != size(dat)
+        throw(ArgumentError("weights and data must have the same size"))
+    end
+
+    # First pass for errors.
+    policy = Int(policy)
+    fixdat = false
+    fixwgt = false
+    cnt = 0
+    @inbounds for i in eachindex(wgt, dat)
+        valid = true
+        if ! isfinite(wgt[i])
+            if (policy & ALLOW_NONFINITE_WEIGHTS) == 0
+                throw(ArgumentError("non-finite weights are forbidden"))
+            end
+            fixwgt = true
+            valid = false
+        elseif wgt[i] ≤ zero(T)
+            if wgt[i] < zero(T)
+                if (policy & ALLOW_NEGATIVE_WEIGHTS) == 0
+                    throw(ArgumentError("weights must be nonnegative"))
+                end
+                fixwgt = true
+            end
+            valid = false
+        end
+        if ! isfinite(dat[i])
+            if valid
+                if (policy & FORBID_NONFINITE_DATA) != 0
+                    throw(ArgumentError("non-finite data are forbidden"))
+                end
+                fixwgt = true
+            end
+            fixdat = true
+        elseif valid
+            cnt += 1
+        end
+    end
+    if cnt == 0 && (policy & FORBID_NO_VALID_DATA) != 0
+        throw(ArgumentError("no-valid data"))
+    end
+
+    # Second pass to fix the data and their weights.
+    retdat = (fixdat ? Array(T, size(dat)) : dat)
+    retwgt = (fixwgt ? Array(T, size(wgt)) : wgt)
+    if fixdat
+        bad = T(bad)
+        if fixwgt
+            @inbounds for i in eachindex(dat, wgt, retdat, retwgt)
+                if isfinite(wgt[i]) && wgt[i] ≥ zero(T) && isfinite(dat[i])
+                    retdat[i] = dat[i]
+                    retwgt[i] = wgt[i]
+                else
+                    retdat[i] = bad
+                    retwgt[i] = zero(T)
+                end
+            end
+        else
+            @inbounds for i in eachindex(dat, wgt, retdat)
+                retdat[i] = wgt[i] > zero(T) && isfinite(dat[i]) ? dat[i] : bad
+            end
+        end
+    elseif fixwgt
+        @inbounds for i in eachindex(dat, wgt, retwgt)
+            retwgt[i] = isfinite(wgt[i]) && wgt[i] ≥ zero(T) ? wgt[i] : zero(T)
+        end
+    end
+
+    return (retwgt, retdat)
+end
+
+fix_weighted_data{T<:Real,N}(::Void, dat::AbstractArray{T,N}; kws...) =
+    fix_weighted_data(dat; kws...)
+
+# No weights given.
+function fix_weighted_data{T<:Real,N}(dat::AbstractArray{T,N};
+                                      bad::Real=zero(T),
+                                      policy::Integer=0)
+    # Basic check.
+    if isnan(bad) || isinf(bad)
+        throw(ArgumentError("\"bad\" value must be finite"))
+    end
+
+    # First pass to decide whether to fix data or not.
+    fixdat = false
+    @inbounds for i in eachindex(dat)
+        if ! isfinite(dat[i])
+            if (policy & FORBID_NONFINITE_DATA) != 0
+                throw(ArgumentError("non-finite data are forbidden"))
+            end
+            fixdat = true
+            break
+        end
+    end
+
+    # Second pass to fix data and set weights.
+    if fixdat
+        bad = T(bad)
+        cnt = 0
+        retdat = Array(T, size(dat))
+        retwgt = Array(T, size(dat))
+        @inbounds for i in eachindex(dat, retdat, retwgt)
+            if isfinite(dat[i])
+                retdat[i] = dat[i]
+                retwgt[i] = one(T)
+                cnt += 1
+            else
+                retdat[i] = bad
+                retwgt[i] = zero(T)
+            end
+        end
+        if cnt == 0 && (policy & FORBID_NO_VALID_DATA) != 0
+            throw(ArgumentError("no-valid data"))
+        end
+    else
+        retdat = dat
+        retwgt = nothing
+    end
+
+    return (retwgt, retdat)
+end
+
+function fix_weighted_data!{T<:Real,N}(wgt::AbstractArray{T,N},
+                                       dat::AbstractArray{T,N};
+                                       bad::Real=zero(T),
+                                       policy::Integer=0)
+    if isnan(bad) || isinf(bad)
+        throw(ArgumentError("bad value must be finite"))
+    end
+    if size(wgt) != size(dat)
+        throw(ArgumentError("weights and data must have the same size"))
+    end
+
+    bad = T(bad)
+    policy = Int(policy)
+    cnt = 0
+    @inbounds for i in eachindex(wgt, dat)
+        if isinf(wgt[i]) || isnan(wgt[i])
+            if (policy & ALLOW_NONFINITE_WEIGHTS) == 0
+                throw(ArgumentError("non-finite weights are forbidden"))
+            end
+            dat[i] = bad
+            wgt[i] = zero(T)
+        elseif wgt[i] <= zero(T)
+            if wgt[i] < zero(T)
+                if (policy & ALLOW_NEGATIVE_WEIGHTS) == 0
+                    throw(ArgumentError("weights must be nonnegative"))
+                end
+                wgt[i] = zero(T)
+            end
+            dat[i] = bad
+        elseif isinf(dat[i]) || isnan(dat[i])
+            if (policy & FORBID_NONFINITE_DATA) != 0
+                throw(ArgumentError("non-finite data are forbidden"))
+            end
+            dat[i] = bad
+            wgt[i] = zero(T)
+        else
+            cnt += 1
+        end
+    end
+    if cnt == 0 && (policy & FORBID_NO_VALID_DATA) != 0
+        throw(ArgumentError("no-valid data"))
+    end
+    return cnt
+end
+
+#------------------------------------------------------------------------------
