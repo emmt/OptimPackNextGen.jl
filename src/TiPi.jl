@@ -52,7 +52,9 @@ export MDA,
        CroppingOperator,
        ZeroPaddingOperator,
        FakeLinearOperator,
-       is_fake
+       is_fake,
+       FFTOperator,
+       fast_deconv
 
 doc"""
 `Float` is the type of all floating point scalar, it is currently an alias to
@@ -90,6 +92,8 @@ include("invprob.jl")
 importall .InverseProblems
 
 include("deconv.jl")
+importall .Deconvolution
+
 include("compactRegCauchy.jl")
 
 end # module
