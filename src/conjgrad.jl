@@ -27,16 +27,17 @@ where `A` is the so-called left-hand-side operator (which must be positive
 definite) of the normal equations, `b` is the right-hand-side vector of the
 normal equations and `x` are the unknowns.
 
-To use this method, an anitial solution, say `x0`, must be provided:
+To use this method, initial value, say `x0`, for the variables may be provided:
 
     x = conjgrad(A, b, x0)
 
-the intial solution may be used to store the final result:
+the intial variables may be used to store the final result:
 
     conjgrad!(A, b, x) -> x
 
-will overwrite the contents of the initial solution `x` with the final result
-and will return it.
+will overwrite the contents of the initial variables `x` with the final result
+and will return it.  If no initial variables are specified, the default is to
+start with all variables set to zero.
 
 Alternatively, the input of the algorithm may be an instance, say `eq`, of
 `NormalEquations`:
@@ -58,6 +59,10 @@ There are several keywords to control the algorithm:
 """
 function conjgrad end
 
+function conjgrad{T}(A::SelfAdjointOperator{T}, b::T; kws...)
+    conjgrad!(A, b, vfill!(vcreate(b), 0); kws...)
+end
+
 function conjgrad{T}(A::SelfAdjointOperator{T}, b::T, x0::T; kws...)
     conjgrad!(A, b, vcopy(x0); kws...)
 end
@@ -68,9 +73,6 @@ function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T;
     # Initialization.
     @assert tol[1] ≥ 0
     @assert tol[2] ≥ 0
-    p::T
-    q::T
-    r::T
     if vdot(x,x) > 0 # cheap trick to check whether x is non-zero
         r = apply_direct!(vcreate(x), A, x)
         vcombine!(r, 1, b, -1, r)
@@ -116,10 +118,10 @@ function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T;
     return x
 end
 
-function conjgrad{T}(eq::NormalEquations{T}, x0::T; kws...)
-    conjgrad(eq.lhs, eq.rhs, x0; kws...)
+function conjgrad{T}(eq::NormalEquations{T}, args...; kws...)
+    conjgrad(eq.lhs, eq.rhs, args...; kws...)
 end
 
-function conjgrad!{T}(eq::NormalEquations{T}, x::T; kws...)
-    conjgrad!(eq.lhs, eq.rhs, x0; kws...)
+function conjgrad!{T}(eq::NormalEquations{T}, args...; kws...)
+    conjgrad!(eq.lhs, eq.rhs, args...; kws...)
 end
