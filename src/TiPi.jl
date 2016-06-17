@@ -54,7 +54,8 @@ export MDA,
        FakeLinearOperator,
        is_fake,
        FFTOperator,
-       fast_deconv
+       fast_deconv,
+       OperatorD, OperatorDtD
 
 doc"""
 `Float` is the type of all floating point scalar, it is currently an alias to
@@ -87,6 +88,9 @@ include("weights.jl")
 include("cost.jl")
 include("smooth.jl")
 include("hypersmooth.jl")
+
+include("finitediff.jl")
+importall .FiniteDifferences
 
 include("invprob.jl")
 importall .InverseProblems
