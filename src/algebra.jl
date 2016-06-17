@@ -21,7 +21,6 @@ export Operator,
        LinearEndomorphism,
        SelfAdjointOperator,
        Identity,
-       NormalEquations,
        DiagonalOperator,
        RankOneOperator,
        ScalingOperator,
@@ -68,7 +67,10 @@ export Operator,
        project_variables!,
        project_direction!,
        step_limits,
-       get_free_variables
+       get_free_variables,
+       NormalEquations,
+       conjgrad,
+       conjgrad!
 
 include("operators.jl")
 include("vectors.jl")
