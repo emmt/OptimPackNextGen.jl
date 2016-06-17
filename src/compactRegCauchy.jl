@@ -17,9 +17,12 @@ immutable CompactRegCauchy <: AbstractCost
     dTheta::Cdouble           #rad the angular resolution of the pixels (assume that pixel are isotropic) 
     imgDim::NTuple{2,Int}     #pix the pixel size of the FOV
     w::Array{Cdouble,2}       #unitless the weights
-    #offset::NTuple{N,Cdouble} #translation
-    #rotMat::Array{Cdouble,2} #an N*N matrix that is the rotation
-    #isotropic::Bool #maybe later
+
+    #default ctor
+    function CompactRegCauchy()
+        new(0.0,(0.0,0.0),0.0,(0,0),Array(Cdouble,0,0))
+    end
+    #ctor
     function CompactRegCauchy(_theta0::Cdouble,
                              _thetaC::NTuple{2,Cdouble},
                              _dTheta::Cdouble,
@@ -39,26 +42,15 @@ immutable CompactRegCauchy <: AbstractCost
             end
         end
         #normalize the weights by  Z=\int_{\Omega} w(\theta) d\theta where \Omega is the angular portion of space covered by the FOV
-        Z=prod(_imgDim)*sum(_w)*_dTheta*_dTheta
+        Z=sum(_w)*_dTheta*_dTheta
         new(_theta0,_thetaC,_dTheta,_imgDim,_w/Z)
+    end
+    #cptor, needed?
+    function CompactRegCauchy(comp::CompactRegCauchy)
+        new(comp.theta0,comp.thetaC,comp.dTheta,comp.imgDim,comp.w)
     end
 end
 
-#function update_radius!(param::CompactRegCauchy,aNew::Cdouble)
-#    aNew > 0.0 || error("radius must be strictly positive")
-#    param.a=aNew
-#    #create the weight map
-#    a2=aNew*aNew
-#    for i2 in 1:param.imgDim[2]
-#        i2f2 = param.pixDim[2]*Float(i2) - param.center[2]
-#        i2f2 *= i2f2
-#        for i1 in 1:param.imgDim[1]
-#            i1f=param.pixDim[1]*Float(i1) - param.center[1]
-#            param.w[i1,i2] = (1.0 + 2.0*(i1f*i1f + i2f2)/a2)
-#        end
-#    end
-#    nothing
-#end
 
 function cost{T<:AbstractFloat}(alpha::Float, param::CompactRegCauchy,
                                 x::Array{T,2})
