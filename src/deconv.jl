@@ -155,7 +155,7 @@ function quad_deconv{T<:fftwReal,N}(psf::Array{T,N},
                                     wgt::Union{Array{T,N},Void}=nothing,
                                     fftwflags::Integer=FFTW.ESTIMATE,
                                     timelimit::Real=FFTW.NO_TIMELIMIT,
-                                    lower=-Inf, upper=+Inf,
+                                    lower=-Inf, upper=+Inf, spg::Integer=0,
                                     kws...)
     @assert rgl ≥ 0
     µ = convert(T, rgl)::T
@@ -211,7 +211,12 @@ function quad_deconv{T<:fftwReal,N}(psf::Array{T,N},
 
     eq = NormalEquations(A, b)
 
-    if isinf(lower) && isinf(upper) && lower < upper
+    if spg > 0
+        # Use the Spectral Projected Gradient method.
+        x = spg2!((x, g) -> cost!(eq, x, g),
+                  (dst, src) -> vcopy!(dst, max(T(lower), min(src, T(upper)))),
+                  x, spg; kws...)
+    elseif isinf(lower) && isinf(upper) && lower < upper
         # Use linear conjugate gradients.
         x = conjgrad!(eq, x; kws...)
     else
