@@ -643,11 +643,10 @@ If `E` is not provided, the operator operates on any "vector":
 """
 immutable ScalingOperator{E} <: LinearEndomorphism{E}
     alpha::Float
-    ScalingOperator{E}(::Type{E}, alpha::Float) = new(alpha)
 end
 
-ScalingOperator{E}(::Type{E}, alpha::Real) = ScalingOperator{E}(E, Float(alpha))
-ScalingOperator{E}(alpha::Real, ::Type{E}) = ScalingOperator{E}(E, Float(alpha))
+ScalingOperator{E}(::Type{E}, alpha::Real) = ScalingOperator{E}(alpha)
+ScalingOperator{E}(alpha::Real, ::Type{E}) = ScalingOperator{E}(alpha)
 ScalingOperator(alpha::Real) = ScalingOperator{Any}(Any, Float(alpha))
 
 contents(A::ScalingOperator) = A.alpha

@@ -382,6 +382,7 @@ function bounding_box{T}(a::AbstractArray{T,1}, b::T)
     return (i1min, i1max)
 end
 
+# FIXME: there is a better algorithm for rank > 1
 function bounding_box{T}(a::AbstractArray{T,2}, b::T)
     i1min, i1max = size(a,1) + 1, 0
     i2min, i2max = size(a,2) + 1, 0
