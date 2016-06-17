@@ -142,13 +142,12 @@ function vmlmb{T}(fg!::Function, x0::T; keywords...)
     x = vcreate(x0)
     vcopy!(x, x0)
     vmlmb!(fg!, x; keywords...)
-    return x
 end
 
 """
 `vmlmb!` is the in-place version of `vmlmb` (which to see):
 
-     vmlmb!(fg!, x; mem=..., lower=..., upper=..., ftol=..., fmin=...)
+     vmlmb!(fg!, x; mem=..., lower=..., upper=..., ftol=..., fmin=...) -> x
 
 finds a local minimizer of `f(x)` starting at `x` and stores the best solution
 in `x`.
@@ -494,6 +493,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
     #elseif stage > 3
         #warn(reason)
     end
+    return x
 end
 
 function check_status(lnsrch::AbstractLineSearch)
