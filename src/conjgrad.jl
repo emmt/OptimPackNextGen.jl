@@ -9,11 +9,63 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
+import TiPi: AbstractCost, cost, cost!
 
 # A NormalEquations stores the components of the normal equations.
-immutable NormalEquations{T}
-    lhs::SelfAdjointOperator{T}    # left hand side matrix
-    rhs::T                         # right hand side vector
+immutable NormalEquations{T} <: AbstractCost
+    A::SelfAdjointOperator{T}    # left hand side matrix
+    b::T                         # right hand side vector
+end
+
+doc"""
+# Normal equations
+
+The so-called "normal equations" are a linear system:
+
+    A⋅x = b
+
+where `A` is the so-called left-hand-side operator (which must be positive
+definite) of the normal equations, `b` is the right-hand-side vector of the
+normal equations and `x` are the unknowns.
+
+The solution of the normal equations is also the minimum of the familly of
+quadratic functions:
+
+    f(x) = (1/2) x'*A*x - b'*x + ϵ
+
+where `ϵ` is any arbitrary constant.  The gradient of `f(x)` is:
+
+    g(x) = A*x - b
+
+""" NormalEquations
+
+cost{T}(eq::NormalEquations{T}, x::T) = cost(one(Float), eq, x) :: Float
+cost!{T}(eq::NormalEquations{T}, x::T, g::T) = cost!(one(Float), eq, x, g, true)
+
+function cost{T}(alpha::Real, eq::NormalEquations{T}, x::T)
+    alpha == zero(typeof(alpha)) && return zero(Float)
+    fx = vdot(x, eq.A*x)/2 - vdot(x, eq.b)
+    Float(alpha*fx)
+end
+
+function cost!{T}(alpha::Real, eq::NormalEquations{T}, x::T, g::T, ovr::Bool)
+    if alpha == zero(typeof(alpha))
+        ovr && vfill!(g, 0)
+        return zero(Float)
+    end
+    A, b = eq.A, eq.b
+    if ovr
+        # Use `g` as a workspace.
+        Ax = apply_direct!(g, A, x)
+        fx = vdot(x, Ax)/2 - vdot(x, b)
+        vcombine!(g, alpha, Ax, -alpha, b)
+    else
+        # Need a temporary variable.
+        Ax = A*x
+        fx = vdot(x, Ax)/2 - vdot(x, b)
+        vupdate!(g, alpha, vupdate!(Ax, -1, b)) # FIXME: implement 3 terms linear combination
+    end
+    return Float(alpha*fx)
 end
 
 doc"""
@@ -119,9 +171,9 @@ function conjgrad!{T}(A::SelfAdjointOperator{T}, b::T, x::T;
 end
 
 function conjgrad{T}(eq::NormalEquations{T}, args...; kws...)
-    conjgrad(eq.lhs, eq.rhs, args...; kws...)
+    conjgrad(eq.A, eq.b, args...; kws...)
 end
 
 function conjgrad!{T}(eq::NormalEquations{T}, args...; kws...)
-    conjgrad!(eq.lhs, eq.rhs, args...; kws...)
+    conjgrad!(eq.A, eq.b, args...; kws...)
 end

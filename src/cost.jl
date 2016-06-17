@@ -90,8 +90,7 @@ shortcuts:
 
 and to convert any `Real` multiplier to `TiPi.Float`.
 
-"""
-abstract AbstractCost
+""" AbstractCost
 
 call(f::AbstractCost, x) = cost(one(Float), f, x)
 cost(f::AbstractCost, x) = cost(one(Float), f, x)

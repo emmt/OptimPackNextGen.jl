@@ -29,12 +29,15 @@ export MDA,
        NormalEquations,
        conjgrad,
        conjgrad!,
+       AbstractCost,
        cost,
        cost!,
        check_gradient,
        prox,
        prox!,
-       AbstractCost, Hessian,
+       vmlmb,
+       vmlmb!,
+       Hessian,
        CirculantConvolution,
        HyperbolicEdgePreserving,
        QuadraticCost,
@@ -65,40 +68,30 @@ doc"""
 """
 typealias Float Float64
 
+# FIXME: this is dirty?
+abstract AbstractCost
+function cost  end
+function cost! end
+
 include("utils.jl")
-
-include("algebra.jl")
-importall .Algebra
-
-include("fft.jl")
-importall .FFT
-
-include("convolution.jl")
-importall .Convolution
-
+include("algebra.jl"); importall .Algebra
+include("fft.jl"); importall .FFT
+include("convolution.jl"); importall .Convolution
 include("AffineTransforms.jl")
 include("kernels.jl")
 include("interp.jl")
 include("mda.jl")
 include("lnsrch.jl")
-include("quasi-newton.jl")
+include("quasi-newton.jl"); importall .QuasiNewton
 include("step_globmin.jl")
-include("spg.jl")
-importall .SPG
-
+include("spg.jl"); importall .SPG
 include("weights.jl")
 include("cost.jl")
 include("smooth.jl")
 include("hypersmooth.jl")
-
-include("finitediff.jl")
-importall .FiniteDifferences
-
-include("invprob.jl")
-importall .InverseProblems
-
-include("deconv.jl")
-importall .Deconvolution
+include("finitediff.jl"); importall .FiniteDifferences
+include("invprob.jl"); importall .InverseProblems
+include("deconv.jl"); importall .Deconvolution
 
 include("compactRegCauchy.jl")
 
