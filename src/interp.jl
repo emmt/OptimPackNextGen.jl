@@ -25,6 +25,24 @@ eltype{T,N}(op::Interpolator{T,N}) = T
 output_size{T,N}(op::Interpolator{T,N}) = op.dims
 input_size{T,N}(op::Interpolator{T,N}) = (op.ncols,)
 
+coefficients(op::Interpolator) = op.A
+columns(op::Interpolator) = op.J
+function rows(op::Interpolator)
+    const nrows = op.nrows
+    const width = op.width
+    @assert length(op.A) == width*nrows
+    @assert length(op.J) == width*nrows
+    I = Array(Int, width*nrows)
+    k0 = 0
+    for i in 1:nrows
+        for k in k0+1:k0+width
+            @inbounds I[k] = i
+        end
+        k0 += width
+    end
+    return I
+end
+
 """
 # Linear interpolator
 
