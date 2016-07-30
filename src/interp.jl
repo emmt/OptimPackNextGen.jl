@@ -266,10 +266,10 @@ doc"""
 
     fit(A, y[, w][; epsilon=1e-9, mu=0.0]) -> x
 
-performs a linear fit of `y` by the model `A*x`.  The returned value `x`
-minimizes:
+performs a linear fit of `y` by the model `A*x` with `A` a linear interpolator.
+The returned value `x` minimizes:
 
-    (A*x - y)'*diag(w)*(A*x - y)
+    sum(w.*(A*x - y).^2)
 
 where `w` are some weights.  If `w` is not specified, all weights are assumed
 to be equal to one; otherwise `w` must be an array of nonnegative values and of
@@ -278,10 +278,10 @@ same size as `y`.
 Keywords `epsilon` and `mu` may be specified to regularize the solution and
 minimize:
 
-    (A*x - y)'*diag(w)*(A*x - y) + rho*(epsilon*norm2(x) + mu*norm2(D*x))
+    sum(w.*(A*x - y).^2) + rho*(epsilon*norm(x)^2 + mu*norm(D*x)^2)
 
-where `D` is a finite difference operator and `rho` is the maximum diagonal
-element of `A'*diag(w)*A`.
+where `D` is a finite difference operator, `rho` is the maximum diagonal
+element of `A'*diag(w)*A` and `norm` is the Euclidean norm.
 
 """
 function fit{T,N}(A::Interpolator{T,N}, y::AbstractArray{T,N};
@@ -325,7 +325,7 @@ doc"""
 
 regularizes the symmetric matrix `A` to produce the matrix:
 
-    R = A + ρ(ϵ I + μ D'*D)
+    R = A + ρ*(ϵ*I + μ*D'*D)
 
 where `I` is the identity, `D` is a finite difference operator and `ρ` is the
 maximum diagonal element of `A`.  The in-place version:
