@@ -121,17 +121,17 @@ function apply_direct!{T,N}(dst::AbstractArray{T,N},
     const ncols = op.ncols
     A = op.A
     J = op.J
+    K = 1:width
     @inbounds begin
-        k0 = 0
         for i in 1:nrows
             s = zero(T)
-            for k in k0+1:k0+width
+            for k in K
                 j = J[k]
                 1 ≤ j ≤ ncols || error("corrupted interpolator table")
                 s += A[k]*src[j]
             end
             dst[i] = s
-            k0 += width
+            K += width
         end
     end
 end
@@ -147,23 +147,23 @@ function apply_adjoint!{T,N}(dst::AbstractArray{T,1},
                              op::Interpolator{T,N},
                              src::AbstractArray{T,N})
     checksize(op, src, dst)
+    is(dst, src) && error("operation cannot be done in-place")
+    fill!(dst, zero(T))
     const width = op.width
     const nrows = op.nrows
     const ncols = op.ncols
     A = op.A
     J = op.J
-    is(dst, src) && error("operation cannot be done in-place")
-    fill!(dst, zero(T))
+    K = 1:width
     @inbounds begin
-        k0 = 0
         for i in 1:nrows
             s = src[i]
-            for k in k0+1:k0+width
+            for k in K
                 j = J[k]
                 1 ≤ j ≤ ncols || error("corrupted interpolator table")
                 dst[j] += A[k]*s
             end
-            k0 += width
+            K += width
         end
     end
 end
