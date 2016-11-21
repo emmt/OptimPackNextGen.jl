@@ -284,7 +284,8 @@ where `D` is a finite difference operator, `rho` is the maximum diagonal
 element of `A'*diag(w)*A` and `norm` is the Euclidean norm.
 
 """
-function fit{T,N}(A::Interpolator{T,N}, y::AbstractArray{T,N};
+function fit{T,N}(A::Interpolator{T,N}, y::AbstractArray{T,N},
+                  w::AbstractArray{T,N};
                   epsilon::Real = RGL_EPS, mu::Real = RGL_MU)
     @assert size(y) == output_size(A)
     @assert size(w) == size(y)
