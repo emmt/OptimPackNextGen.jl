@@ -75,7 +75,8 @@ The operator `H` can be created by:
 
 where `psf` is the point spread function (PSF).  Note that the PSF is assumed
 to be centered according to the convention of the discrete Fourier transform.
-You may use `ifftshift` or the keyword `shift` if the PSF is geometrically centered:
+You may use `ifftshift` or the keyword `shift` if the PSF is geometrically
+centered:
 
     H = CirculantConvolution(ifftshift(psf))
     H = CirculantConvolution(psf, shift=true)
@@ -88,7 +89,7 @@ The following keywords can be specified:
   of its values.  This keyword is only available for real-valued PSF.
 
 * `flags` is a bitwise-or of FFTW planner flags, defaulting to `FFTW.ESTIMATE`.
-  If the operator is to be used many times (as in interative methods), it is
+  If the operator is to be used many times (as in iterative methods), it is
   recommended to use at least `flags=FFTW.MEASURE` which generally yields
   faster transforms compared to the default `flags=FFTW.ESTIMATE`.
 
