@@ -17,12 +17,14 @@ type TestOperator{E,F} <: LinearOperator{E,F}
     TestOperator(name::AbstractString) = new(preserve(name))
 end
 
+(A::TestOperator{E,F}){E,F}(x::F) = apply_direct(A, x)
+
 type BogusOperator{E,F} <: LinearOperator{E,F}
     name::AbstractString
     BogusOperator(name::AbstractString) = new(preserve(name))
 end
 
-function preserve(str::ASCIIString)
+function preserve(str::String)
     str = strip(str)
     if length(str) == 0 || (ismatch(r"[-+*/\\']", str) && (str[1] != '(' || str[end] != ')'))
         return "("*str*")"

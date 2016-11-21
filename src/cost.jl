@@ -9,20 +9,18 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
-import Base.call
-
 """
 ## Cost functions in TiPi
 
 In many cases, solving an inverse problem amounts to minimizing a cost
 function.  Abstract type `AbstractCost` is the parent type of any cost function
-instance.  The following methods are available for any cost function instance
-`f`:
+instance.  Calling the `cost` method as:
 
-    f(x)    or    cost(f, x)
+    cost(f, x)
 
-yield the cost function `f` for the variables `x`.  A multiplier `alpha` can
-be specified:
+yields the cost function `f` for the variables `x`.  Some cost types may
+implement the shortcut `f(x)` to compute the cost.  A multiplier `alpha` can be
+specified:
 
     cost(alpha, f, x)
 
@@ -92,7 +90,6 @@ and to convert any `Real` multiplier to `TiPi.Float`.
 
 """ AbstractCost
 
-call(f::AbstractCost, x) = cost(one(Float), f, x)
 cost(f::AbstractCost, x) = cost(one(Float), f, x)
 cost(alpha::Real, f::AbstractCost, x) = cost(Float(alpha), f, x) :: Float
 #function cost(alpha::Float, f::AbstractCost, x)
@@ -159,6 +156,8 @@ end
 function MAPCost{L<:AbstractCost,R<:AbstractCost}(lkl::L, mu::Real, rgl::R)
     MAPCost{L,R}(lkl, Float(mu), rgl)
 end
+
+(f::MAPCost)(x) = cost(f, x)
 
 function cost{L,R}(alpha::Float, f::MAPCost{L,R}, x)
     alpha == zero(Float) && return zero(Float)
@@ -259,6 +258,8 @@ function residuals{E,F}(q::QuadraticCost{E,F}, x::F)
     end
     return r
 end
+
+(f::QuadraticCost)(x) = cost(f, x)
 
 function cost{E,F}(alpha::Float, q::QuadraticCost{E,F}, x::F)
     alpha == zero(Float) && return zero(Float)

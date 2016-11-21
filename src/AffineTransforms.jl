@@ -24,7 +24,7 @@ export AffineTransform2D,
    combine, rotate, translate, invert, intercept,
    jacobian
 
-import Base: convert, call, det, scale, show, *, +, /, \
+import Base: convert, det, scale, show, *, +, /, \
 """
 # Affine 2D Transforms
 
@@ -45,9 +45,7 @@ The immutable type `AffineTransform2D` is used to store an affine 2D transform
 
 Many operations are available to manage or apply affine transforms:
 ```
-  (xp, yp) = call(A, x, y)   # apply the transform A to (x,y)
   (xp, yp) = A(x, y)         # idem
-  (xp, yp) = call(A, xy)     # idem for xy = (x, y)
   (xp, yp) = A(xy)           # idem
   (xp, yp) = A*xy            # idem
 
@@ -131,56 +129,49 @@ convert{T<:AbstractFloat}(::Type{T}, A::AffineTransform2D{T}) = A
 #------------------------------------------------------------------------------
 # apply the transform to some coordinates:
 
-function call{T<:AbstractFloat}(A::AffineTransform2D{T}, x::T, y::T)
+(A::AffineTransform2D{T}){T<:AbstractFloat}(x::T, y::T) =
     (A.xx*x + A.xy*y + A.x,
      A.yx*x + A.yy*y + A.y)
-end
+
+(A::AffineTransform2D{T}){T<:AbstractFloat,T1<:Real,T2<:Real}(x::T1, y::T2) =
+    A(convert(T, x), convert(T, y))
+
+(A::AffineTransform2D{T}){T<:AbstractFloat}(t::NTuple{2,T}) =
+    A(t[1], t[2])
+
+(A::AffineTransform2D{T}){T<:AbstractFloat,T1<:Real,T2<:Real}(t::Tuple{T1,T2}) =
+    A(convert(T, t[1]), convert(T, t[2]))
 
 #------------------------------------------------------------------------------
 # Combine a translation with an affine transform.
 
 # Left-translating results in translating the output of the transform.
-function translate{T<:AbstractFloat}(x::T, y::T, A::AffineTransform2D{T})
+translate{T<:AbstractFloat}(x::T, y::T, A::AffineTransform2D{T}) =
     AffineTransform2D{T}(A.xx, A.xy, A.x + x,
                          A.yx, A.yy, A.y + y)
-end
 
 # Right-translating results in translating the input of the transform.
-function translate{T<:AbstractFloat}(A::AffineTransform2D{T}, x::T, y::T)
+translate{T<:AbstractFloat}(A::AffineTransform2D{T}, x::T, y::T) =
     AffineTransform2D{T}(A.xx, A.xy, A.xx*x + A.xy*y + A.x,
                          A.yx, A.yy, A.yx*x + A.yy*y + A.y)
-end
 
-for (func, swap) in ((:call, false), (:translate, true))
-    @eval begin
-        function $func{T<:AbstractFloat,
-            T1<:Real, T2<:Real}(A::AffineTransform2D{T}, x::T1, y::T2)
-            $func(A, convert(T, x), convert(T, y))
-        end
-        function $func{T<:AbstractFloat}(A::AffineTransform2D{T},
-                                         t::NTuple{2,T})
-            $func(A, t[1], t[2])
-        end
-        function $func{T<:AbstractFloat,
-            T1<:Real, T2<:Real}(A::AffineTransform2D{T}, t::Tuple{T1,T2})
-            $func(A, convert(T, t[1]), convert(T, t[2]))
-        end
-        if $swap
-            function $func{T<:AbstractFloat,
-                T1<:Real, T2<:Real}(x::T1, y::T2, A::AffineTransform2D{T})
-                $func(convert(T, x), convert(T, y), A)
-            end
-            function $func{T<:AbstractFloat}(t::NTuple{2,T},
-                                             A::AffineTransform2D{T})
-                $func(t[1], t[2], A)
-            end
-            function $func{T<:AbstractFloat,
-                T1<:Real, T2<:Real}(t::Tuple{T1,T2}, A::AffineTransform2D{T})
-                $func(convert(T, t[1]), convert(T, t[2]), A)
-            end
-        end
-    end
-end
+translate{T<:AbstractFloat}(A::AffineTransform2D{T}, x::Real, y::Real) =
+    translate(A, convert(T, x), convert(T, y))
+
+translate{T<:AbstractFloat}(A::AffineTransform2D{T},t::NTuple{2,T}) =
+    translate(A, t[1], t[2])
+
+translate{T<:AbstractFloat,T1<:Real,T2<:Real}(A::AffineTransform2D{T}, t::Tuple{T1,T2}) =
+    translate(A, convert(T, t[1]), convert(T, t[2]))
+
+translate{T<:AbstractFloat,T1<:Real,T2<:Real}(x::T1, y::T2, A::AffineTransform2D{T}) =
+    translate(convert(T, x), convert(T, y), A)
+
+translate{T<:AbstractFloat}(t::NTuple{2,T}, A::AffineTransform2D{T}) =
+    translate(t[1], t[2], A)
+
+translate{T<:AbstractFloat,T1<:Real,T2<:Real}(t::Tuple{T1,T2}, A::AffineTransform2D{T}) =
+    translate(convert(T, t[1]), convert(T, t[2]), A)
 
 #------------------------------------------------------------------------------
 """
@@ -198,8 +189,8 @@ results in scaling the output of the transform; while right-scaling as in:
 results in scaling the input of the transform.  The above examples yield
 transforms which behave as:
 ```
-    B*t = ρ*(A*t) = ρ*call(A, t)
-    C*t = A*(ρ*t) = call(A, ρ*t)
+    B*t = ρ*(A*t) = ρ*A(t)
+    C*t = A*(ρ*t) = A(ρ*t)
 ```
 where `t` is any 2-element tuple.
 """
@@ -376,7 +367,7 @@ end
 *{R<:AbstractFloat,S<:AbstractFloat}(A::AffineTransform2D{R},
                                      B::AffineTransform2D{S}) = combine(A, B)
 
-*{T<:AbstractFloat}(A::AffineTransform2D{T}, t::NTuple{2}) = call(A, t)
+*{T<:AbstractFloat}(A::AffineTransform2D{T}, t::NTuple{2}) = A(t)
 
 *{S<:Real,T<:AbstractFloat}(ρ::S, A::AffineTransform2D{T}) = scale(ρ, A)
 
@@ -410,17 +401,17 @@ function runtests()
     V = convert(Float64,C)
     show(V)
     println()
-    show(call(B, 1, 4))
+    show(B(1, 4))
     println()
-    show(call(B, 1f0, 4))
+    show(B(1f0, 4))
     println()
-    show(call(B, 1.0, 4.0))
+    show(B(1.0, 4.0))
     println()
-    show(call(B, 1.0, 4))
+    show(B(1.0, 4))
     println()
-    show(call(B, (1f0, 4f0)))
+    show(B((1f0, 4f0)))
     println()
-    show(call(B, (1.0, 4f0)))
+    show(B((1.0, 4f0)))
     println()
     xy = intercept(B)
     xpyp = B*xy

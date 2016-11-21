@@ -12,7 +12,7 @@
 
 module Kernels
 
-import Base: length, apply, call
+import Base: length
 export iscardinal, isnormalized
 export BoxKernel, TriangleKernel, QuadraticKernel, CubicKernel,
        CatmullRomKernel, KeysKernel, MitchellNetraviliKernel, LanczosKernel
@@ -25,12 +25,9 @@ Abstract `Kernel` type is the super type of kernel functions used for
 filtering, windowing or interpolation.  For efficiency reasons, a kernel is
 parameterized with the floating point type of its argument and return value.
 
-Computing the value of a kernel function `ker` at position `x` is done by one
-of:
+Computing the value of a kernel function `ker` at position `x` is done by:
 
     ker(x)
-    call(ker, x)
-    apply(ker, x)   # deprecated
 
 `lenght(ker)` yields the size of the support of kernel `ker`.  All kernel
 supports are symmetric; that is `ker(x)` is zero if `abs(x) > lenght(ker)/2`.
@@ -45,8 +42,6 @@ abstract SingletonKernel{T<:AbstractFloat} <: Kernel{T}
 
 # Default methods.
 length{T<:Kernel}(::T) = length(T)
-apply{T<:AbstractFloat}(ker::Kernel{T}, x::Real) = call(ker, x)
-apply{T<:SingletonKernel}(::T, x::Real) = call(T, x)
 
 """
 `isnormalized(ker)` returns a boolean indicating whether the kernel `ker` has
@@ -74,9 +69,8 @@ BoxKernel{T<:AbstractFloat}(::Type{T}) = BoxKernel{T}()
 
 const box = BoxKernel(Cdouble)
 
-function call{T<:AbstractFloat}(::Type{BoxKernel{T}}, x::T)
+(::Type{BoxKernel{T}}){T<:AbstractFloat}(x::T) =
     _(T,-1,2) <= x < _(T,1,2) ? one(T) : zero(T)
-end
 
 length{T<:BoxKernel}(::Type{T}) = 1
 iscardinal{T<:BoxKernel}(::Type{T}) = true
@@ -95,7 +89,7 @@ TriangleKernel{T<:AbstractFloat}(::Type{T}) = TriangleKernel{T}()
 
 const triangle = TriangleKernel(Cdouble)
 
-function call{T<:AbstractFloat}(::Type{TriangleKernel{T}}, x::T)
+function (::Type{TriangleKernel{T}}){T<:AbstractFloat}(x::T)
     t = abs(x)
     t < 1 ? one(T) - t : zero(T)
 end
@@ -116,7 +110,7 @@ QuadraticKernel{T<:AbstractFloat}(::Type{T}) = QuadraticKernel{T}()
 
 const quadratic = QuadraticKernel(Cdouble)
 
-function call{T<:AbstractFloat}(::Type{QuadraticKernel{T}}, x::T)
+function (::Type{QuadraticKernel{T}}){T<:AbstractFloat}(x::T)
     t = abs(x)
     if t >= _(T,3,2)
         return zero(T)
@@ -145,7 +139,7 @@ CubicKernel{T<:AbstractFloat}(::Type{T}) = CubicKernel{T}()
 
 const cubic = CubicKernel(Cdouble)
 
-function call{T<:AbstractFloat}(::Type{CubicKernel{T}}, x::T)
+function (::Type{CubicKernel{T}}){T<:AbstractFloat}(x::T)
     t = abs(x);
     if t >= T(2)
         return zero(T)
@@ -223,7 +217,7 @@ end
 
 const mitchell_netravili = MitchellNetraviliKernel(Cdouble)
 
-function call{T<:AbstractFloat}(ker::MitchellNetraviliKernel{T}, x::T)
+function (ker::MitchellNetraviliKernel{T}){T<:AbstractFloat}(x::T)
     t = abs(x)
     t >= T(2) ? zero(T) :
     t <= one(T) ? (ker.p3*t + ker.p2)*t*t + ker.p0 :
@@ -231,7 +225,8 @@ function call{T<:AbstractFloat}(ker::MitchellNetraviliKernel{T}, x::T)
 end
 
 length{T<:MitchellNetraviliKernel}(::Type{T}) = 4
-iscardinal{T<:AbstractFloat}(ker::MitchellNetraviliKernel{T}) = (ker.b == zero(T))
+iscardinal{T<:AbstractFloat}(ker::MitchellNetraviliKernel{T}) =
+    (ker.b == zero(T))
 isnormalized{T<:MitchellNetraviliKernel}(::Type{T}) = true
 
 #------------------------------------------------------------------------------
@@ -265,7 +260,7 @@ end
 KeysKernel{T<:AbstractFloat}(::Type{T}, a::Real) = KeysKernel(T, T(a))
 KeysKernel{T<:AbstractFloat}(::Type{T}, a::T) = KeysKernel{T}(a)
 
-function call{T<:AbstractFloat}(ker::KeysKernel{T}, x::T)
+function (ker::KeysKernel{T}){T<:AbstractFloat}(x::T)
     t = abs(x)
     t >= T(2) ? zero(T) :
     t <= one(T) ? (ker.p3*t + ker.p2)*t*t + ker.p0 :
@@ -285,7 +280,7 @@ CatmullRomKernel{T<:AbstractFloat}(::Type{T}) = CatmullRomKernel{T}()
 
 const catmull_rom = CatmullRomKernel(Cdouble)
 
-function call{T<:AbstractFloat}(::Type{CatmullRomKernel{T}}, x::T)
+function (::Type{CatmullRomKernel{T}}){T<:AbstractFloat}(x::T)
     t = abs(x)
     t >= T(2) ? zero(T) :
     t <= one(T) ? (_(T,3,2)*t - _(T,5,2))*t*t + one(T) :
@@ -320,7 +315,7 @@ end
 
 LanczosKernel{T<:AbstractFloat}(::Type{T}, n::Integer) = LanczosKernel{T}(n)
 
-function call{T<:AbstractFloat}(ker::LanczosKernel{T}, x::T)
+function (ker::LanczosKernel{T}){T<:AbstractFloat}(x::T)
     abs(x) >= ker.a ? zero(T) :
     x == zero(T) ? one(T) :
     ker.b*sin(pi*x)*sin(ker.c*x)/(x*x)
@@ -336,36 +331,38 @@ isnormalized{T<:LanczosKernel}(::Type{T}) = false
 # dispatching ambiguities).
 for K in (KeysKernel, MitchellNetraviliKernel, LanczosKernel)
     @eval begin
-        function call{T<:AbstractFloat}(ker::$K{T}, x::Real)
-            call(ker, T(x))
-        end
+        (ker::$K{T}){T<:AbstractFloat}(x::Real) = ker(T(x))
+        (ker::$K{T}){T<:AbstractFloat}(arr::AbstractArray) =
+            apply(ker, arr)
     end
 end
 
 # Provide methods for singleton kernels.
-call{T<:SingletonKernel}(::T, x::Real) = call(T, x)
 for K in (BoxKernel, TriangleKernel, QuadraticKernel, CubicKernel,
           CatmullRomKernel)
     @eval begin
-        function call{T<:AbstractFloat}(::Type{$K{T}}, x::Real)
-            call($K{T}, T(x))
-        end
+        (::Type{$K{T}}){T<:AbstractFloat}(x::Real) = $K{T}(T(x))
+        (::$K{T}){T<:AbstractFloat}(x::Real) = $K{T}(T(x))
+        (ker::$K{T}){T<:AbstractFloat}(arr::AbstractArray) =
+            apply(ker, arr)
     end
 end
+length{T<:SingletonKernel}(::T) = length(T)
+iscardinal{T<:SingletonKernel}(::T) = iscardinal(T)
+isnormalized{T<:SingletonKernel}(::T) = isnormalized(T)
 
-function call{T<:AbstractFloat,R<:Real,N}(ker::Kernel{T},
-                                          x::AbstractArray{R,N})
+function apply{T<:AbstractFloat,R<:Real,N}(ker::Kernel{T},
+                                           x::AbstractArray{R,N})
     y = Array(T, size(x))
-    @inbounds for i in 1:length(x)
+    @inbounds for i in eachindex(x, y)
         y[i] = ker(T(x[i]))
     end
     return y
 end
 
-function call{T<:AbstractFloat,N}(ker::Kernel{T},
-                                  x::AbstractArray{T,N})
+function apply{T<:AbstractFloat,N}(ker::Kernel{T}, x::AbstractArray{T,N})
     y = Array(T, size(x))
-    @inbounds for i in 1:length(x)
+    @inbounds for i in eachindex(x, y)
         y[i] = ker(x[i])
     end
     return y

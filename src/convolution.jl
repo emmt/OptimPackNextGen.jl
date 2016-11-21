@@ -225,6 +225,9 @@ for adj in (false, true)
 
 end
 
+# Manage to have `H(x)` works as `H*x`:
+(H::CirculantConvolution{T,C,N}){T,C,N}(x::Array{T,N}) = apply_direct(H, x)
+
 #------------------------------------------------------------------------------
 # Fast in-place multiplication by the MTF.
 

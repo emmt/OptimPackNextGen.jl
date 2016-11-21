@@ -53,7 +53,7 @@ A linear interpolator is created by:
 which yields a linear interpolator suitable for interpolating with the kernel
 `ker` a function sampled on the grid `grd` at positions `pos`.
 
-Then `y = call(op, x)` or `y = op(x)` yields the interpolated values for
+Then `y = apply(op, x)` or `y = op(x)` yields the interpolated values for
 interpolation weights `x`.  The shape of `y` is the same as that of `pos`.
 
 Formally, this amounts to computing:

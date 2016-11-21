@@ -11,7 +11,7 @@
 
 # FIXME: fix doc. self-adjoint, endomorphism, etc. ScalingOperator --> Scaled(Identity)
 
-import Base: *, ⋅, +, -, \, /, ctranspose, call, diag, inv, apply, A_mul_B!,
+import Base: *, ⋅, +, -, \, /, ctranspose, call, diag, inv, A_mul_B!,
              show, showerror
 
 import TiPi: subrange, dimlist, contents
@@ -26,7 +26,7 @@ unimplemented_operation(args...) = throw(UnimplementedOperation())
 #------------------------------------------------------------------------------
 # ABSTRACT TYPES
 
-# Traits are part of the signature of an operators.  For now that's a bitwise
+# Traits are part of the signature of an operator.  For now that's a bitwise
 # combination.
 const Nonlinear = 0
 const Linear    = 1
@@ -74,23 +74,24 @@ end
 doc"""
 # Linear Combination of Operators
 
-    combine(α, A, β, B)
+    C = combine(α, A, β, B)
 
-yields an operator with performs as `α*A + β*B`.  Parameters `α` and `β` are
-scalars, parameters `A` and `B` are operators which must have the same input
-and output types.
+yields an operator `C` which performs as `α*A + β*B`.  Parameters `α` and `β`
+are scalars, parameters `A` and `B` are operators which must have the same
+input and output types.  A shortcut for this is:
+
+    C = α*A + β*B
 
 """
 function combine end
 
-for (L, lsc, lop) in     ((:Scaled,   :(alpha*A.sc), :(A.op)),
-                          (:Operator, :alpha,        :A))
-    for (R, rsc, rop) in ((:Scaled,   :(beta*B.sc),  :(B.op)),
-                          (:Operator, :beta,         :B))
-        @eval function combine{Ta,Tb,E,F}(alpha::Real, A::$L{Ta,E,F},
-                                          beta::Real, B::$R{Tb,E,F})
-            Combination{Ta&Tb,E,F}($lsc, $lop, $rsc, $rop)
-        end
+for (L, lsc, lop) in ((:Scaled,   :(alpha*A.sc), :(A.op)),
+                      (:Operator, :alpha,        :A)),
+    (R, rsc, rop) in ((:Scaled,   :(beta*B.sc),  :(B.op)),
+                      (:Operator, :beta,         :B))
+    @eval function combine{Ta,Tb,E,F}(alpha::Real, A::$L{Ta,E,F},
+                                      beta::Real, B::$R{Tb,E,F})
+        Combination{Ta&Tb,E,F}($lsc, $lop, $rsc, $rop)
     end
 end
 combine{Ta,Tb,Ea,Eb,F}(::Real, ::Operator{Ta,Ea,F}, ::Real, ::Operator{Tb,Eb,F}) =
@@ -105,8 +106,7 @@ combine{Ta,Tb,Ea,Eb,Fa,Fb}(::Real, ::Operator{Ta,Ea,Fa}, ::Real, ::Operator{Tb,E
 # scale factor is factorized outside of the construction while the adjoint is
 # propagated inside the construction.
 #
-#
-# Ultimately, I want something like:
+# Ultimately, we want something like:
 #
 #     A = H'*W*H + µ*D'*D
 #
@@ -118,7 +118,7 @@ combine{Ta,Tb,Ea,Eb,Fa,Fb}(::Real, ::Operator{Ta,Ea,Fa}, ::Real, ::Operator{Tb,E
 #
 #     A' === A
 #
-# should be true.
+# should be true provided `W' === W`.
 #
 # Outer constructors are not provided, instead there are methods like `combine`
 # which filter the result and perform simplifications.
@@ -184,18 +184,16 @@ inv{T,E,F}(A::Operator{T,E,F}) = Inverse{T,F,E}(A.op)
 \(::Operator, ::Any) = throw(ArgumentError("bad argument type for inverse operator"))
 
 
-# Overload `call` and `A_mul_B!` so that are no needs to overload `Ac_mul_B`
-# `Ac_mul_Bc`, etc. to have `A'*x`, `A*B*C*x`, etc. yield the expected result.
-call(A::Operator, x::Any) = A*x
+# Overload `A_mul_B!` so that are no needs to overload `Ac_mul_B` `Ac_mul_Bc`,
+# etc. to have `A'*x`, `A*B*C*x`, etc. yield the expected result.
 
 A_mul_B!{T,E,F}(y::E, A::Operator{T,E,F}, x::F) = apply_direct!(y, A, x) ::E
-A_mul_B!{T,E,F}(::Any, ::Operator{T,E,F}, ::F) =
-    throw(ArgumentError("bad output type for calling operator"))
 A_mul_B!{T,E,F}(::E, ::Operator{T,E,F}, ::Any) =
     throw(ArgumentError("bad input type for calling operator"))
 A_mul_B!{T,E,F}(::Any, ::Operator{T,E,F}, ::F) =
+    throw(ArgumentError("bad output type for calling operator"))
+A_mul_B!{T,E,F}(::Any, ::Operator{T,E,F}, ::Any) =
     throw(ArgumentError("bad output and input types for calling operator"))
-
 
 is_self_adjoint{T,E,F}(A::Operator{T,E,F}) = (A' === A)
 
@@ -203,6 +201,9 @@ is_linear{T,E,F}(::Operator{T,E,F}) = ((T|Linear) == Linear)
 
 input_type{T,E,F}(::Operator{T,E,F}) = F
 output_type{T,E,F}(::Operator{T,E,F}) = E
+
+apply{T,E,F}(A::Operator{T,E,F}, x::F) = apply_direct(A, x)
+apply!{T,E,F}(y::E, A::Operator{T,E,F}, x::F) = apply_direct!(y, A, x)
 
 function apply_direct end
 function apply_direct! end
@@ -221,23 +222,25 @@ for (class, direct, adjoint, inverse, inverse_adjoint) in
     ((:Adjoint, :adjoint, :direct, :inverse_adjoint, :inverse),
      (:Inverse, :inverse, :inverse_adjoint, :direct, :adjoint))
 
-    @eval apply_direct{E,F}(A::$class{E,F}, x::F) =
-        $(symbol("apply_", direct))(A.op, x)
-    @eval apply_adjoint{E,F}(A::$class{E,F}, x::E) =
-        $(symbol("apply_", adjoint))(A.op, x)
-    @eval apply_inverse{E,F}(A::$class{E,F}, x::E) =
-        $(symbol("apply_", inverse))(A.op, x)
-    @eval apply_inverse_adjoint{E,F}(A::$class{E,F}, x::F) =
-        $(symbol("apply_", inverse_adjoint))(A.op, x)
+    @eval begin
+        apply_direct{E,F}(A::$class{E,F}, x::F) =
+            $(Symbol("apply_", direct))(A.op, x)
+        apply_adjoint{E,F}(A::$class{E,F}, x::E) =
+            $(Symbol("apply_", adjoint))(A.op, x)
+        apply_inverse{E,F}(A::$class{E,F}, x::E) =
+            $(Symbol("apply_", inverse))(A.op, x)
+        apply_inverse_adjoint{E,F}(A::$class{E,F}, x::F) =
+            $(Symbol("apply_", inverse_adjoint))(A.op, x)
 
-    @eval apply_direct!{E,F}(y::E, A::$class{E,F}, x::F) =
-        $(symbol("apply_", direct, "!"))(y, A.op, x)
-    @eval apply_adjoint!{E,F}(y::F, A::$class{E,F}, x::E) =
-        $(symbol("apply_", adjoint, "!"))(y, A.op, x)
-    @eval apply_inverse!{E,F}(y::F, A::$class{E,F}, x::E) =
-        $(symbol("apply_", inverse, "!"))(y, A.op, x)
-    @eval apply_inverse_adjoint!{E,F}(y::E, A::$class{E,F}, x::F) =
-        $(symbol("apply_", inverse_adjoint, "!"))(y, A.op, x)
+        apply_direct!{E,F}(y::E, A::$class{E,F}, x::F) =
+            $(Symbol("apply_", direct, "!"))(y, A.op, x)
+        apply_adjoint!{E,F}(y::F, A::$class{E,F}, x::E) =
+            $(Symbol("apply_", adjoint, "!"))(y, A.op, x)
+        apply_inverse!{E,F}(y::F, A::$class{E,F}, x::E) =
+            $(Symbol("apply_", inverse, "!"))(y, A.op, x)
+        apply_inverse_adjoint!{E,F}(y::E, A::$class{E,F}, x::F) =
+            $(Symbol("apply_", inverse_adjoint, "!"))(y, A.op, x)
+    end
 end
 
 
@@ -269,6 +272,14 @@ apply_direct{T,E,F}(A::Combination{T,E,F}, x::F) =
     vcombine(A.lsc, apply_direct(A.lop, x), A.rsc, apply_direct(A.rop, x)) ::E
 
 
+# Let `A(x)` be the same as `A*x`:
+for cls in (:Adjoint, :Inverse)
+    @eval (A::$cls{E,F}){E,F}(x::F) = apply_direct(A, x)
+end
+for cls in (:Scaled, :Product, :Combination)
+    @eval (A::$cls{T,E,F}){T,E,F}(x::F) = apply_direct(A, x)
+end
+
 # Default methods for a linear operator when destination is given:
 apply_direct!{T,E,F}(y::E, A::Operator{T,E,F}, x::F) =
     vcopy!(y, apply_direct(A, x))
@@ -298,7 +309,7 @@ apply_inverse!{T,E,F,G,H}(::G, ::Operator{T,E,F}, ::H) =
 apply_inverse_adjoint!{T,E,F,G,H}(::G, ::Operator{T,E,F}, ::H) =
     throw(badtype(G === E, H === F, "inverse adjoint of operator"))
 
-function badtype(out::Bool, inp::Bool, oper::ASCIIString)
+function badtype(out::Bool, inp::Bool, oper::String)
     ArgumentError("invalid " * (inp ? "output type" :
                                 out ? "input type" :
                                 "input and output types") *
@@ -322,19 +333,28 @@ obtained by:
     input_type(A)
     output_type(A)
 
-The methods `apply` and `apply!` are assumed to be implemented for any
-operator types:
+The methods `apply_direct` and `apply_direct!` are assumed to be implemented
+for any operator types:
 
-    apply(A, x) -> y
-    apply!(y, A, x) ->y
+    apply_direct(A, x) -> y
+    apply_direct!(y, A, x) -> y
 
 respectively yield the result of applying the linear operator `A` or its
-adjoint to the "vector" `x`.
+adjoint to the "vector" `x`.  Shortcuts `apply` and `apply!` are automatically
+provided so that:
 
-The `Base.call` method and the `*` operator are overloaded so that:
+    apply(A, x)     -> apply_direct(A, x)
+    apply!(y, A, x) -> apply_direct!(y, A, x)
 
-    A*x  = A(x)  = call(A, x)  = apply_direct(A, x)
-    A'*x = A'(x) = call(A', x) = apply_adjoint(A, x)
+The `*` operator is overloaded so that:
+
+    A*x  -> apply_direct(A, x)
+    A'*x -> apply_adjoint(A, x)
+
+Some operators `A` may implement:
+
+    A(x)  -> apply_direct(A, x)
+    A'(x) -> apply_adjoint(A, x)
 
 Although TiPi provides default versions, the methods `apply_direct!` and
 `apply_adjoint!` may also be implemented:
@@ -432,10 +452,10 @@ linear operator types:
 respectively yield the result of applying the linear operator `A` or its
 adjoint to the "vector" `x`.
 
-The `Base.call` method and the `*` operator are overloaded so that:
+The `*` operator is overloaded so that:
 
-    A*x  = A(x)  = call(A, x)  = apply_direct(A, x)
-    A'*x = A'(x) = call(A', x) = apply_adjoint(A, x)
+    A*x  = -> apply_direct(A, x)
+    A'*x = -> apply_adjoint(A, x)
 
 Although TiPi provides default versions, the methods `apply_direct!` and
 `apply_adjoint!` may also be implemented:
@@ -488,8 +508,8 @@ function apply_inverse_adjoint! end
 # Provide basic methods for inverse and adjoint:
 for class in (:Adjoint, :Inverse)
     for f in (:type, :eltype, :size, :ndims)
-        inpf = symbol("input_",f)
-        outf = symbol("output_",f)
+        inpf = Symbol("input_",f)
+        outf = Symbol("output_",f)
         @eval $inpf(A::$class) = $outf(A.op)
         @eval $outf(A::$class) = $inpf(A.op)
     end
@@ -573,7 +593,9 @@ contents(A::DiagonalOperator) = A.diag
 
 diag(A::DiagonalOperator) = A.diag
 
-# FIXME: add rules so that A' = A or reintroduce inheritage
+# A diagonal operator (with real coefficients) is symmetric:
+ctranspose(A::DiagonalOperator) = A
+
 # FIXME: implement vdivide and apply_inverse
 apply_direct{E}(A::DiagonalOperator{E}, src::E) =
     vproduct(A.diag, src)

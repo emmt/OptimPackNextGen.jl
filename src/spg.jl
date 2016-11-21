@@ -139,11 +139,11 @@ function spg2{T}(fg!, prj!, x0::T, m::Integer; kws...)
     spg2!(fg!, prj!, vcopy(x0), m; kws...)
 end
 
-REASON = Dict{Int,ASCIIString}(WORK_IN_PROGRESS => "work in progress",
-                               INFNORM_CONVERGENCE => "convergence with projected gradient infinite-norm",
-                               TWONORM_CONVERGENCE => "convergence with projected gradient 2-norm",
-                               TOO_MANY_ITERATIONS => "too many iterations",
-                               TOO_MANY_EVALUATIONS => "too many function evaluations")
+REASON = Dict{Int,String}(WORK_IN_PROGRESS => "work in progress",
+                          INFNORM_CONVERGENCE => "convergence with projected gradient infinite-norm",
+                          TWONORM_CONVERGENCE => "convergence with projected gradient 2-norm",
+                          TOO_MANY_ITERATIONS => "too many iterations",
+                          TOO_MANY_EVALUATIONS => "too many function evaluations")
 
 spg2_reason(ws::SPG2Info) = spg2_reason(ws.status)
 

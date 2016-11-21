@@ -49,7 +49,7 @@ function runtests()
 
 end
 
-function deconvtest(test::ASCIIString="conjgrad"; single::Bool=false)
+function deconvtest(test::String="conjgrad"; single::Bool=false)
     dir = "../data/"
     y = TiPi.MDA.read(dir*"saturn.mda")
     h = TiPi.MDA.read(dir*"saturn_psf.mda")

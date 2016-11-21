@@ -12,7 +12,11 @@
 module Algebra
 
 # Use the same floating point type for scalars as in TiPi.
-import TiPi.Float
+import TiPi: Float
+
+if isdefined(Base, :apply)
+    import Base: apply
+end
 
 export Operator,
        NonlinearOperator,
@@ -36,6 +40,7 @@ export Operator,
        output_ndims,
        output_size,
        output_type,
+       apply,
        apply!,
        apply_direct,
        apply_direct!,

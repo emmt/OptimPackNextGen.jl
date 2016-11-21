@@ -14,7 +14,11 @@ module TiPi
 # The `apply` method is marked as deprecated but it is widely used in TiPi to
 # apply an operator, so we import it from `Base`.  The `apply!` method is not
 # defined elsewhere, so we export it.
-import Base: apply
+if isdefined(Base, :apply)
+    import Base: apply
+else
+    export apply
+end
 export apply!
 
 export MDA,
