@@ -34,7 +34,7 @@ An error is thrown if it is found that there are no valid data.
 
 If keyword `bad` is specified with a real value, the invalid data will be
 marked with this value (and the corresponding weights will be set to zero).
-Although it may result in cahnging the data, this keyword is useful to avoid
+Although it may result in changing the data, this keyword is useful to avoid
 taking care of special data values for further processing (e.g., use `bad = 0`
 or some other finite value).  Without this keyword, the data `dat` are left
 unchanged.
@@ -58,18 +58,18 @@ equal to one for valid data and to zero otherwise.
 For a signal based on counts (for instance, photo-electrons), the variance of
 the data should be given by:
 
-    Var(dat) = (E(adu*dat) + sigma^2)/adu^2
+    Var(dat) = (E(gamma*dat) + sigma^2)/gamma^2
 
-with `adu` the conversion factor of the detector (for instance in e- per
-digital level) such that `adu*dat` is the measured data in count units,
-`E(adu*dat)` is the expected number of counts (which is also the variance of
-the counts assuming Poisson statistics) and `sigma` is the standard deviation
-(rms value) of the detector noise in counts (per pixel per frame).  Expanding
-this expression yields:
+with `gamma` the *gain* of the detector and `sigma` the standard deviation (rms
+value) of the detector noise in electrons per pixel per frame.  The gain
+`gamma` is the conversion factor in electrons per analog digital unit (ADU)
+such that `gamma*dat` is the measured data in count units, `E(gamma*dat)` is
+the expected number of counts (which is also the variance of the counts
+assuming Poisson statistics).  Expanding the above expression yields:
 
     Var(dat) = alpha*E(dat) + beta
 
-with `alpha = 1/adu` and `beta = (sigma/adu)^2`.  Finally, the following
+with `alpha = 1/gamma` and `beta = (sigma/gamma)^2`.  Finally, the following
 approximation:
 
     E(dat) ≈ max(dat, 0)
