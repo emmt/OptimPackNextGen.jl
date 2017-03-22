@@ -13,15 +13,18 @@ import Base: size, convert, length, ndims, get, getindex,
              start, done, next, range, first, last
 
 doc"""
-`nth(n)` yields a human readable string for `n` integer like `1-st`, `2-nd`,
+`ordinal(n)` yields a human readable string for `n` integer like `1-st`, `2-nd`,
 etc.
 """
-function nth(n::Integer)
-    k = abs(n)%10
-    k == 1 ? string(n,"-th") :
-    k == 2 ? string(n,"-nd") :
-    k == 3 ? string(n,"-rd") :
-    string(n,"-th")
+function ordinal(n::Integer)
+    d1, r1 = divrem(abs(n), 10)
+    r2 = rem(d1, 10)
+    sfx = (r2 == 1 ? "-th" :
+           r1 == 0 && d1 > 1 ? "-ieth" :
+           r1 == 1 ? "-st" :
+           r1 == 2 ? "-nd" :
+           r1 == 3 ? "-rd" : "-th")
+    string(n,sfx)
 end
 
 doc"""
