@@ -51,16 +51,23 @@ More generally, the `contents` method can be used to retrieve the contents of a
 function contents end
 
 """
-### Get good dimension length for the FFT
+### Get good dimension(s) for the FFT
 
-```
-    goodfftdim(len)
-```
-returns the smallest integer which is greater or equal `len` and which is a
-multiple of powers of 2, 3 and/or 5.
+`goodfftdim(len)` returns the smallest integer which is greater or equal `len`
+and which is a multiple of powers of 2, 3 and/or 5.  If argument is an array
+dimesion list (i.e. a tuple of integers), a tuple of good FFT dimensions is
+returned.
 
 """
-goodfftdim(n::Integer) = nextprod([2,3,5], n)
+goodfftdim(len::Integer) = nextprod([2,3,5], len)
+goodfftdim{N}(dims::NTuple{N,Int}) = ntuple(i -> goodfftdim(dims[i]), N)
+
+"""
+`rfftdims(dims)` yields the dimensions of the complex array produced by a
+real-complex FFT of a real array of size `dims`.
+"""
+rfftdims{N}(dims::NTuple{N,Int}) =
+    ntuple(i -> i == 1 ? div(dims[i],2) + 1 : dims[i], N)
 
 """
 ### Generate Discrete Fourier Transform frequency indexes or frequencies
@@ -77,7 +84,7 @@ the frequency indexes:
     k = [0, 1, 2, ..., n-1, -n, ..., -2, -1]   if dim = 2*n
     k = [0, 1, 2, ..., n,   -n, ..., -2, -1]   if dim = 2*n + 1
 ```
-depending whther `dim` is even or odd.  These rules are compatible to what is
+depending whether `dim` is even or odd.  These rules are compatible to what is
 assumed by `fftshift` (which to see) in the sense that:
 ```
     fftshift(fftfreq(dim)) = [-n, ..., -2, -1, 0, 1, 2, ...]
@@ -121,6 +128,10 @@ function fftfreq(dim::Integer, step::Real)
     return f
 end
 
+"""
+`dimlist(...)` yields a dimension list (that is a n-tuple of `Int`'s)
+built from its argument(s).
+"""
 dimlist{N}(dims::NTuple{N,Int}) = dims
 dimlist{N}(dims::NTuple{N,Integer}) = ntuple(i -> Int(dims[i]), N)
 dimlist(dims::Integer...) = ntuple(i -> Int(dims[i]), length(dims))
