@@ -9,69 +9,73 @@
 # This file is part of TiPi.  All rights reserved.
 #
 
+isdefined(Base, :__precompile__) && __precompile__()
+
 module TiPi
 
-# The `apply` method is marked as deprecated but it is widely used in TiPi to
-# apply an operator, so we import it from `Base`.  The `apply!` method is not
-# defined elsewhere, so we export it.
 if isdefined(Base, :apply)
+    # The `apply` method is marked as deprecated but it is widely used in TiPi
+    # to apply an operator, so we import it from `Base`.
     import Base: apply
 else
+    # The `apply!` method is not defined elsewhere, so we export it.
     export apply
 end
 export apply!
 
 export MDA,
-       goodfftdim,
-       fftfreq,
-       BoundingBox,
-       crop,
-       crop!,
-       pad,
-       zeropad,
-       paste!,
-       NormalEquations,
-       conjgrad,
-       conjgrad!,
-       AbstractCost,
-       cost,
-       cost!,
-       check_gradient,
-       prox,
-       prox!,
-       vmlmb,
-       vmlmb!,
-       spg2,
-       spg2!,
-       spg2_reason,
-       Hessian,
-       CirculantConvolution,
-       HyperbolicEdgePreserving,
-       QuadraticCost,
-       QuadraticSmoothness,
-       CompactRegCauchy,
-       Algebra,
-       Operator,
-       NonlinearOperator,
-       NonlinearEndomorphism,
-       LinearOperator,
-       LinearEndomorphism,
-       SelfAdjointOperator,
-       Identity,
-       DiagonalOperator,
-       RankOneOperator,
-       ScalingOperator,
-       CroppingOperator,
-       ZeroPaddingOperator,
-       FakeLinearOperator,
-       is_fake,
-       FFTOperator,
-       fast_deconv,
-       OperatorD, OperatorDtD,
-       fix_weighted_data,
-       compute_weights,
-       compute_weights!,
-       default_weights
+    goodfftdim,
+    rfftdims,
+    fftfreq,
+    BoundingBox,
+    crop,
+    crop!,
+    pad,
+    zeropad,
+    paste!,
+    dimlist,
+    NormalEquations,
+    conjgrad,
+    conjgrad!,
+    AbstractCost,
+    cost,
+    cost!,
+    check_gradient,
+    prox,
+    prox!,
+    vmlmb,
+    vmlmb!,
+    spg2,
+    spg2!,
+    spg2_reason,
+    Hessian,
+    CirculantConvolution,
+    HyperbolicEdgePreserving,
+    QuadraticCost,
+    QuadraticSmoothness,
+    CompactRegCauchy,
+    Algebra,
+    Operator,
+    NonlinearOperator,
+    NonlinearEndomorphism,
+    LinearOperator,
+    LinearEndomorphism,
+    SelfAdjointOperator,
+    Identity,
+    DiagonalOperator,
+    RankOneOperator,
+    ScalingOperator,
+    CroppingOperator,
+    ZeroPaddingOperator,
+    FakeLinearOperator,
+    is_fake,
+    FFTOperator,
+    fast_deconv,
+    OperatorD, OperatorDtD,
+    fix_weighted_data,
+    compute_weights,
+    compute_weights!,
+    default_weights
 
 doc"""
 `Float` is the type of all floating point scalar, it is currently an alias to
