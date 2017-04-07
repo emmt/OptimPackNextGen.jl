@@ -107,11 +107,6 @@ function AffineTransform2D{T<:AbstractFloat}(::Type{T},
     AffineTransform2D{T}(xx, xy, x, yx, yy, y)
 end
 
-function convert{T<:AbstractFloat,S}(::Type{T}, A::AffineTransform2D{S})
-    AffineTransform2D{T}(convert(T, A.xx), convert(T, A.xy), convert(T, A.x),
-                         convert(T, A.yx), convert(T, A.yy), convert(T, A.y))
-end
-
 # The following is a no-op when the destination type matches that of the
 # source.
 #
@@ -127,7 +122,10 @@ end
 # resulting from recursively calling the same method.  The diagnostic is a
 # stack overflow.
 #
-convert{T<:AbstractFloat}(::Type{T}, A::AffineTransform2D{T}) = A
+convert{T<:AbstractFloat}(::Type{AffineTransform2D{T}}, A::AffineTransform2D{T}) = A
+
+convert{T<:AbstractFloat, S}(::Type{AffineTransform2D{T}}, A::AffineTransform2D{S}) =
+    AffineTransform2D{T}(A.xx, A.xy, A.x, A.yx, A.yy, A.y)
 
 #------------------------------------------------------------------------------
 # apply the transform to some coordinates:
@@ -347,7 +345,7 @@ for func in (:combine, :rightdivide, :leftdivide)
         function $func{R<:AbstractFloat,
             S<:AbstractFloat}(A::AffineTransform2D{R},
                               B::AffineTransform2D{S})
-            T = promote_type(R, S)
+            T = AffineTransform2D{promote_type(R, S)}
             $func(convert(T, A), convert(T, B))
         end
     end
@@ -398,10 +396,10 @@ function runtests()
     C = combine(A, B)
     show(C)
     println()
-    U = convert(Float16,C)
+    U = convert(AffineTransform2D{Float16},C)
     show(U)
     println()
-    V = convert(Float64,C)
+    V = convert(AffineTransform2D{Float64},C)
     show(V)
     println()
     show(B(1, 4))
