@@ -83,25 +83,28 @@ immutable AffineTransform2D{T<:AbstractFloat}
     yx::T
     yy::T
     y ::T
-    function AffineTransform2D{T}(xx::T, xy::T, x::T,
-                                  yx::T, yy::T, y::T)
+    function AffineTransform2D(xx::Real, xy::Real, x::Real,
+                               yx::Real, yy::Real, y::Real)
         new(xx, xy, x, yx, yy, y)
     end
 end
 
-function AffineTransform2D(T::DataType)
+# Use Cdouble type by default.
+AffineTransform2D() = AffineTransform2D(Cdouble)
+AffineTransform2D(xx::Real, xy::Real, x::Real,
+                  yx::Real, yy::Real, y::Real) =
+                      AffineTransform2D(Cdouble, xx, xy, x, yx, yy, y)
+
+function AffineTransform2D{T<:AbstractFloat}(::Type{T})
     const ZERO = zero(T)
     const ONE = one(T)
     AffineTransform2D{T}(ONE, ZERO, ZERO, ZERO, ONE, ZERO)
 end
 
-function AffineTransform2D(xx::Real, xy::Real, x::Real,
-                           yx::Real, yy::Real, y::Real)
-    T = promote_type(Cfloat,
-                     typeof(xx), typeof(xy), typeof(x),
-                     typeof(yx), typeof(yy), typeof(y))
-    AffineTransform2D{T}(convert(T, xx), convert(T, xy), convert(T, x),
-                         convert(T, yx), convert(T, yy), convert(T, y))
+function AffineTransform2D{T<:AbstractFloat}(::Type{T},
+                                             xx::Real, xy::Real, x::Real,
+                                             yx::Real, yy::Real, y::Real)
+    AffineTransform2D{T}(xx, xy, x, yx, yy, y)
 end
 
 function convert{T<:AbstractFloat,S}(::Type{T}, A::AffineTransform2D{S})
