@@ -13,14 +13,15 @@ isdefined(Base, :__precompile__) && __precompile__()
 
 module TiPi
 
+# The `apply` method is marked as deprecated but it is widely used in TiPi
+# to apply an operator, so we import it from `Base`.
 if isdefined(Base, :apply)
-    # The `apply` method is marked as deprecated but it is widely used in TiPi
-    # to apply an operator, so we import it from `Base`.
     import Base: apply
 else
-    # The `apply!` method is not defined elsewhere, so we export it.
     export apply
 end
+
+# The `apply!` method is not defined elsewhere, so we export it.
 export apply!
 
 export MDA,
