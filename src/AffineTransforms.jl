@@ -21,10 +21,10 @@
 module AffineTransforms
 
 export AffineTransform2D,
-   combine, rotate, translate, invert, intercept,
+   combine, rotate, translate, intercept,
    jacobian
 
-import Base: convert, det, scale, show, *, +, /, \
+import Base: convert, det, inv, scale, show, *, +, /, \
 """
 # Affine 2D Transforms
 
@@ -70,9 +70,9 @@ Many operations are available to manage or apply affine transforms:
   C = scale(A, ρ)    # C = scale by ρ then apply A
   C = A*ρ            # idem
 
-  B = invert(A)      # reciprocal coordinate transform
-  C = A/B            # right division, same as: C = combine(A, invert(B))
-  C = A\B            # left division, same as: C = combine(invert(A), B)
+  B = inv(A)         # reciprocal coordinate transform
+  C = A/B            # right division, same as: C = combine(A, inv(B))
+  C = A\B            # left division, same as: C = combine(inv(A), B)
 ```
 
 """
@@ -273,9 +273,9 @@ absolute value of the determinant of its linear part.
 jacobian{T<:AbstractFloat}(A::AffineTransform2D{T}) = abs(det(A))
 
 """
-`invert(A)` returns the inverse of the affine transform `A`.
+`inv(A)` returns the inverse of the affine transform `A`.
 """
-function invert{T<:AbstractFloat}(A::AffineTransform2D{T})
+function inv{T<:AbstractFloat}(A::AffineTransform2D{T})
     d = det(A)
     d == zero(T) && error("transformation is not invertible")
     Txx =  A.yy/d
@@ -390,7 +390,7 @@ function runtests()
     B = AffineTransform2D(1, 0, -3, 0.1, 1, +2)
     show(B)
     println()
-    A = invert(B)
+    A = inv(B)
     show(A)
     println()
     C = combine(A, B)
