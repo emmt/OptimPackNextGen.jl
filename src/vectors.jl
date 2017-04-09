@@ -19,8 +19,8 @@
 yields the Euclidean (L2) norm of `v`.  Also see `vnorm1` and `vnorminf`.
 
 """
-function vnorm2{T<:AbstractFloat,N}(v::Array{T,N}) :: Float
-    s::T = zero(T)
+function vnorm2{T<:AbstractFloat,N}(v::AbstractArray{T,N}) :: Float
+    local s::T = zero(T)
     @inbounds @simd for i in eachindex(v)
         s += v[i]*v[i]
     end
@@ -36,8 +36,8 @@ yields the L1 norm of `v`, that is the sum of the absolute values of its
 elements.  Also see `vnorm2` and `vnorminf`.
 
 """
-function vnorm1{T<:AbstractFloat,N}(v::Array{T,N}) :: Float
-    s::T = zero(T)
+function vnorm1{T<:AbstractFloat,N}(v::AbstractArray{T,N}) :: Float
+    local s::T = zero(T)
     @inbounds @simd for i in eachindex(v)
         s += abs(v[i])
     end
@@ -51,8 +51,8 @@ yields the infinite norm of `v`, that is the maximum absolute value of its
 elements.  Also see `vnorm2` and `vnorm1`.
 
 """
-function vnorminf{T<:AbstractFloat,N}(v::Array{T,N}) :: Float
-    s::T = zero(T)
+function vnorminf{T<:AbstractFloat,N}(v::AbstractArray{T,N}) :: Float
+    local s::T = zero(T)
     @inbounds @simd for i in eachindex(v)
         s = max(s, abs(v[i]))
     end
@@ -93,7 +93,7 @@ which is the real part of the usual definition.
 function vdot{T<:AbstractFloat,N}(x::AbstractArray{T,N},
                                   y::AbstractArray{T,N}) :: Float
     @assert size(x) == size(y)
-    s::T = 0
+    local s::T = zero(T)
     @inbounds @simd for i in eachindex(x, y)
         @inbounds s += x[i]*y[i]
     end
@@ -105,20 +105,19 @@ end
 function vdot{T<:AbstractFloat,N}(w::AbstractArray{T,N},
                                   x::AbstractArray{T,N},
                                   y::AbstractArray{T,N}) :: Float
-    @assert size(x) == size(w)
-    @assert size(y) == size(w)
-    s::T = 0
+    @assert size(w) == size(x)== size(y)
+    local s::T = 0
     @inbounds @simd for i in eachindex(w, x, y)
         s += w[i]*x[i]*y[i]
     end
     return Float(s)
 end
 
-function vdot{T<:AbstractFloat,N}(sel::Vector{Int},
+function vdot{T<:AbstractFloat,N}(sel::AbstractVector{Int},
                                   x::DenseArray{T,N},
                                   y::DenseArray{T,N}) :: Float
     @assert size(y) == size(x)
-    s::T = 0
+    local s::T = zero(T)
     const n = length(x)
     @inbounds @simd for i in eachindex(sel)
         j = sel[i]
@@ -131,7 +130,7 @@ end
 function vdot{T<:AbstractFloat,N}(x::AbstractArray{Complex{T},N},
                                   y::AbstractArray{Complex{T},N}) :: Float
     @assert size(x) == size(y)
-    s::T = zero(T)
+    local s::T = zero(T)
     @inbounds @simd for i in eachindex(x, y)
         s += x[i].re*y[i].re + x[i].im*y[i].im
     end
@@ -170,8 +169,8 @@ object.  To create a fresh copy of `src`, do:
     dst = vcopy(src)
 
 """
-function vcopy!{T<:AbstractFloat,N}(dst::Array{T,N},
-                                    src::Array{T,N}) :: Array{T,N}
+function vcopy!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                    src::DenseArray{T,N})
     if pointer(dst) != pointer(src)
         @assert size(src) == size(dst)
         @inbounds @simd for i in eachindex(dst, src)
@@ -197,7 +196,7 @@ The call:
 exchanges the contents of `x` and `y` (which must have the same type and size).
 Nothing is done if `src` and `dst` are the same object.
 """
-function vswap!{T,N}(x::Array{T,N}, y::Array{T,N}) :: Array{T,N}
+function vswap!{T,N}(x::DenseArray{T,N}, y::DenseArray{T,N})
     if pointer(x) != pointer(y)
         @assert size(x) == size(y)
         @inbounds @simd for i in eachindex(x, y)
@@ -648,205 +647,147 @@ end
 #------------------------------------------------------------------------------
 # PROJECTING DIRECTION
 
+# Orientation is indicated by a singleton.
 abstract Orientation
 immutable Forward  <: Orientation; end
 immutable Backward <: Orientation; end
 
-convert{T<:Orientation}(::Type{T}, ::Union{Forward,Type{Forward}}) = Forward
-convert{T<:Orientation}(::Type{T}, ::Union{Backward,Type{Backward}}) = Backward
-convert{T<:Orientation}(::Type{T}, s::Real) = (s > 0 ? Forward :
-                                               s < 0 ? Backward :
-                                               error("invalid orientation"))
+const FORWARD = Forward()
+const BACKWARD = Forward()
+
+convert(::Type{Orientation}, ::Union{Forward,Type{Forward}}) = FORWARD
+convert(::Type{Orientation}, ::Union{Backward,Type{Backward}}) = BACKWARD
+convert(::Type{Orientation}, s::Real) = (s > 0 ? FORWARD :
+                                         s < 0 ? BACKWARD :
+                                         error("invalid orientation"))
 sign(::Union{Forward,Type{Forward}}) = +1
 sign(::Union{Backward,Type{Backward}}) = -1
 
 Orientation(x) = convert(Orientation, x)
 orientation(T::DataType, x) = Orientation(x) == Forward ? +one(T) : -one(T)
 
-@inline function project_forward{T<:Real}(x::T, d::T, lo::T, hi::T)
+@inline projdir{T<:Real}(::Forward, x::T, d::T, lo::T, hi::T) =
     (d > zero(T) ? x < hi : x > lo) ? d : zero(T)
-end
 
-@inline function project_backward{T<:Real}(x::T, d::T, lo::T, hi::T)
+@inline projdir{T<:Real}(::Backward, x::T, d::T, lo::T, hi::T) =
     (d < zero(T) ? x < hi : x > lo) ? d : zero(T)
-end
 
-@inline function project_forward{T<:Real}(x::T, d::T, ::Void, hi::T)
+@inline projdir{T<:Real}(::Forward, x::T, d::T, ::Void, hi::T) =
     (d < zero(T) || x < hi) ? d : zero(T)
-end
 
-@inline function project_backward{T<:Real}(x::T, d::T, ::Void, hi::T)
+@inline projdir{T<:Real}(::Backward, x::T, d::T, ::Void, hi::T) =
     (d > zero(T) || x < hi) ? d : zero(T)
-end
 
-@inline function project_forward{T<:Real}(x::T, d::T, lo::T, ::Void)
+@inline projdir{T<:Real}(::Forward, x::T, d::T, lo::T, ::Void) =
     (d > zero(T) || x > lo) ? d : zero(T)
-end
 
-@inline function project_backward{T<:Real}(x::T, d::T, lo::T, ::Void)
+@inline projdir{T<:Real}(::Backward, x::T, d::T, lo::T, ::Void) =
     (d < zero(T) || x > lo) ? d : zero(T)
-end
 
 function project_direction!{T<:Real,N}(dst::Array{T,N},
                                        lo::T,
                                        hi::T,
                                        x::Array{T,N},
-                                       orient, d::Array{T,N})
+                                       o::Orientation,
+                                       d::Array{T,N})
     @assert size(dst) == size(x) == size(d)
     @assert lo ≤ hi # this also check for NaN
-    const forward = Orientation(orient) == Forward
-    const bounded_above = hi < T(+Inf)
-    const bounded_below = lo > T(-Inf)
-    @inbounds begin
-        if bounded_below && bounded_above
-            if forward
-                @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], lo, hi)
-                end
-            else
-                @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], lo, hi)
-                end
-            end
-        elseif bounded_below
-            if forward
-                @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], lo, nothing)
-                end
-            else
-                @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], lo, nothing)
-                end
-            end
-        elseif bounded_above
-            if forward
-                @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], nothing, hi)
-                end
-            else
-                @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], nothing, hi)
-                end
-            end
-        elseif !is(dst, d)
-            vcopy!(dst, d)
+    const bounded_above = (hi < T(+Inf))
+    const bounded_below = (lo > T(-Inf))
+    if bounded_below && bounded_above
+        @inbounds @simd for i in eachindex(dst, x, d)
+            dst[i] = projdir(o, x[i], d[i], lo, hi)
+        end
+    elseif bounded_below
+        @inbounds @simd for i in eachindex(dst, x, d)
+            dst[i] = projdir(o, x[i], d[i], lo, nothing)
+        end
+    elseif bounded_above
+        @inbounds @simd for i in eachindex(dst, x, d)
+            dst[i] = projdir(o, x[i], d[i], nothing, hi)
+        end
+    elseif !is(dst, d)
+        vcopy!(dst, d)
+    end
+    return dst
+end
+
+function project_direction!{T<:Real,N}(dst::Array{T,N},
+                                       lo::Array{T,N},
+                                       hi::T,
+                                       x::Array{T,N},
+                                       o::Orientation,
+                                       d::Array{T,N})
+    @assert size(dst) == size(x) == size(d) == size(lo)
+    if hi < T(+Inf)
+        @inbounds @simd for i in eachindex(dst, x, d, lo)
+            dst[i] = projdir(o, x[i], d[i], lo[i], hi)
+        end
+    else
+        @inbounds @simd for i in eachindex(dst, x, d, lo)
+            dst[i] = projdir(o, x[i], d[i], lo[i], nothing)
         end
     end
     return dst
 end
 
 function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       lo::Array{T,N}, hi::T,
+                                       lo::T,
+                                       hi::Array{T,N},
                                        x::Array{T,N},
-                                       orient, d::Array{T,N})
-    @assert size(dst) == size(x)
-    @assert size(lo)  == size(x)
-    @assert size(d)   == size(x)
-    const forward = Orientation(orient) == Forward
-    const bounded_above = hi < T(+Inf)
-    @inbounds begin
-        if bounded_above
-            if forward
-                @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], lo[i], hi)
-                end
-            else
-                @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], lo[i], hi)
-                end
-            end
-        else
-            if forward
-                @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], lo[i], nothing)
-                end
-            else
-                @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], lo[i], nothing)
-                end
-            end
+                                       o::Orientation,
+                                       d::Array{T,N})
+    @assert size(dst) == size(x) == size(d) == size(hi)
+    if lo > T(-Inf)
+        @inbounds @simd for i in eachindex(dst, x, d, hi)
+            dst[i] = projdir(o, x[i], d[i], lo, hi[i])
+        end
+    else
+        @inbounds @simd for i in eachindex(dst, x, d, hi)
+            dst[i] = projdir(o, x[i], d[i], nothing, hi[i])
         end
     end
     return dst
 end
 
-function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       lo::T, hi::Array{T,N},
-                                       x::Array{T,N},
-                                       orient, d::Array{T,N})
-    @assert size(dst) == size(x)
-    @assert size(hi)  == size(x)
-    @assert size(d)   == size(x)
-    const forward = Orientation(orient) == Forward
-    const bounded_below = lo > T(-Inf)
-    @inbounds begin
-        if bounded_below
-            if forward
-                @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], lo, hi[i])
-                end
-            else
-                @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], lo, hi[i])
-                end
-            end
-        else
-            if forward
-                @simd for i in 1:length(x)
-                    dst[i] = project_forward(x[i], d[i], nothing, hi[i])
-                end
-            else
-                @simd for i in 1:length(x)
-                    dst[i] = project_backward(x[i], d[i], nothing, hi[i])
-                end
-            end
-        end
+function project_direction!{T<:Real,N,}(dst::Array{T,N},
+                                        lo::Array{T,N},
+                                        hi::Array{T,N},
+                                        x::Array{T,N},
+                                        o::Orientation,
+                                        d::Array{T,N})
+    @assert size(dst) == size(x) == size(d) == size(lo) == size(hi)
+    @inbounds @simd for i in eachindex(dst, x, d, lo, hi)
+        dst[i] = projdir(o, x[i], d[i], lo[i], hi[i])
     end
     return dst
 end
 
 function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       lo::Array{T,N}, hi::Array{T,N},
+                                       lo::Real,
+                                       hi::Real,
                                        x::Array{T,N},
-                                       orient, d::Array{T,N})
-    @assert size(dst) == size(x)
-    @assert size(lo)  == size(x)
-    @assert size(hi)  == size(x)
-    @assert size(d)   == size(x)
-    const forward = Orientation(orient) == Forward
-    @inbounds begin
-        if forward
-            @simd for i in 1:length(x)
-                dst[i] = project_forward(x[i], d[i], lo[i], hi[i])
-            end
-        else
-            @simd for i in 1:length(x)
-                dst[i] = project_backward(x[i], d[i], lo[i], hi[i])
-            end
-        end
-    end
-    return dst
+                                       orient,
+                                       d::Array{T,N})
+    project_direction!(dst, T(lo), T(hi), x, Orientation(orient), d)
 end
 
 function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       lo::Real, hi::Real,
+                                       lo::Array{T,N},
+                                       hi::Real,
                                        x::Array{T,N},
-                                       orient, d::Array{T,N})
-    project_direction!(dst, T(lo), T(hi), x, orient, d)
+                                       orient,
+                                       d::Array{T,N})
+    project_direction!(dst, lo, T(hi), x, Orientation(orient), d)
 end
 
 function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       lo::Array{T,N}, hi::Real,
+                                       lo::Real,
+                                       hi::Array{T,N},
                                        x::Array{T,N},
-                                       orient, d::Array{T,N})
-    project_direction!(dst, lo, T(hi), x, orient, d)
-end
-
-function project_direction!{T<:Real,N}(dst::Array{T,N},
-                                       lo::Real, hi::Array{T,N},
-                                       x::Array{T,N},
-                                       orient, d::Array{T,N})
-    project_direction!(dst, T(lo), hi, x, orient, d)
+                                       orient,
+                                       d::Array{T,N})
+    project_direction!(dst, T(lo), hi, x, Orientation(orient), d)
 end
 
 function project_gradient!{T<:Real,N}(dst::Array{T,N},
@@ -854,7 +795,7 @@ function project_gradient!{T<:Real,N}(dst::Array{T,N},
                                       hi::Union{Real,Array{T,N}},
                                       x::Array{T,N},
                                       d::Array{T,N})
-    project_direction!(dst, lo, hi, x, -1, d)
+    project_direction!(dst, lo, hi, x, Backward, d)
 end
 
 #------------------------------------------------------------------------------
@@ -1075,252 +1016,23 @@ variables "out of bounds".  As a consequence, `0 < smin` and `0 ≤ smax`.
 #------------------------------------------------------------------------------
 # GETTING FREE VARIABLES
 
-@inline function may_move_forward{T<:Real}(x::T, d::T, lo::T, ::Void)
+@inline may_move{T<:AbstractFloat}(::Forward, x::T, d::T, lo::T, ::Void) =
     d > zero(T) || (d != zero(T) && x > lo)
-end
 
-@inline function may_move_backward{T<:Real}(x::T, d::T, lo::T, ::Void)
+@inline may_move{T<:AbstractFloat}(::Backward, x::T, d::T, lo::T, ::Void) =
     d < zero(T) || (d != zero(T) && x > lo)
-end
 
-@inline function may_move_forward{T<:Real}(x::T, d::T, ::Void, hi::T)
+@inline may_move{T<:AbstractFloat}(::Forward, x::T, d::T, ::Void, hi::T) =
     d < zero(T) || (d != zero(T) && x < hi)
-end
 
-@inline function may_move_backward{T<:Real}(x::T, d::T, ::Void, hi::T)
+@inline may_move{T<:AbstractFloat}(::Backward, x::T, d::T, ::Void, hi::T) =
     d > zero(T) || (d != zero(T) && x < hi)
-end
 
-@inline function may_move_forward{T<:Real}(x::T, d::T, lo::T, hi::T)
+@inline may_move{T<:AbstractFloat}(::Forward, x::T, d::T, lo::T, hi::T) =
     d != zero(T) && (d < zero(T) ? x > lo : x < hi)
-end
 
-@inline function may_move_backward{T<:Real}(x::T, d::T, lo::T, hi::T)
+@inline may_move{T<:AbstractFloat}(::Backward, x::T, d::T, lo::T, hi::T) =
     d != zero(T) && (d > zero(T) ? x > lo : x < hi)
-end
-
-function get_free_variables{T<:Real,N}(p::Array{T,N})
-    const ZERO = zero(T)
-    const n = length(p)
-    sel = Array(Int, n)
-    j = 0
-    @inbounds begin
-        @simd for i in 1:n
-            if p[i] != ZERO
-                j += 1
-                sel[j] = i
-            end
-        end
-    end
-    return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
-end
-
-function get_free_variables{T<:Real,N}(lo::T, hi::T, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    @assert size(d)  == size(x)
-    @assert lo ≤ hi # this also check for NaN
-    const forward = Orientation(orient) == Forward
-    const bounded_below = lo > T(-Inf)
-    const bounded_above = hi < T(+Inf)
-    const n = length(x)
-    sel = Array(Int, n)
-    j = 0
-    @inbounds begin
-        if bounded_below && bounded_above
-            if forward
-                @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], lo, hi)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            else
-                @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], lo, hi)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            end
-        elseif bounded_below
-            if forward
-                @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], lo, nothing)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            else
-                @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], lo, nothing)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            end
-        elseif bounded_above
-            if forward
-                @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], nothing, hi)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            else
-                @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], nothing, hi)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            end
-        else
-            @simd for i in 1:n
-                sel[i] = i
-            end
-            j = n
-        end
-    end
-    return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
-end
-
-function get_free_variables{T<:Real,N}(lo::Array{T,N}, hi::T, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    @assert size(d)  == size(x)
-    @assert size(lo) == size(x)
-    const forward = Orientation(orient) == Forward
-    const bounded_above = hi < T(+Inf)
-    const n = length(x)
-    sel = Array(Int, n)
-    j = 0
-    @inbounds begin
-        if bounded_above
-            if forward
-                @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], lo[i], hi)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            else
-                @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], lo[i], hi)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            end
-        else
-            if forward
-                @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], lo[i], nothing)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            else
-                @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], lo[i], nothing)
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            end
-        end
-    end
-    return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
-end
-
-function get_free_variables{T<:Real,N}(lo::T, hi::Array{T,N}, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    @assert size(d)  == size(x)
-    @assert size(hi) == size(x)
-    const forward = Orientation(orient) == Forward
-    const bounded_below = lo > T(-Inf)
-    const n = length(x)
-    sel = Array(Int, n)
-    j = 0
-    @inbounds begin
-        if bounded_below
-            if forward
-                @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], lo, hi[i])
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            else
-                @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], lo, hi[i])
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            end
-        else
-            if forward
-                @simd for i in 1:n
-                    if may_move_forward(x[i], d[i], nothing, hi[i])
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            else
-                @simd for i in 1:n
-                    if may_move_backward(x[i], d[i], nothing, hi[i])
-                        j += 1
-                        sel[j] = i
-                    end
-                end
-            end
-        end
-    end
-    return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
-end
-
-function get_free_variables{T<:Real,N}(lo::Array{T,N}, hi::Array{T,N}, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    @assert size(d)  == size(x)
-    @assert size(lo) == size(x)
-    @assert size(hi) == size(x)
-    const forward = Orientation(orient) == Forward
-    const n = length(x)
-    sel = Array(Int, n)
-    j = 0
-    @inbounds begin
-        if forward
-            @simd for i in 1:n
-                if may_move_forward(x[i], d[i], lo[i], hi[i])
-                    j += 1
-                    sel[j] = i
-                end
-            end
-        else
-            @simd for i in 1:n
-                if may_move_backward(x[i], d[i], lo[i], hi[i])
-                    j += 1
-                    sel[j] = i
-                end
-            end
-        end
-    end
-    return (j == n ? sel : (j > 0 ? sel[1:j] : Array(Int, 0)))
-end
-
-function get_free_variables{T<:Real,N}(lo::Real, hi::Real, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    get_free_variables(T(lo), T(hi), x, orient, d)
-end
-
-function get_free_variables{T<:Real,N}(lo::Array{T,N}, hi::Real, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    get_free_variables(lo, T(hi), x, orient, d)
-end
-
-function get_free_variables{T<:Real,N}(lo::Real, hi::Array{T,N}, x::Array{T,N},
-                                       orient, d::Array{T,N})
-    get_free_variables(T(lo), hi, x, orient, d)
-end
 
 """
 ## Get free variables when following a direction
@@ -1331,17 +1043,163 @@ yields the list of components of the variables `x` which are allowed to vary
 along the search direction `sign(orient)*d` under box constraints with `lo` and
 `hi` the lower and upper bounds.
 
-If the projected gradient `p` of the objective function is available, the free
+If the projected gradient `gp` of the objective function is available, the free
 variables can be obtained by:
 
-    sel =  get_free_variables(p)
+    sel =  get_free_variables(gp)
 
-where the projected gradient `p` has been computed as:
+where the projected gradient `gp` has been computed as:
 
-    project_direction!(p, lo, hi, x, -1, g)
+    project_direction!(gp, lo, hi, x, -1, g)
 
 with `g` the gradient of the objective function at `x`.
 
-""" get_free_variables
+"""
+function get_free_variables{T<:AbstractFloat,N}(gp::Array{T,N})
+    const ZERO = zero(T)
+    sel = Array{Int}(length(gp))
+    j = 0
+    @inbounds @simd for i in 1:n
+        if gp[i] != ZERO
+            j += 1
+            sel[j] = i
+        end
+    end
+    return (j == n ? sel : resize!(sel, j))
+end
+
+function get_free_variables{T<:AbstractFloat,N}(lo::T,
+                                                hi::T,
+                                                x::DenseArray{T,N},
+                                                o::Orientation,
+                                                d::DenseArray{T,N})
+    @assert size(x) == size(d)
+    @assert lo ≤ hi # this also check for NaN
+    const bounded_below = (lo > T(-Inf))
+    const bounded_above = (hi < T(+Inf))
+    sel = Array{Int}(length(x))
+    j = 0
+    if bounded_below && bounded_above
+        @inbounds @simd for i in eachindex(x, d)
+            if may_move(o, x[i], d[i], lo, hi)
+                j += 1
+                sel[j] = i
+            end
+        end
+    elseif bounded_below
+        @inbounds @simd for i in eachindex(x, d)
+            if may_move(o, x[i], d[i], lo, nothing)
+                j += 1
+                sel[j] = i
+            end
+        end
+    elseif bounded_above
+        @inbounds @simd for i in eachindex(x, d)
+            if may_move(o, x[i], d[i], nothing, hi)
+                j += 1
+                sel[j] = i
+            end
+        end
+    else
+        @inbounds @simd for i in 1:n
+            sel[i] = i
+        end
+        j = n
+    end
+    return (j == n ? sel : resize!(sel, j))
+end
+
+function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
+                                                hi::T,
+                                                x::DenseArray{T,N},
+                                                o::Orientation,
+                                                d::DenseArray{T,N})
+    @assert size(x) == size(d) == size(lo)
+    sel = Array{Int}(length(x))
+    j = 0
+    if hi < T(+Inf)
+        @inbounds @simd for i in eachindex(x, d, lo)
+            if may_move(o, x[i], d[i], lo[i], hi)
+                j += 1
+                sel[j] = i
+            end
+        end
+    else
+        @inbounds @simd for i in eachindex(x, d, lo)
+            if may_move(o, x[i], d[i], lo[i], nothing)
+                j += 1
+                sel[j] = i
+            end
+        end
+    end
+    return (j == n ? sel : resize!(sel, j))
+end
+
+function get_free_variables{T<:AbstractFloat,N}(lo::T,
+                                                hi::DenseArray{T,N},
+                                                x::DenseArray{T,N},
+                                                o::Orientation,
+                                                d::DenseArray{T,N})
+    @assert size(x) == size(d) == size(hi)
+    sel = Array{Int}(length(x))
+    j = 0
+    if lo > T(-Inf)
+        @inbounds @simd for i in eachindex(x, d, hi)
+            if may_move(o, x[i], d[i], lo, hi[i])
+                j += 1
+                    sel[j] = i
+            end
+        end
+    else
+        @inbounds @simd for i in eachindex(x, d, hi)
+            if may_move(o, x[i], d[i], nothing, hi[i])
+                j += 1
+                sel[j] = i
+            end
+        end
+    end
+    return (j == n ? sel : resize!(sel, j))
+end
+
+function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
+                                                hi::DenseArray{T,N},
+                                                x::DenseArray{T,N},
+                                                o::Orientation,
+                                                d::DenseArray{T,N})
+    @assert size(x) == size(d) == size(lo) == size(hi)
+    sel = Array{Int}(length(x))
+    j = 0
+    @inbounds @simd for i in eachindex(x, d, lo, hi)
+        if may_move(o, x[i], d[i], lo[i], hi[i])
+            j += 1
+            sel[j] = i
+        end
+    end
+    return (j == n ? sel : resize!(sel, j))
+end
+
+function get_free_variables{T<:AbstractFloat,N}(lo::Real,
+                                                hi::Real,
+                                                x::DenseArray{T,N},
+                                                orient,
+                                                d::DenseArray{T,N})
+    get_free_variables(T(lo), T(hi), x, Orientation(orient), d)
+end
+
+function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
+                                                hi::Real,
+                                                x::DenseArray{T,N},
+                                                orient,
+                                                d::DenseArray{T,N})
+    get_free_variables(lo, T(hi), x, Orientation(orient), d)
+end
+
+function get_free_variables{T<:AbstractFloat,N}(lo::Real,
+                                                hi::DenseArray{T,N},
+                                                x::DenseArray{T,N},
+                                                orient,
+                                                d::DenseArray{T,N})
+    get_free_variables(T(lo), hi, x, Orientation(orient), d)
+end
 
 #------------------------------------------------------------------------------
