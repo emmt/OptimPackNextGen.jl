@@ -550,7 +550,7 @@ end
 @inline clamp{T<:Real}(x::T, lo::T, ::Void) = max(lo, x)
 
 """
-    project_variables!(dst, lo, hi, src) -> dst
+    project_variables!(dst, src, lo, hi) -> dst
 
 stores in destination `dst` the projection of the source variables `src` in the
 box whose lower bound is `lo` and upper bound is `hi`.  The destination `dst`
@@ -561,16 +561,16 @@ preallocated and that the operation is *much* faster (by a factor of 2-3).
 
 """
 function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                src::DenseArray{T,N},
                                                 lo::Real,
-                                                hi::Real,
-                                                src::DenseArray{T,N})
-    project_variables!(dst, T(lo), T(hi), src)
+                                                hi::Real)
+    project_variables!(dst, src, T(lo), T(hi))
 end
 
 function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                src::DenseArray{T,N},
                                                 lo::T,
-                                                hi::T,
-                                                src::DenseArray{T,N})
+                                                hi::T)
     @assert size(dst) == size(src)
     @assert lo ≤ hi # this also check for NaN
     const bounded_below = (lo > T(-Inf))
@@ -594,16 +594,16 @@ function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
 end
 
 function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                src::DenseArray{T,N},
                                                 lo::DenseArray{T,N},
-                                                hi::Real,
-                                                src::DenseArray{T,N})
-    project_variables!(dst, lo, T(hi), src)
+                                                hi::Real)
+    project_variables!(dst, src, lo, T(hi))
 end
 
 function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                src::DenseArray{T,N},
                                                 lo::DenseArray{T,N},
-                                                hi::T,
-                                                src::DenseArray{T,N})
+                                                hi::T)
     @assert size(dst) == size(src) == size(lo)
     if hi < T(+Inf)
         @inbounds @simd for i in eachindex(dst, src, lo)
@@ -618,16 +618,16 @@ function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
 end
 
 function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                src::DenseArray{T,N},
                                                 lo::Real,
-                                                hi::DenseArray{T,N},
-                                                src::DenseArray{T,N})
-    project_variables!(dst, T(lo), hi, src)
+                                                hi::DenseArray{T,N})
+    project_variables!(dst, src, T(lo), hi)
 end
 
 function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                src::DenseArray{T,N},
                                                 lo::T,
-                                                hi::DenseArray{T,N},
-                                                src::DenseArray{T,N})
+                                                hi::DenseArray{T,N})
     @assert size(dst) == size(src) == size(hi)
     if lo > T(-Inf)
         @inbounds @simd for i in eachindex(dst, src, hi)
@@ -642,9 +642,9 @@ function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
 end
 
 function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                src::DenseArray{T,N},
                                                 lo::DenseArray{T,N},
-                                                hi::DenseArray{T,N},
-                                                src::DenseArray{T,N})
+                                                hi::DenseArray{T,N})
     @assert size(dst) == size(src) == size(lo) == size(hi)
     @inbounds  @simd for i in eachindex(dst, src, lo, hi)
         dst[i] = clamp(src[i], lo[i], hi[i])
@@ -674,28 +674,28 @@ sign(::Union{Backward,Type{Backward}}) = -1
 Orientation(x) = convert(Orientation, x)
 orientation(T::DataType, x) = Orientation(x) === FORWARD ? +one(T) : -one(T)
 
-@inline projdir{T<:AbstractFloat}(::Forward, x::T, d::T, lo::T, hi::T) =
+@inline projdir{T<:AbstractFloat}(x::T, lo::T, hi::T, ::Forward, d::T) =
     (d > zero(T) ? x < hi : x > lo) ? d : zero(T)
 
-@inline projdir{T<:AbstractFloat}(::Backward, x::T, d::T, lo::T, hi::T) =
+@inline projdir{T<:AbstractFloat}(x::T, lo::T, hi::T, ::Backward, d::T) =
     (d < zero(T) ? x < hi : x > lo) ? d : zero(T)
 
-@inline projdir{T<:AbstractFloat}(::Forward, x::T, d::T, ::Void, hi::T) =
+@inline projdir{T<:AbstractFloat}(x::T, ::Void, hi::T, ::Forward, d::T) =
     (d < zero(T) || x < hi) ? d : zero(T)
 
-@inline projdir{T<:AbstractFloat}(::Backward, x::T, d::T, ::Void, hi::T) =
+@inline projdir{T<:AbstractFloat}(x::T, ::Void, hi::T, ::Backward, d::T) =
     (d > zero(T) || x < hi) ? d : zero(T)
 
-@inline projdir{T<:AbstractFloat}(::Forward, x::T, d::T, lo::T, ::Void) =
+@inline projdir{T<:AbstractFloat}(x::T, lo::T, ::Void, ::Forward, d::T) =
     (d > zero(T) || x > lo) ? d : zero(T)
 
-@inline projdir{T<:AbstractFloat}(::Backward, x::T, d::T, lo::T, ::Void) =
+@inline projdir{T<:AbstractFloat}(x::T, lo::T, ::Void, ::Backward, d::T) =
     (d < zero(T) || x > lo) ? d : zero(T)
 
 function project_direction!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                x::DenseArray{T,N},
                                                 lo::T,
                                                 hi::T,
-                                                x::DenseArray{T,N},
                                                 o::Orientation,
                                                 d::DenseArray{T,N})
     @assert size(dst) == size(x) == size(d)
@@ -704,15 +704,15 @@ function project_direction!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
     const bounded_below = (lo > T(-Inf))
     if bounded_below && bounded_above
         @inbounds @simd for i in eachindex(dst, x, d)
-            dst[i] = projdir(o, x[i], d[i], lo, hi)
+            dst[i] = projdir(x[i], lo, hi, o, d[i])
         end
     elseif bounded_below
         @inbounds @simd for i in eachindex(dst, x, d)
-            dst[i] = projdir(o, x[i], d[i], lo, nothing)
+            dst[i] = projdir(x[i], lo, nothing, o, d[i])
         end
     elseif bounded_above
         @inbounds @simd for i in eachindex(dst, x, d)
-            dst[i] = projdir(o, x[i], d[i], nothing, hi)
+            dst[i] = projdir(x[i], nothing, hi, o, d[i])
         end
     elseif !is(dst, d)
         vcopy!(dst, d)
@@ -721,89 +721,89 @@ function project_direction!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
 end
 
 function project_direction!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                x::DenseArray{T,N},
                                                 lo::DenseArray{T,N},
                                                 hi::T,
-                                                x::DenseArray{T,N},
                                                 o::Orientation,
                                                 d::DenseArray{T,N})
     @assert size(dst) == size(x) == size(d) == size(lo)
     if hi < T(+Inf)
         @inbounds @simd for i in eachindex(dst, x, d, lo)
-            dst[i] = projdir(o, x[i], d[i], lo[i], hi)
+            dst[i] = projdir(x[i], lo[i], hi, o, d[i])
         end
     else
         @inbounds @simd for i in eachindex(dst, x, d, lo)
-            dst[i] = projdir(o, x[i], d[i], lo[i], nothing)
+            dst[i] = projdir(x[i], lo[i], nothing, o, d[i])
         end
     end
     return dst
 end
 
 function project_direction!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                x::DenseArray{T,N},
                                                 lo::T,
                                                 hi::DenseArray{T,N},
-                                                x::DenseArray{T,N},
                                                 o::Orientation,
                                                 d::DenseArray{T,N})
     @assert size(dst) == size(x) == size(d) == size(hi)
     if lo > T(-Inf)
         @inbounds @simd for i in eachindex(dst, x, d, hi)
-            dst[i] = projdir(o, x[i], d[i], lo, hi[i])
+            dst[i] = projdir(x[i], lo, hi[i], o, d[i])
         end
     else
         @inbounds @simd for i in eachindex(dst, x, d, hi)
-            dst[i] = projdir(o, x[i], d[i], nothing, hi[i])
+            dst[i] = projdir(x[i], nothing, hi[i], o, d[i])
         end
     end
     return dst
 end
 
 function project_direction!{T<:AbstractFloat,N,}(dst::DenseArray{T,N},
+                                                 x::DenseArray{T,N},
                                                  lo::DenseArray{T,N},
                                                  hi::DenseArray{T,N},
-                                                 x::DenseArray{T,N},
                                                  o::Orientation,
                                                  d::DenseArray{T,N})
     @assert size(dst) == size(x) == size(d) == size(lo) == size(hi)
     @inbounds @simd for i in eachindex(dst, x, d, lo, hi)
-        dst[i] = projdir(o, x[i], d[i], lo[i], hi[i])
+        dst[i] = projdir(x[i], lo[i], hi[i], o, d[i])
     end
     return dst
 end
 
 function project_direction!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                x::DenseArray{T,N},
                                                 lo::Real,
                                                 hi::Real,
-                                                x::DenseArray{T,N},
                                                 orient,
                                                 d::DenseArray{T,N})
-    project_direction!(dst, T(lo), T(hi), x, Orientation(orient), d)
+    project_direction!(dst, x, T(lo), T(hi), Orientation(orient), d)
 end
 
 function project_direction!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                x::DenseArray{T,N},
                                                 lo::DenseArray{T,N},
                                                 hi::Real,
-                                                x::DenseArray{T,N},
                                                 orient,
                                                 d::DenseArray{T,N})
-    project_direction!(dst, lo, T(hi), x, Orientation(orient), d)
+    project_direction!(dst, x, lo, T(hi), Orientation(orient), d)
 end
 
 function project_direction!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                                x::DenseArray{T,N},
                                                 lo::Real,
                                                 hi::DenseArray{T,N},
-                                                x::DenseArray{T,N},
                                                 orient,
                                                 d::DenseArray{T,N})
-    project_direction!(dst, T(lo), hi, x, Orientation(orient), d)
+    project_direction!(dst, x, T(lo), hi, Orientation(orient), d)
 end
 
 function project_gradient!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
+                                               x::DenseArray{T,N},
                                                lo::Union{Real,DenseArray{T,N}},
                                                hi::Union{Real,DenseArray{T,N}},
-                                               x::DenseArray{T,N},
                                                d::DenseArray{T,N})
-    project_direction!(dst, lo, hi, x, BACKWARD, d)
+    project_direction!(dst, x, lo, hi, BACKWARD, d)
 end
 
 #------------------------------------------------------------------------------
@@ -816,7 +816,7 @@ When there are separable bound constraints on the variables, the step `smin` to
 the closest not yet reached bound and the step `smax` to the farthest bound are
 computed by the call:
 ```
-    (smin, smax) = step_limits(lo, hi, x, s, d)
+    (smin, smax) = step_limits(x, lo, hi, s, d)
 ```
 where `lo` is the lower bound, `hi` is the upper bound, `x` are the current
 variables and `sign(s)*d` is the search direction.
@@ -825,9 +825,9 @@ In orther words, `smin` is the smallest step which will bring at least one more
 variable "out of bounds" and `smax` is the smallest step which will bring all
 variables "out of bounds".  As a consequence, `0 < smin` and `0 ≤ smax`.
 """
-function step_limits{T<:AbstractFloat,N}(lo::T,
+function step_limits{T<:AbstractFloat,N}(x::AbstractArray{T,N},
+                                         lo::T,
                                          hi::T,
-                                         x::AbstractArray{T,N},
                                          orient,
                                          d::AbstractArray{T,N})
     @assert size(x) == size(d)
@@ -892,13 +892,12 @@ function step_limits{T<:AbstractFloat,N}(lo::T,
     return (smin, smax)
 end
 
-function step_limits{T<:AbstractFloat,N}(lo::AbstractArray{T,N},
+function step_limits{T<:AbstractFloat,N}(x::AbstractArray{T,N},
+                                         lo::AbstractArray{T,N},
                                          hi::T,
-                                         x::AbstractArray{T,N},
                                          orient,
                                          d::AbstractArray{T,N})
-    @assert size(lo) == size(x)
-    @assert size(d)  == size(x)
+    @assert size(x) == size(lo) == size(d)
     const ZERO = zero(T)
     const INFINITY = T(Inf)
     const s = orientation(T, orient)
@@ -907,7 +906,7 @@ function step_limits{T<:AbstractFloat,N}(lo::AbstractArray{T,N},
     smax = ZERO
     @inbounds begin
         if bounded_above
-            @simd for i in eachindex(x, d, lo)
+            @simd for i in eachindex(x, lo, d)
                 p = s*d[i]
                 if p != ZERO
                     a = (p > ZERO ? hi - x[i] : lo[i] - x[i])/p
@@ -920,7 +919,7 @@ function step_limits{T<:AbstractFloat,N}(lo::AbstractArray{T,N},
                 end
             end
         else
-            @simd for i in eachindex(x, d, lo)
+            @simd for i in eachindex(x, lo, d)
                 p = s*d[i]
                 if p > ZERO
                     smax = INFINITY
@@ -939,13 +938,12 @@ function step_limits{T<:AbstractFloat,N}(lo::AbstractArray{T,N},
     return (smin, smax)
 end
 
-function step_limits{T<:AbstractFloat,N}(lo::T,
+function step_limits{T<:AbstractFloat,N}(x::AbstractArray{T,N},
+                                         lo::T,
                                          hi::AbstractArray{T,N},
-                                         x::AbstractArray{T,N},
                                          orient,
                                          d::AbstractArray{T,N})
-    @assert size(hi) == size(x)
-    @assert size(d)  == size(x)
+    @assert size(x) == size(hi) == size(d)
     const ZERO = zero(T)
     const INFINITY = T(Inf)
     const s = orientation(T, orient)
@@ -954,7 +952,7 @@ function step_limits{T<:AbstractFloat,N}(lo::T,
     smax = ZERO
     @inbounds begin
         if bounded_below
-            @simd for i in eachindex(x, d, hi)
+            @simd for i in eachindex(x, hi, d)
                 p = s*d[i]
                 if p != ZERO
                     a = (p > ZERO ? hi[i] - x[i] : lo - x[i])/p
@@ -967,7 +965,7 @@ function step_limits{T<:AbstractFloat,N}(lo::T,
                 end
             end
         else
-            @simd for i in eachindex(x, d, hi)
+            @simd for i in eachindex(x, hi, d)
                 p = s*d[i]
                 if p > ZERO
                     a = (hi[i] - x[i])/p
@@ -986,20 +984,18 @@ function step_limits{T<:AbstractFloat,N}(lo::T,
     return (smin, smax)
 end
 
-function step_limits{T<:AbstractFloat,N}(lo::AbstractArray{T,N},
+function step_limits{T<:AbstractFloat,N}(x::AbstractArray{T,N},
+                                         lo::AbstractArray{T,N},
                                          hi::AbstractArray{T,N},
-                                         x::AbstractArray{T,N},
                                          orient,
                                          d::AbstractArray{T,N})
-    @assert size(lo) == size(x)
-    @assert size(hi) == size(x)
-    @assert size(d)  == size(x)
+    @assert size(x) == size(lo) == size(hi) == size(d)
     const ZERO = zero(T)
     const s = orientation(T, orient)
     smin = T(Inf)
     smax = ZERO
     @inbounds begin
-        @simd for i in eachindex(x, d, lo, hi)
+        @simd for i in eachindex(x, lo, hi, d)
             p = s*d[i]
             if p != ZERO
                 # Step length to reach the upper/lower bound:
@@ -1016,55 +1012,55 @@ function step_limits{T<:AbstractFloat,N}(lo::AbstractArray{T,N},
     return (smin, smax)
 end
 
-function step_limits{T<:AbstractFloat,N}(lo::Real,
+function step_limits{T<:AbstractFloat,N}(x::AbstractArray{T,N},
+                                         lo::Real,
                                          hi::Real,
-                                         x::AbstractArray{T,N},
                                          orient,
                                          d::AbstractArray{T,N})
-    step_limits(T(lo), T(hi), x, orient, d)
+    step_limits(x, T(lo), T(hi), orient, d)
 end
 
-function step_limits{T<:AbstractFloat,N}(lo::AbstractArray{T,N},
+function step_limits{T<:AbstractFloat,N}(x::AbstractArray{T,N},
+                                         lo::AbstractArray{T,N},
                                          hi::Real,
-                                         x::AbstractArray{T,N},
                                          orient,
                                          d::AbstractArray{T,N})
-    step_limits(lo, T(hi), x, orient, d)
+    step_limits(x, lo, T(hi), orient, d)
 end
 
-function step_limits{T<:AbstractFloat,N}(lo::Real,
+function step_limits{T<:AbstractFloat,N}(x::AbstractArray{T,N},
+                                         lo::Real,
                                          hi::AbstractArray{T,N},
-                                         x::AbstractArray{T,N},
                                          orient,
                                          d::AbstractArray{T,N})
-    step_limits(T(lo), hi, x, orient, d)
+    step_limits(x, T(lo), hi, orient, d)
 end
 
 #------------------------------------------------------------------------------
 # GETTING FREE VARIABLES
 
-@inline may_move{T<:AbstractFloat}(::Forward, x::T, d::T, lo::T, ::Void) =
+@inline may_move{T<:AbstractFloat}(x::T, lo::T, ::Void, ::Forward, d::T) =
     d > zero(T) || (d != zero(T) && x > lo)
 
-@inline may_move{T<:AbstractFloat}(::Backward, x::T, d::T, lo::T, ::Void) =
+@inline may_move{T<:AbstractFloat}(x::T, lo::T, ::Void, ::Backward, d::T) =
     d < zero(T) || (d != zero(T) && x > lo)
 
-@inline may_move{T<:AbstractFloat}(::Forward, x::T, d::T, ::Void, hi::T) =
+@inline may_move{T<:AbstractFloat}(x::T, ::Void, hi::T, ::Forward, d::T) =
     d < zero(T) || (d != zero(T) && x < hi)
 
-@inline may_move{T<:AbstractFloat}(::Backward, x::T, d::T, ::Void, hi::T) =
+@inline may_move{T<:AbstractFloat}(x::T, ::Void, hi::T, ::Backward, d::T) =
     d > zero(T) || (d != zero(T) && x < hi)
 
-@inline may_move{T<:AbstractFloat}(::Forward, x::T, d::T, lo::T, hi::T) =
+@inline may_move{T<:AbstractFloat}(x::T, lo::T, hi::T, ::Forward, d::T) =
     d != zero(T) && (d < zero(T) ? x > lo : x < hi)
 
-@inline may_move{T<:AbstractFloat}(::Backward, x::T, d::T, lo::T, hi::T) =
+@inline may_move{T<:AbstractFloat}(x::T, lo::T, hi::T, ::Backward, d::T) =
     d != zero(T) && (d > zero(T) ? x > lo : x < hi)
 
 """
 ## Get free variables when following a direction
 
-    sel =  get_free_variables(lo, hi, x, orient, d)
+    sel =  get_free_variables(x, lo, hi, orient, d)
 
 yields the list of components of the variables `x` which are allowed to vary
 along the search direction `sign(orient)*d` under box constraints with `lo` and
@@ -1077,7 +1073,7 @@ variables can be obtained by:
 
 where the projected gradient `gp` has been computed as:
 
-    project_direction!(gp, lo, hi, x, -1, g)
+    project_direction!(gp, x, lo, hi, -1, g)
 
 with `g` the gradient of the objective function at `x`.
 
@@ -1096,9 +1092,9 @@ function get_free_variables{T<:AbstractFloat,N}(gp::DenseArray{T,N})
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(lo::T,
+function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
+                                                lo::T,
                                                 hi::T,
-                                                x::DenseArray{T,N},
                                                 o::Orientation,
                                                 d::DenseArray{T,N})
     @assert size(x) == size(d)
@@ -1110,21 +1106,21 @@ function get_free_variables{T<:AbstractFloat,N}(lo::T,
     j = 0
     if bounded_below && bounded_above
         @inbounds @simd for i in 1:n
-            if may_move(o, x[i], d[i], lo, hi)
+            if may_move(x[i], lo, hi, o, d[i])
                 j += 1
                 sel[j] = i
             end
         end
     elseif bounded_below
         @inbounds @simd for i in 1:n
-            if may_move(o, x[i], d[i], lo, nothing)
+            if may_move(x[i], lo, nothing, o, d[i])
                 j += 1
                 sel[j] = i
             end
         end
     elseif bounded_above
         @inbounds @simd for i in 1:n
-            if may_move(o, x[i], d[i], nothing, hi)
+            if may_move(x[i], nothing, hi, o, d[i])
                 j += 1
                 sel[j] = i
             end
@@ -1138,9 +1134,9 @@ function get_free_variables{T<:AbstractFloat,N}(lo::T,
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
+function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
+                                                lo::DenseArray{T,N},
                                                 hi::T,
-                                                x::DenseArray{T,N},
                                                 o::Orientation,
                                                 d::DenseArray{T,N})
     @assert size(x) == size(d) == size(lo)
@@ -1149,14 +1145,14 @@ function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
     j = 0
     if hi < T(+Inf)
         @inbounds @simd for i in 1:n
-            if may_move(o, x[i], d[i], lo[i], hi)
+            if may_move(x[i], lo[i], hi, o, d[i])
                 j += 1
                 sel[j] = i
             end
         end
     else
         @inbounds @simd for i in 1:n
-            if may_move(o, x[i], d[i], lo[i], nothing)
+            if may_move(x[i], lo[i], nothing, o, d[i])
                 j += 1
                 sel[j] = i
             end
@@ -1165,9 +1161,9 @@ function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(lo::T,
+function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
+                                                lo::T,
                                                 hi::DenseArray{T,N},
-                                                x::DenseArray{T,N},
                                                 o::Orientation,
                                                 d::DenseArray{T,N})
     @assert size(x) == size(d) == size(hi)
@@ -1176,14 +1172,14 @@ function get_free_variables{T<:AbstractFloat,N}(lo::T,
     j = 0
     if lo > T(-Inf)
         @inbounds @simd for i in 1:n
-            if may_move(o, x[i], d[i], lo, hi[i])
+            if may_move(x[i], lo, hi[i], o, d[i])
                 j += 1
                     sel[j] = i
             end
         end
     else
         @inbounds @simd for i in 1:n
-            if may_move(o, x[i], d[i], nothing, hi[i])
+            if may_move(x[i], nothing, hi[i], o, d[i])
                 j += 1
                 sel[j] = i
             end
@@ -1192,9 +1188,9 @@ function get_free_variables{T<:AbstractFloat,N}(lo::T,
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
+function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
+                                                lo::DenseArray{T,N},
                                                 hi::DenseArray{T,N},
-                                                x::DenseArray{T,N},
                                                 o::Orientation,
                                                 d::DenseArray{T,N})
     @assert size(x) == size(d) == size(lo) == size(hi)
@@ -1202,7 +1198,7 @@ function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
     sel = Array{Int}(n)
     j = 0
     @inbounds @simd for i in 1:n
-        if may_move(o, x[i], d[i], lo[i], hi[i])
+        if may_move(x[i], lo[i], hi[i], o, d[i])
             j += 1
             sel[j] = i
         end
@@ -1210,28 +1206,28 @@ function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(lo::Real,
+function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
+                                                lo::Real,
                                                 hi::Real,
-                                                x::DenseArray{T,N},
                                                 orient,
                                                 d::DenseArray{T,N})
-    get_free_variables(T(lo), T(hi), x, Orientation(orient), d)
+    get_free_variables(x, T(lo), T(hi), Orientation(orient), d)
 end
 
-function get_free_variables{T<:AbstractFloat,N}(lo::DenseArray{T,N},
+function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
+                                                lo::DenseArray{T,N},
                                                 hi::Real,
-                                                x::DenseArray{T,N},
                                                 orient,
                                                 d::DenseArray{T,N})
-    get_free_variables(lo, T(hi), x, Orientation(orient), d)
+    get_free_variables(x, lo, T(hi), Orientation(orient), d)
 end
 
-function get_free_variables{T<:AbstractFloat,N}(lo::Real,
+function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
+                                                lo::Real,
                                                 hi::DenseArray{T,N},
-                                                x::DenseArray{T,N},
                                                 orient,
                                                 d::DenseArray{T,N})
-    get_free_variables(T(lo), hi, x, Orientation(orient), d)
+    get_free_variables(x, T(lo), hi, Orientation(orient), d)
 end
 
 #------------------------------------------------------------------------------

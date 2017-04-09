@@ -5,7 +5,7 @@
 #
 #------------------------------------------------------------------------------
 #
-# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
+# Copyright (C) 2015-2017, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
 # This file is part of TiPi.  All rights reserved.
 #
 
@@ -287,12 +287,12 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
         # Compute value of function and gradient, register best solution so far
         # and check for convergence based on the gradient norm.
         if method > 0
-            project_variables!(x, lo, hi, x)
+            project_variables!(x, x, lo, hi)
         end
         f = fg!(x, g)
         eval += 1
         if method > 0
-            project_direction!(p, lo, hi, x, -1, g)
+            project_direction!(p, x, lo, hi, -1, g)
         end
         if eval == 1 || f < bestf
             gnorm = vnorm2((method > 0 ? p : g))
@@ -376,7 +376,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                     gnorm = bestgnorm
                     vcombine!(x, 1, S[mark], -stp, d)
                     if method > 0
-                        project_variables!(x, lo, hi, x)
+                        project_variables!(x, x, lo, hi)
                     end
                 else
                     gnorm = vnorm2((method > 0 ? p : g))
@@ -418,7 +418,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                 end
                 if change
                     if method > 0
-                        project_direction!(d, lo, hi, x, -1, d)
+                        project_direction!(d, x, lo, hi, -1, d)
                     end
                     gd = -vdot(g, d)
                     reject = ! sufficient_descent(gd, epsilon, gnorm, d)
@@ -460,7 +460,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
             end
             if method > 0
                 # Make sure the step is not longer than necessary.
-                (smin, smax) = step_limits(lo, hi, x, -1, d)
+                (smin, smax) = step_limits(x, lo, hi, -1, d)
                 stp = min(stp, smax)
                 stpmin = STPMIN*stp
                 stpmax = min(STPMAX*stp, smax)
