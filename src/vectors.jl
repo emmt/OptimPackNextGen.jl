@@ -1060,7 +1060,7 @@ end
 """
 ## Get free variables when following a direction
 
-    sel =  get_free_variables(x, lo, hi, orient, d)
+    sel = get_free_variables(x, lo, hi, orient, d)
 
 yields the list of components of the variables `x` which are allowed to vary
 along the search direction `sign(orient)*d` under box constraints with `lo` and
@@ -1069,7 +1069,7 @@ along the search direction `sign(orient)*d` under box constraints with `lo` and
 If the projected gradient `gp` of the objective function is available, the free
 variables can be obtained by:
 
-    sel =  get_free_variables(gp)
+    sel = get_free_variables(gp)
 
 where the projected gradient `gp` has been computed as:
 
@@ -1077,11 +1077,17 @@ where the projected gradient `gp` has been computed as:
 
 with `g` the gradient of the objective function at `x`.
 
+There are in-place versions:
+
+    get_free_variables!(sel, x, lo, hi, orient, d) -> sel
+    get_free_variables!(sel, gp)
+
 """
-function get_free_variables{T<:AbstractFloat,N}(gp::DenseArray{T,N})
+function get_free_variables!{T<:AbstractFloat,N}(sel::Vector{Int},
+                                                 gp::DenseArray{T,N})
     const ZERO = zero(T)
     const n = length(gp)
-    sel = Array{Int}(n)
+    resize!(sel, n)
     j = 0
     @inbounds @simd for i in 1:n
         if gp[i] != ZERO
@@ -1092,17 +1098,18 @@ function get_free_variables{T<:AbstractFloat,N}(gp::DenseArray{T,N})
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
-                                                lo::T,
-                                                hi::T,
-                                                o::Orientation,
-                                                d::DenseArray{T,N})
+function get_free_variables!{T<:AbstractFloat,N}(sel::Vector{Int},
+                                                 x::DenseArray{T,N},
+                                                 lo::T,
+                                                 hi::T,
+                                                 o::Orientation,
+                                                 d::DenseArray{T,N})
     @assert size(x) == size(d)
     @assert lo ≤ hi # this also check for NaN
     const bounded_below = (lo > T(-Inf))
     const bounded_above = (hi < T(+Inf))
     const n = length(x)
-    sel = Array{Int}(n)
+    resize!(sel, n)
     j = 0
     if bounded_below && bounded_above
         @inbounds @simd for i in 1:n
@@ -1134,14 +1141,15 @@ function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
-                                                lo::DenseArray{T,N},
-                                                hi::T,
-                                                o::Orientation,
-                                                d::DenseArray{T,N})
+function get_free_variables!{T<:AbstractFloat,N}(sel::Vector{Int},
+                                                 x::DenseArray{T,N},
+                                                 lo::DenseArray{T,N},
+                                                 hi::T,
+                                                 o::Orientation,
+                                                 d::DenseArray{T,N})
     @assert size(x) == size(d) == size(lo)
     const n = length(x)
-    sel = Array{Int}(n)
+    resize!(sel, n)
     j = 0
     if hi < T(+Inf)
         @inbounds @simd for i in 1:n
@@ -1161,14 +1169,15 @@ function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
-                                                lo::T,
-                                                hi::DenseArray{T,N},
-                                                o::Orientation,
-                                                d::DenseArray{T,N})
+function get_free_variables!{T<:AbstractFloat,N}(sel::Vector{Int},
+                                                 x::DenseArray{T,N},
+                                                 lo::T,
+                                                 hi::DenseArray{T,N},
+                                                 o::Orientation,
+                                                 d::DenseArray{T,N})
     @assert size(x) == size(d) == size(hi)
     const n = length(x)
-    sel = Array{Int}(n)
+    resize!(sel, n)
     j = 0
     if lo > T(-Inf)
         @inbounds @simd for i in 1:n
@@ -1188,14 +1197,15 @@ function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
-                                                lo::DenseArray{T,N},
-                                                hi::DenseArray{T,N},
-                                                o::Orientation,
-                                                d::DenseArray{T,N})
+function get_free_variables!{T<:AbstractFloat,N}(sel::Vector{Int},
+                                                 x::DenseArray{T,N},
+                                                 lo::DenseArray{T,N},
+                                                 hi::DenseArray{T,N},
+                                                 o::Orientation,
+                                                 d::DenseArray{T,N})
     @assert size(x) == size(d) == size(lo) == size(hi)
     const n = length(x)
-    sel = Array{Int}(n)
+    resize!(sel, n)
     j = 0
     @inbounds @simd for i in 1:n
         if may_move(x[i], lo[i], hi[i], o, d[i])
@@ -1206,28 +1216,52 @@ function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
     return (j == n ? sel : resize!(sel, j))
 end
 
-function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
-                                                lo::Real,
-                                                hi::Real,
-                                                orient,
-                                                d::DenseArray{T,N})
-    get_free_variables(x, T(lo), T(hi), Orientation(orient), d)
+function get_free_variables!{T<:AbstractFloat,N}(sel::Vector{Int},
+                                                 x::DenseArray{T,N},
+                                                 lo::Real,
+                                                 hi::Real,
+                                                 orient,
+                                                 d::DenseArray{T,N})
+    get_free_variables!(sel, x, T(lo), T(hi), Orientation(orient), d)
+end
+
+function get_free_variables!{T<:AbstractFloat,N}(sel::Vector{Int},
+                                                 x::DenseArray{T,N},
+                                                 lo::DenseArray{T,N},
+                                                 hi::Real,
+                                                 orient,
+                                                 d::DenseArray{T,N})
+    get_free_variables!(sel, x, lo, T(hi), Orientation(orient), d)
+end
+
+function get_free_variables!{T<:AbstractFloat,N}(sel::Vector{Int},
+                                                 x::DenseArray{T,N},
+                                                 lo::Real,
+                                                 hi::DenseArray{T,N},
+                                                 orient,
+                                                 d::DenseArray{T,N})
+    get_free_variables!(sel, x, T(lo), hi, Orientation(orient), d)
+end
+
+function get_free_variables{T<:AbstractFloat,N}(gp::DenseArray{T,N})
+    get_free_variables!(newvariablelengthvector(Int, length(gp)), gp)
 end
 
 function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
-                                                lo::DenseArray{T,N},
-                                                hi::Real,
+                                                lo::Union{Real,DenseArray{T,N}},
+                                                hi::Union{Real,DenseArray{T,N}},
                                                 orient,
                                                 d::DenseArray{T,N})
-    get_free_variables(x, lo, T(hi), Orientation(orient), d)
+    get_free_variables!(newvariablelengthvector(Int, length(x)),
+                        x, lo, hi, orient, d)
 end
 
-function get_free_variables{T<:AbstractFloat,N}(x::DenseArray{T,N},
-                                                lo::Real,
-                                                hi::DenseArray{T,N},
-                                                orient,
-                                                d::DenseArray{T,N})
-    get_free_variables(x, T(lo), hi, Orientation(orient), d)
+@doc @doc(get_free_variables!) get_free_variables
+
+function newvariablelengthvector{T}(::Type{T}, n::Integer)
+    vec = Array{T}(n)
+    sizehint!(vec, n)
+    vec
 end
 
 #------------------------------------------------------------------------------

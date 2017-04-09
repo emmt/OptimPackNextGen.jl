@@ -229,7 +229,10 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
             lnsrch = BacktrackingLineSearch(ftol=0.1, amin=0.1)
         end
     end
-
+    sel = Array{Int}(0)
+    if bounds != 0
+        sizehint!(sel, length(x))
+    end
     mem = min(mem, length(x))
     reason::AbstractString = ""
     fminset::Bool = (! isnan(fmin) && fmin > -Inf)
@@ -414,8 +417,9 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                 else
                     vcopy!(d, p)
                     change = apply_lbfgs!(S, Y, rho, m, mark, d, alpha,
-                                          get_free_variables(d))
+                                          get_free_variables!(sel, d))
                 end
+                # FIXME: speedup project_direction with the free vars.?
                 if change
                     if method > 0
                         project_direction!(d, x, lo, hi, -1, d)
