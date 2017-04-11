@@ -22,19 +22,25 @@ where `A` is the so-called left-hand-side operator (which must be positive
 definite) of the normal equations, `b` is the right-hand-side vector of the
 normal equations and `x` are the unknowns.
 
-The left-hand-side operator is provided as a function (or any callable object)
-which takes two arguments, a destination `dst` and a source `src` and which
-stores in `dst` the result of `A` applied to `src` and which returns `dst`:
+To use this method call:
 
-    A!(dst, src) -> dst
+    x = conjgrad(A, b)
 
-To use this method, initial value, say `x0`, for the variables may be provided:
+where the left-hand-side operator is provided as a function (or any callable
+object) which takes two arguments, a destination `dst` and a source `src` and
+which stores in `dst` the result of `A` applied to `src` and which returns
+`dst`:
 
-    x = conjgrad(A!, b, x0)
+    A(dst, src) -> dst
 
-the intial variables may be used to store the final result:
+By default, the method starts with all variables set to zero, another initial
+value, say `x0`, for the variables may be provided:
 
-    conjgrad!(A!, b, x) -> x
+    x = conjgrad(A, b, x0)
+
+The initial variables may be used to store the final result:
+
+    conjgrad!(A, b, x) -> x
 
 will overwrite the contents of the initial variables `x` with the final result
 and will return it.  If no initial variables are specified, the default is to
@@ -51,15 +57,21 @@ There are several keywords to control the algorithm:
 * `maxiter` specifies the maximum number of iterations.
 
 """
-function conjgrad!{T}(A!, b::T, x::T;
-                      tol::NTuple{2,Real}=(0.0,1e-3),
-                      maxiter::Integer=typemax(Int))
+conjgrad{T}(A, b::T; kws...) =
+    conjgrad!(A, b, vfill!(vcreate(b), 0); kws...)
+
+conjgrad{T}(A, b::T, x0::T; kws...) =
+    conjgrad!(A, b, vcopy(x0); kws...)
+
+function conjgrad!{T}(A, b::T, x::T;
+                      tol::NTuple{2,Real} = (0.0,1e-3),
+                      maxiter::Integer = typemax(Int))
     # Initialization.
     @assert tol[1] ≥ 0
     @assert tol[2] ≥ 0
     if vdot(x,x) > 0 # cheap trick to check whether x is non-zero
         r = vcreate(x)
-        A!(r, x)
+        A(r, x)
         vcombine!(r, 1, b, -1, r)
     else
         r = vcopy(b)
@@ -88,7 +100,7 @@ function conjgrad!{T}(A!, b::T, x::T;
         else
             vcombine!(p, 1, r, (rho/rho0), p)
         end
-        A!(q, p)
+        A(q, p)
         gamma = vdot(p, q)
         if gamma <= 0
             error("left-hand-side operator A is not positive definite")
@@ -102,3 +114,5 @@ function conjgrad!{T}(A!, b::T, x::T;
     end
     return x
 end
+
+@doc @doc(conjgrad) conjgrad!
