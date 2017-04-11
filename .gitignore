@@ -2,6 +2,7 @@
 *.jl.mem
 
 # Specific files/directories
+notes/
 work/
 
 # Backup files
