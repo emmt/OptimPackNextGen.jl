@@ -2,14 +2,15 @@ module Test
 
 using Base.Test
 using TiPi
+import Base: DFT, FFTW
 
-function runtests()
+function runtests{T<:AbstractFloat}(::Type{T}=Float64)
     n1, n2, n3 = 384, 128, 32
     for dims in ((n1,), (n1,n2), (n1,n2,n3))
         println("\nTesting $(length(dims))-D convolution with dims = $dims")
         println(" * Real convolution:")
-        x = rand(dims)
-        h = rand(dims)
+        x = rand(T, dims)
+        h = rand(T, dims)
         H = CirculantConvolution(h, flags=FFTW.MEASURE)
         y = H*x
         z = real(ifft(fft(h).*fft(x)))
@@ -31,8 +32,8 @@ function runtests()
         @time for k in 1:m; apply!(y, H, x); end
 
         println(" * Complex convolution:")
-        x = complex(rand(dims),rand(dims))
-        h = complex(rand(dims),rand(dims))
+        x = complex(rand(T, dims),rand(T, dims))
+        h = complex(rand(T, dims),rand(T, dims))
         H = CirculantConvolution(h, flags=FFTW.MEASURE)
         y = H*x
         z = ifft(fft(h).*fft(x))
@@ -47,6 +48,55 @@ function runtests()
         @time for k in 1:m; apply!(y, H, x); end
     end
 
+end
+
+function correltests{T<:AbstractFloat}(::Type{T}=Float64)
+    dim = 3*32
+    xdims = (dim, dim)
+    zdims = (div(dim,2) + 1, dim)
+
+    #planning = FFTW.ESTIMATE
+    planning = FFTW.MEASURE
+
+    n = 100000
+    t = 1
+    FFTW.set_num_threads(t)
+
+    println("\nTesting 2D convolution with dims = $xdims, $n times, $t thread(s)")
+
+    println(" * Real convolution:")
+
+    x1 = Array(T, xdims)
+    x2 = Array(T, xdims)
+    x3 = Array(T, xdims)
+    z1 = Array(Complex{T}, zdims)
+    z2 = Array(Complex{T}, zdims)
+    z3 = Array(Complex{T}, zdims)
+
+    forward = plan_rfft(x1; flags=(planning | FFTW.PRESERVE_INPUT))
+    backward = plan_brfft(z1, xdims[1]; flags=(planning | FFTW.DESTROY_INPUT))
+
+    rand!(x1)
+    rand!(x2)
+
+    # Warm-up and compile
+    for k in 1:max(10,div(n,100))
+        A_mul_B!(z1, forward, x1)
+        A_mul_B!(z2, forward, x2)
+        @inbounds @simd for i in eachindex(z1, z2, z3)
+            z3[i] = z1[i]*z2[i]
+        end
+        A_mul_B!(x3, backward, z3)
+    end
+
+    @time for k in 1:n
+        A_mul_B!(z1, forward, x1)
+        A_mul_B!(z2, forward, x2)
+        @inbounds @simd for i in eachindex(z1, z2, z3)
+            z3[i] = z1[i]*z2[i]
+        end
+        A_mul_B!(x3, backward, z3)
+    end
 end
 
 function deconvtest(test::String="conjgrad"; single::Bool=false)
