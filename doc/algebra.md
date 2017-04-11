@@ -1,17 +1,18 @@
 # Algebra
 
-To solve inverse problems in a unified way, TiPi manipulates the unknowns of
-the problems, the so-called "variables", at an abstract level requiring that a
-few methods be implemented to manipulate the variables of interest.  Other
-values can be scalar reals of type `TiPi.Float` (an alias to `Cdouble` which is
-itself an alias to `Float64`) or integers of type `Int` (the default integer
-type of Julia which is suitable for indexing arays).
+To solve large scale optimization problems in a unified way, OptimPack
+manipulates the unknowns of the problems, the so-called "variables", at an
+abstract level requiring that a few methods be implemented to manipulate the
+variables of interest.  Other values can be scalar reals of type
+`OptimPack.Float` (an alias to `Cdouble` which is itself an alias to `Float64`)
+or integers of type `Int` (the default integer type of Julia which is suitable
+for indexing arays).
 
 
 ## Variables and Vector Spaces
 
 The "variables" are the unknowns of the considered inverse problem.  Variables
-in TiPi belong to so-called "vector spaces" which can be anything needed to
+in OptimPack belong to so-called "vector spaces" which can be anything needed to
 store the variable values.  A variable instance is typically used as a template
 to represent any variable of the same vector space.  The type of a variable is
 not sufficient (for instance a Julia array type is only specified by the type
@@ -67,10 +68,10 @@ The following methods may optionally be implemented:
   end
   ```
 
-TiPi provides reasonably optimized implementations of these methods for Julia
-`Array` types.  So TiPi can be used out-of-the box if your unknowns are stored
-in the form of Julia arrays.  Otherwise, you'll have to implement the above
-methods.
+OptimPack provides reasonably optimized implementations of these methods for
+Julia `Array` types.  So OptimPack can be used out-of-the box if your unknowns
+are stored in the form of Julia arrays.  Otherwise, you'll have to implement
+the above methods.
 
 Note that `length`, `vcreate`, `vcopy!`, `vscale!` and `vfill!` are identical
 or similar to methods already provided by Julia for its arrays but the
@@ -99,7 +100,8 @@ consider implementing a more efficient version:
 
 * `vnorm2(x::V, y::V)` defaults to `sqrt(vdot(x, y))`;
 * `vscale!(dst::V, alpha::S)` defaults to `vscale!(dst, alpha, dst)`;
-* `vscale!(dst::V, alpha::S, src::V)` defaults to `vcombine!(dst, alpha, src, 0, src)`;
+* `vscale!(dst::V, alpha::S, src::V)` defaults to
+  `vcombine!(dst, alpha, src, 0, src)`;
 * `vproduct!(dst::V, src::V)` defaults to `vproduct!(dst, dst, src)`;
 
 In order to use bound constraint optimization, you must provide the following
@@ -112,135 +114,3 @@ methods (`F` is the type of object returned by `get_free_variables`):
 * `vdot(sel::F, x::V, y::V)`
 * `vupdate!(dst::V, sel::F, alpha::S, x::V)`
 * `vproduct!(dst::V, sel::F, x::V, y::V)`
-
-
-## Linear Operators
-
-TiPi provides abstract types and methods for dealing with linear operators
-which, with the "variables", are the basic building blocks of many inverse
-problems.  This framework is suitable to have the following expressions
-work as expected:
-
-    A*x         # yield "operator" A applied to "vector" x
-    A(x)        # idem
-    call(A, x)  # idem
-
-    A'*x        # yield the adjoint of "operator" A applied to "vector" x
-    A'(x)       # idem
-    call(A', x) # idem
-
-Here "adjoint" closely follows the mathematical definition:
-
-    vdot(y, A*x) = vdot(A'*y, x)
-
-whatever `x` and `y` (of the correct type).  This definition clearly depends on
-the inner product which is implemented by the `vdot` method for the considered
-variables (see above).
-
-Of course combining operators is possible.  For instance:
-
-    A*B'*C*x
-    (A*B*C)'*x = C'*B'*A'*x = C'(B'(A'(x)))
-
-with the usual convention of using upper case latin letters for operators and
-lower case latin letters for vectors.  Minimal type checking is automatically
-performed: `A*x` requires that `x` belongs to the input space of `A`, `A'*x`
-requires that `x` belongs to the output space of `A` and `A*B` requires that
-the input space of `A` be the same as the output space of `B`.
-
-For technical reasons, only left multiplication of a vector by an operator is
-implemented.  This makes sense for inverse problems.
-
-The input and output types of a linear operator are respectively obtained by:
-
-    input_type(A)      # yields F for A::LinearOperator{E,F}
-    output_type(A)     # yields E for A::LinearOperator{E,F}
-
-To benefit from this framework, an operator must be an instance of a concrete
-type inherited from one of the abstract type `LinearOperator` or one of its
-descendant (like `LinearEndomorphism` or `SelfAdjointOperator`).
-
-* `LinearOperator{OUT,INP}` is the parametric abstract type from which inherit
-  all linear operators.  The parameters `INP` and `OUT` are respectively the
-  input and output types of the "vectors".
-
-* A `LinearEndomorphism` is a `LinearOperator` with the same input and output
-  spaces.
-
-* A `SelfAdjointOperator{E}` is a more specialized `LinearOperator` which is
-  its own adjoint.  Its only parameter is the type of the input and output
-  "vectors".
-
-Appart from defining the type for the operator, two methods, `apply_direct` and
-`apply_adjoint` should be provided to apply the operator and its adjoint to an
-argument of the suitable type.  The conventions are that:
-
-    apply_direct(A, x)
-
-yield the result of applying the adjoint of the linear operator `A` to the
-"vector" `x`; while:
-
-    apply_adjoint(A, x)
-
-yields the result of applying the adjoint of the linear operator `A` to the
-"vector" `x`.  The methods `apply_direct!` and `apply_adjoint!` may also be
-implemented:
-
-    apply_direct!(dst, A, x)
-    apply_adjoint!(dst, A, x)
-
-which store the result of applying the operator `A` or its adjoint in `dst`.
-For maximum efficiency it is better to provide the 4 methods `apply_direct`,
-`apply_direct!`, `apply_adjoint` and `apply_adjoint!` for a specific linear
-operator.  The following default methods are however implemented by TiPi:
-
-    function apply_direct!{E,F}(dst::E, A::LinearOperator{E,F}, x::F)
-       vcopy!(dst, apply_direct(A, x))
-    end
-
-    function apply_adjoint!{E,F}(dst::F, A::LinearOperator{E,F}, x::E)
-       vcopy!(dst, apply_adjoint(A, x))
-    end
-
-so it is sufficient to implement `apply_direct` and `apply_adjoint` to have a
-fully operational operator.
-
-The result returned by `apply_direct` (resp. `apply_adjoint`) may not be a new
-instance of an output (resp. input) "vector".  For instance, an efficient
-implementation of the identity would just returns its argument.
-
-Implementing a linear operator is typically done by:
-
-    using TiPi.Algebra
-    import TiPi.Algebra: apply_direct, apply_adjoint
-
-    type MyOperator{E,F} <: LinearOperator{E,F}
-        ...
-    end
-
-    apply_direct{E,F}(A::MyOperator{E,F}, x::F) = ...
-    apply_adjoint{E,F}(A::MyOperator{E,F}, x::E) = ...
-
-Explicitly importing `apply_direct` and `apply_adjoint` is needed to overload
-these methods.
-
-For a `SelfAdjointOperator` it is sufficient to provide `apply_direct` and/or
-`apply_direct!` (i.e. neither `apply_adjoint` nor `apply_adjoint!` are
-required).  Implementing a self-adjoint operator amounts to:
-
-    using TiPi.Algebra
-    import TiPi.Algebra: apply_direct
-
-    type MyOperator{E} <: SelfAdjointOperator{E}
-        ...
-    end
-
-    apply_direct{E}(A::MyOperator{E}, x::E) = ...
-
-
-## Developer notes
-
-* `LinearEndomorphism{E}` cannot just be a type alias to `LinearOperator{E,E}`
-  because for Julia, the same type `E` may correspond to very diffrent things.
-  For instance, the type `Array{Int,2}` corresponds to any 2-dimensional arrays
-  with elements of type `Int`.

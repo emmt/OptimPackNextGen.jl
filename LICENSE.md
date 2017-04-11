@@ -1,6 +1,6 @@
-The TiPi.jl package is licensed under the MIT "Expat" License:
+The OptimPack.jl package is licensed under the MIT "Expat" License:
 
-> Copyright (c) 2015: Éric Thiébaut.
+> Copyright (c) 2015-2017: Éric Thiébaut.
 >
 > Permission is hereby granted, free of charge, to any person obtaining
 > a copy of this software and associated documentation files (the

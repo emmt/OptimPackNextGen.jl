@@ -2,10 +2,15 @@
 #
 # Tests for vectorized operations.
 #
+
+if ! isdefined(:OptimPackNextGen)
+    include("../src/OptimPackNextGen.jl")
+end
+
 module VectorsTests
 
 using Base.Test
-using TiPi.Algebra
+using OptimPackNextGen.Algebra
 
 @testset "vfill" begin
     for T in (Float16, Float32, Float64)

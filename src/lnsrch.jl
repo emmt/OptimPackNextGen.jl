@@ -1,12 +1,14 @@
 #
 # lnsrch.jl --
 #
-# Line search methods for TiPi.
+# Line search methods for OptimPack.
 #
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 #
-# Copyright (C) 2015-2016, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
-# This file is part of TiPi.  All rights reserved.
+# This file is part of OptimPack.jl which is licensed under the MIT
+# "Expat" License.
+#
+# Copyright (C) 2015-2017, Éric Thiébaut.
 #
 
 module LineSearch
@@ -15,8 +17,8 @@ export start!, iterate!, get_task, get_reason, get_step, requires_derivative,
        AbstractLineSearch, DefaultLineSearch, defaultlinesearch,
        BacktrackingLineSearch, MoreThuenteLineSearch
 
-# Use the same floating point type for scalars as in TiPi.
-import TiPi.Float
+# Use the same floating point type for scalars as in OptimPack.
+import OptimPackNextGen.Float
 
 """
 ## Line search methods
@@ -459,8 +461,8 @@ Workspace `it` is used as follows:
 * MINPACK-2 Project.  November 1993.  Argonne National Laboratory and
   University of Minnesota.  Brett M. Averick and Jorge J. Moré.
 
-* TiPi.jl Project.  April 2016.  Centre de Recherche Astrophysique de Lyon.
-  Conversion to Julia by Éric Thiébaut.
+* OptimPack.jl Project.  April 2016.  Centre de Recherche Astrophysique de
+  Lyon.  Conversion to Julia by Éric Thiébaut.
 
 """
 function cstep!(it::LineSearchInterval, stp::Float, fp::Float, dp::Float)
@@ -702,8 +704,8 @@ which are suitable for quasi Newton line search.
 * MINPACK-2 Project. November 1993.  Argonne National Laboratory and University
   of Minnesota.  Brett M. Averick, Richard G. Carter, and Jorge J. Moré.
 
-* TiPi.jl Project.  April 2016.  Centre de Recherche Astrophysique de Lyon.
-  Conversion to Julia by Éric Thiébaut.
+* OptimPack.jl Project.  April 2016.  Centre de Recherche Astrophysique de
+  Lyon.  Conversion to Julia by Éric Thiébaut.
 
 """
 type MoreThuenteLineSearch <: AbstractLineSearch

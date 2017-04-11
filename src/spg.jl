@@ -13,20 +13,22 @@
 #     convex-constrained optimization", ACM Transactions on Mathematical
 #     Software (TOMS) 27, pp. 340-349 (2001).
 #
-# ----------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 #
-# This file is part of TiPi.
-# Copyright (C) 2014, Éric Thiébaut <eric.thiebaut@univ-lyon1.fr>.
-# All rights reserved.
+# This file is part of OptimPack.jl which is licensed under the MIT
+# "Expat" License.
+#
+# Copyright (C) 2015-2017, Éric Thiébaut.
 #
 
 module SPG
 
-using TiPi
-import TiPi.Float
-using TiPi.Algebra
+using OptimPackNextGen
+using OptimPackNextGen.Algebra
 
-export spg2, spg2!, spg2_reason
+import OptimPackNextGen: Float, getreason
+
+export spg, spg!
 
 const WORK_IN_PROGRESS     =  0
 const INFNORM_CONVERGENCE  =  1
@@ -34,7 +36,7 @@ const TWONORM_CONVERGENCE  =  2
 const TOO_MANY_ITERATIONS  = -1
 const TOO_MANY_EVALUATIONS = -2
 
-type SPG2Info
+type SPGInfo
     f::Float      # The final/current function value.
     fbest::Float  # The best function value so far.
     pginfn::Float # ||projected grad||_inf at the final/current iteration.
@@ -43,15 +45,15 @@ type SPG2Info
     fcnt::Int     # The number of function (and gradient) evaluations.
     pcnt::Int     # The number of projections.
     status::Int   # Termination parameter.
-    SPG2Info() = new(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
+    SPGInfo() = new(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 end
 
 doc"""
 # Spectral Projected Gradient Method
 
-    x = spg2(fg!, prj!, x0, m)
+    x = spg(fg!, prj!, x0, m)
 
-SPG2 implements the Spectral Projected Gradient Method (Version 2: "continuous
+SPG implements the Spectral Projected Gradient Method (Version 2: "continuous
 projected gradient direction") to find the local minimizers of a given function
 with convex constraints, described in the references below.
 
@@ -59,7 +61,7 @@ The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
 region.  These functions must be defined as:
 
-    function fg!{T}(x::T, g::T)
+     function fg!{T}(x::T, g::T)
         g[:] = gradient_at(x)
         return function_value_at(x)
      end
@@ -92,20 +94,20 @@ The following keywords are available:
 
 * `maxfc` specifies the maximum number of function evaluations.
 
-* `ws` is an instance of `SPG2Info` to store information about the final
+* `ws` is an instance of `SPGInfo` to store information about the final
   iterate.
 
 * `verb` indicates whether to print some information at each iteration.
 
 * `printer` specifies a subroutine to print some information at each iteration.
   This subroutine will be called as `printer(io, ws)` with `io` the output
-  stream and `ws` an instance of `SPG2Info` with information about the current
+  stream and `ws` an instance of `SPGInfo` with information about the current
   iterate.
 
 * `io` specifes the output stream for iteration information.  It is `STDOUT` by
   default.
 
-The `SPG2Info` type has the following members:
+The `SPGInfo` type has the following members:
 
 * `f` is the function value.
 * `fbest` is the best function value so far.
@@ -135,8 +137,8 @@ The `SPG2Info` type has the following members:
   convex-constrained optimization", ACM Transactions on Mathematical Software
   (TOMS) 27, pp. 340-349 (2001).
 """
-function spg2{T}(fg!, prj!, x0::T, m::Integer; kws...)
-    spg2!(fg!, prj!, vcopy(x0), m; kws...)
+function spg{T}(fg!, prj!, x0::T, m::Integer; kws...)
+    spg!(fg!, prj!, vcopy(x0), m; kws...)
 end
 
 REASON = Dict{Int,String}(WORK_IN_PROGRESS => "work in progress",
@@ -145,12 +147,10 @@ REASON = Dict{Int,String}(WORK_IN_PROGRESS => "work in progress",
                           TOO_MANY_ITERATIONS => "too many iterations",
                           TOO_MANY_EVALUATIONS => "too many function evaluations")
 
-spg2_reason(ws::SPG2Info) = spg2_reason(ws.status)
+getreason(ws::SPGInfo) = get(REASON, ws.status, "unknown status")
 
-spg2_reason(status::Int) = get(REASON, Int(status), "unknown status")
-
-function spg2!{T}(fg!, prj!, x::T, m::Integer;
-                  ws::SPG2Info=SPG2Info(),
+function spg!{T}(fg!, prj!, x::T, m::Integer;
+                  ws::SPGInfo=SPGInfo(),
                   maxit::Integer=typemax(Int),
                   maxfc::Integer=typemax(Int),
                   eps1::Real=1e-6,
@@ -358,7 +358,7 @@ function spg2!{T}(fg!, prj!, x::T, m::Integer;
     ws.status = status
     if verb
         io::IO = STDERR
-        reason = spg2_reason(status)
+        reason = getreason(ws)
         if status < 0
             print_with_color(:red, io, "# WARNING: ", reason)
         else
@@ -369,7 +369,7 @@ function spg2!{T}(fg!, prj!, x::T, m::Integer;
     return xbest
 end
 
-function default_printer(ws::SPG2Info)
+function default_printer(ws::SPGInfo)
     if ws.iter == 0
         println("#  ITER   EVAL   PROJ             F(x)              ‖PG(X)‖_2 ‖PG(X)‖_∞")
         println("# ------ ------ ------ ---------------------------- --------- ---------")

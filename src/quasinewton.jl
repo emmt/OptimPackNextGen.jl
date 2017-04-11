@@ -1,12 +1,14 @@
 #
 # quasi-newton.jl --
 #
-# Limited memory quasi-Newton methods for TiPi.
+# Limited memory quasi-Newton methods for OptimPack.
 #
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 #
-# Copyright (C) 2015-2017, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
-# This file is part of TiPi.  All rights reserved.
+# This file is part of OptimPack.jl which is licensed under the MIT
+# "Expat" License.
+#
+# Copyright (C) 2015-2017, Éric Thiébaut.
 #
 
 # Improvements:
@@ -18,11 +20,12 @@
 
 module QuasiNewton
 
-using TiPi.Algebra
-using TiPi.LineSearch
+using OptimPackNextGen
+using OptimPackNextGen.Algebra
+using OptimPackNextGen.LineSearch
 
-# Use the same floating point type for scalars as in TiPi.
-import TiPi.Float
+# Use the same floating point type for scalars as in OptimPack.
+import OptimPackNextGen.Float
 
 export vmlmb, vmlmb!, EMULATE_BLMVM
 
@@ -105,7 +108,7 @@ The following keywords are available:
 
 ### History
 
-The VMLMB algorithm in TiPi.jl provides a pure Julia implementation of the
+The VMLMB algorithm in OptimPack.jl provides a pure Julia implementation of the
 original method with some improvements and the capability to emulate L-BFGS and
 BLMVM methods.
 

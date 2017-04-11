@@ -1,16 +1,20 @@
-# step_globmin.jl --
 #
-# Implement the STEP method for global univariate optimization [1].
+# step.jl --
+#
+# Implement the STEP (Select The Easiest Point) method for global univariate
+# optimization [1].
 #
 # [1] Swarzberg, S., Seront, G. & Bersini, H., "S.T.E.P.: the easiest way
 #     to optimize a function," in IEEE World Congress on Computational
 #     Intelligence, Proceedings of the First IEEE Conference on
 #     Evolutionary Computation,vol. 1, pp. 519-524 (1994).
 #
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 #
-# Copyright (c) 2016, Éric Thiébaut <eric.thiebaut@univ-lyon1.fr>
-# All rights reserved.
+# This file is part of OptimPack.jl which is licensed under the MIT
+# "Expat" License.
+#
+# Copyright (C) 2015-2017, Éric Thiébaut.
 #
 
 # FIXME: fix estimation of precision (compared to Yorick version)
@@ -20,8 +24,8 @@ module Step
 
 export globmin, globmax
 
-# Use the same floating point type for scalars as in TiPi.
-import TiPi.Float
+# Use the same floating point type for scalars as in OptimPack.
+import OptimPackNextGen.Float
 
 """
 # Cyclic singly linked list
@@ -234,8 +238,6 @@ The following optinal keywords can be used:
 
 * `output` specifies the output stream for printing information (`STDOUT` is
   used by default).
-
-
 
 """ globmin
 

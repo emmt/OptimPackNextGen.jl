@@ -7,10 +7,12 @@
 # intended to be used for numerical optimization and thus, for now,
 # elements must be real (not complex).
 #
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 #
-# Copyright (C) 2015-2017, Éric Thiébaut, Jonathan Léger & Matthew Ozon.
-# This file is part of TiPi.  All rights reserved.
+# This file is part of OptimPack.jl which is licensed under the MIT
+# "Expat" License.
+#
+# Copyright (C) 2015-2017, Éric Thiébaut.
 #
 
 """

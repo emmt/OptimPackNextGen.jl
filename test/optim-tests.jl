@@ -1,10 +1,13 @@
+if ! isdefined(:OptimPackNextGen)
+    include("../src/OptimPackNextGen.jl")
+end
+
 module Test
 
 using Base.Test
-
-include("../src/TiPi.jl")
-using .TiPi.LineSearch
-using .TiPi.QuasiNewton
+using OptimPackNextGen.Algebra
+using OptimPackNextGen.LineSearch
+using OptimPackNextGen.QuasiNewton
 
 function rosenbrock_init!{T<:Real}(x0::Array{T,1})
   x0[1:2:end] = -1.2
