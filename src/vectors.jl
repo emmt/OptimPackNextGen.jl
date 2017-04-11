@@ -9,8 +9,8 @@
 #
 # ------------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License.
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
@@ -22,11 +22,11 @@ yields the Euclidean (L2) norm of `v`.  Also see `vnorm1` and `vnorminf`.
 
 """
 function vnorm2{T<:AbstractFloat,N}(v::AbstractArray{T,N}) :: Float
-    local s::T = zero(T)
+    local s::Float = zero(Float)
     @inbounds @simd for i in eachindex(v)
         s += v[i]*v[i]
     end
-    return Float(sqrt(s))
+    return sqrt(s)
 end
 
 vnorm2{V}(x::V) = Float(sqrt(vdot(x, y)))
@@ -39,11 +39,11 @@ elements.  Also see `vnorm2` and `vnorminf`.
 
 """
 function vnorm1{T<:AbstractFloat,N}(v::AbstractArray{T,N}) :: Float
-    local s::T = zero(T)
+    local s::Float = zero(Float)
     @inbounds @simd for i in eachindex(v)
         s += abs(v[i])
     end
-    return Float(s)
+    return s
 end
 
 """
@@ -95,11 +95,11 @@ which is the real part of the usual definition.
 function vdot{T<:AbstractFloat,N}(x::AbstractArray{T,N},
                                   y::AbstractArray{T,N}) :: Float
     @assert size(x) == size(y)
-    local s::T = zero(T)
+    local s::Float = zero(Float)
     @inbounds @simd for i in eachindex(x, y)
         @inbounds s += x[i]*y[i]
     end
-    return Float(s)
+    return s
 end
 
 # FIXME: use v0.6 feature to enforce arguments to be the same type of arrays.
@@ -108,35 +108,35 @@ function vdot{T<:AbstractFloat,N}(w::AbstractArray{T,N},
                                   x::AbstractArray{T,N},
                                   y::AbstractArray{T,N}) :: Float
     @assert size(w) == size(x)== size(y)
-    local s::T = 0
+    local s::Float = zero(Float)
     @inbounds @simd for i in eachindex(w, x, y)
         s += w[i]*x[i]*y[i]
     end
-    return Float(s)
+    return s
 end
 
 function vdot{T<:AbstractFloat,N}(sel::AbstractVector{Int},
                                   x::DenseArray{T,N},
                                   y::DenseArray{T,N}) :: Float
     @assert size(y) == size(x)
-    local s::T = zero(T)
+    local s::Float = zero(Float)
     const n = length(x)
     @inbounds @simd for i in eachindex(sel)
         j = sel[i]
         1 ≤ j ≤ n || throw(BoundsError())
         s += x[j]*y[j]
     end
-    return Float(s)
+    return s
 end
 
 function vdot{T<:AbstractFloat,N}(x::AbstractArray{Complex{T},N},
                                   y::AbstractArray{Complex{T},N}) :: Float
     @assert size(x) == size(y)
-    local s::T = zero(T)
+    local s::Float = zero(Float)
     @inbounds @simd for i in eachindex(x, y)
         s += x[i].re*y[i].re + x[i].im*y[i].im
     end
-    return Float(s)
+    return s
 end
 
 #------------------------------------------------------------------------------
