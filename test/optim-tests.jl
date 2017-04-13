@@ -6,7 +6,7 @@ module OptimTest
 
 using Base.Test
 using OptimPackNextGen.Algebra
-using OptimPackNextGen.LineSearch
+using OptimPackNextGen.LineSearches
 using OptimPackNextGen.QuasiNewton
 
 function rosenbrock_init!{T<:Real}(x0::Array{T,1})
@@ -43,32 +43,52 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
     x0 = Array(T, n)
     rosenbrock_init!(x0)
+    armijo = ArmijoLineSearch()
+    moretoraldo = MoreToraldoLineSearch(gamma=(0.1,0.5))
+    morethuente = MoreThuenteLineSearch(ftol=1e-3, gtol=0.9, xtol=0.1)
 
     # First run tests in verbose mode (also serve for pre-compilation and
     # warmup).
-    backtrack = BacktrackingLineSearch(amin=0.01)
-    @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
-    x = vmlmb(rosenbrock_fg!, x0, verb=true, fmin=0)
-    #@test_approx_eq_eps x1 ones(T,n) 1e-3
     @printf("\nTesting L-BFGS in %s precision and with Armijo's line search\n", prec)
-    x = vmlmb(rosenbrock_fg!, x0, verb=true, fmin=0, lnsrch=backtrack)
+    x = vmlmb(rosenbrock_fg!, x0; verb=true, fmin=0, lnsrch=armijo)
     #@test_approx_eq_eps x ones(T,n) 1e-3
+    @printf("\nTesting L-BFGS in %s precision and with Moré & Toraldo line search\n", prec)
+    x = vmlmb(rosenbrock_fg!, x0; verb=true, fmin=0, lnsrch=moretoraldo)
+    #@test_approx_eq_eps x ones(T,n) 1e-3
+    @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
+    x = vmlmb(rosenbrock_fg!, x0; verb=true, fmin=0, lnsrch=morethuente)
+    #@test_approx_eq_eps x1 ones(T,n) 1e-3
     @printf("\nTesting BLMVM in %s precision and with Armijo's line search\n", prec)
-    x = vmlmb(rosenbrock_fg!, x0, verb=true, fmin=0, lower=0, blmvm=true)
+    x = vmlmb(rosenbrock_fg!, x0; verb=true, fmin=0, lower=0, lnsrch=armijo, blmvm=true)
+    #@test_approx_eq_eps x ones(T,n) 1e-3
+    @printf("\nTesting BLMVM in %s precision and with Moré & Toraldo line search\n", prec)
+    x = vmlmb(rosenbrock_fg!, x0; verb=true, fmin=0, lower=0, lnsrch=moretoraldo, blmvm=true)
     #@test_approx_eq_eps x ones(T,n) 1e-3
     @printf("\nTesting VMLMB in %s precision and with Armijo's line search\n", prec)
-    x = vmlmb(rosenbrock_fg!, x0, verb=true, fmin=0, lower=0)
+    x = vmlmb(rosenbrock_fg!, x0; verb=true, fmin=0, lower=0, lnsrch=armijo)
+    #@test_approx_eq_eps x ones(T,n) 1e-3
+    @printf("\nTesting VMLMB in %s precision and with Moré & Toraldo line search\n", prec)
+    x = vmlmb(rosenbrock_fg!, x0; verb=true, fmin=0, lower=0, lnsrch=moretoraldo)
     #@test_approx_eq_eps x ones(T,n) 1e-3
 
     # Then run tests for timings.
-    @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
-    @time x = vmlmb(rosenbrock_fg!, x0, verb=false, fmin=0)
     @printf("\nTesting L-BFGS in %s precision and with Armijo's line search\n", prec)
-    @time x = vmlmb(rosenbrock_fg!, x0, verb=false, fmin=0, lnsrch=backtrack)
+    @time x = vmlmb(rosenbrock_fg!, x0; verb=false, fmin=0, lnsrch=armijo)
+    @printf("\nTesting L-BFGS in %s precision and with Moré & Toraldo line search\n", prec)
+    @time x = vmlmb(rosenbrock_fg!, x0; verb=false, fmin=0, lnsrch=moretoraldo)
+    @printf("\nTesting L-BFGS in %s precision and with Moré & Thuente line search\n", prec)
+    @time x = vmlmb(rosenbrock_fg!, x0; verb=false, fmin=0, lnsrch=morethuente)
+
+
     @printf("\nTesting BLMVM in %s precision and with Armijo's line search\n", prec)
-    @time x = vmlmb(rosenbrock_fg!, x0, verb=false, fmin=0, lower=0, blmvm=true)
+    @time x = vmlmb(rosenbrock_fg!, x0; verb=false, fmin=0, lower=0, lnsrch=armijo, blmvm=true)
+    @printf("\nTesting BLMVM in %s precision and with Moré & Toraldo line search\n", prec)
+    @time x = vmlmb(rosenbrock_fg!, x0; verb=false, fmin=0, lower=0, lnsrch=moretoraldo, blmvm=true)
+
     @printf("\nTesting VMLMB in %s precision and with Armijo's line search\n", prec)
-    @time x = vmlmb(rosenbrock_fg!, x0, verb=false, fmin=0, lower=0)
+    @time x = vmlmb(rosenbrock_fg!, x0; verb=false, fmin=0, lower=0, lnsrch=armijo)
+    @printf("\nTesting VMLMB in %s precision and with Moré & Toraldo line search\n", prec)
+    @time x = vmlmb(rosenbrock_fg!, x0; verb=false, fmin=0, lower=0, lnsrch=moretoraldo)
 
 end
 

@@ -1,12 +1,12 @@
 #
-# quasi-newton.jl --
+# quasinewton.jl --
 #
 # Limited memory quasi-Newton methods for OptimPack.
 #
 # ------------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License.
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
@@ -22,7 +22,9 @@ module QuasiNewton
 
 using OptimPackNextGen
 using OptimPackNextGen.Algebra
-using OptimPackNextGen.LineSearch
+using OptimPackNextGen.LineSearches
+
+import OptimPackNextGen.LineSearches: getreason
 
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
@@ -141,11 +143,7 @@ by Byrd at al. (1995) which has more overheads and is slower.
   Astronomical Data Analysis II, Proc. SPIE 4847, 174-183 (2002).
 
 """
-function vmlmb{T}(fg!::Function, x0::T; keywords...)
-    x = vcreate(x0)
-    vcopy!(x, x0)
-    vmlmb!(fg!, x; keywords...)
-end
+vmlmb{T}(fg!::Function, x0::T; kwds...) = vmlmb!(fg!, vcopy(x0); kwds...)
 
 """
 `vmlmb!` is the in-place version of `vmlmb` (which to see):
@@ -156,50 +154,24 @@ finds a local minimizer of `f(x)` starting at `x` and stores the best solution
 in `x`.
 """
 function vmlmb!{T}(fg!::Function, x::T;
-                   mem::Integer=5,
-                   lower=-Inf, upper=+Inf,
-                   blmvm::Bool=false,
-                   fmin::Real=-Inf,
-                   maxiter::Integer=typemax(Int),
-                   maxeval::Integer=typemax(Int),
-                   ftol::NTuple{2,Real}=(0.0,1e-8),
-                   gtol::NTuple{2,Real}=(0.0,1e-6),
-                   epsilon::Real=0.0,
-                   verb::Bool=false,
-                   printer::Function=print_iteration, output::IO=STDOUT,
-                   lnsrch::AbstractLineSearch=defaultlinesearch)
+                   mem::Integer = min(5, length(x)),
+                   lower = -Inf, # FIXME: lower::Union{Real,T} = -Inf,
+                   upper = +Inf, # FIXME: upper::Union{Real,T} = +Inf,
+                   blmvm::Bool = false,
+                   fmin::Real = -Inf,
+                   maxiter::Integer = typemax(Int),
+                   maxeval::Integer = typemax(Int),
+                   ftol::NTuple{2,Real} = (0.0, 1e-8),
+                   gtol::NTuple{2,Real} = (0.0, 1e-6),
+                   epsilon::Real = 0.0,
+                   verb::Bool = false,
+                   printer::Function = print_iteration,
+                   output::IO = STDOUT,
+                   lnsrch::Union{LineSearch{Float},Void} = nothing)
+    # Determine which options are used.
     flags::UInt = (blmvm ? EMULATE_BLMVM : 0)
-    vmlmb!(fg!, x, Int(mem), flags, lower, upper,
-           Float(fmin), Int(maxiter), Int(maxeval),
-           Float(ftol[1]), Float(ftol[2]),
-           Float(gtol[1]), Float(gtol[2]),
-           Float(epsilon), verb, printer, output, lnsrch)
-end
 
-# The real worker.
-function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
-                   lower, upper,
-                   fmin::Float, maxiter::Int, maxeval::Int,
-                   fatol::Float, frtol::Float,
-                   gatol::Float, grtol::Float,
-                   epsilon::Float,
-                   verb::Bool, printer::Function, output::IO,
-                   lnsrch::AbstractLineSearch)
-
-    @assert mem ≥ 1
-    @assert maxiter ≥ 0
-    @assert maxeval ≥ 1
-    @assert fatol ≥ 0
-    @assert frtol ≥ 0
-    @assert gatol ≥ 0
-    @assert grtol ≥ 0
-    @assert 0 ≤ epsilon < 1
-
-    const STPMIN = Float(1e-20)
-    const STPMAX = Float(1e+20)
-
-    # Determine the type of bounds and the emulated optimization method (0 for
-    # L-BFGS, 1 for BLMVM or 2 for VMLMB).
+    # Determine the type of bounds.
     bounds::UInt = 0
     if isa(lower, Real)
         lo = Float(lower)
@@ -223,15 +195,55 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
     else
         error("invalid upper bound type")
     end
+
+    # Determine the optimization method (0 for L-BFGS, 1 for BLMVM or 2 for
+    # VMLMB).
     method = (bounds == 0 ? 0 : (flags & EMULATE_BLMVM) != 0 ? 1 : 2)
-    if lnsrch == defaultlinesearch
-        # Provide a suitable line search.
+
+    # Provide a default line search method if needed.
+    if isa(lnsrch, Void)
         if method == 0
-            lnsrch = MoreThuenteLineSearch(ftol=1e-3, gtol=0.9, xtol= 0.1)
+            ls = MoreThuenteLineSearch(Float; ftol=1e-3, gtol=0.9, xtol=0.1)
         else
-            lnsrch = BacktrackingLineSearch(ftol=0.1, amin=0.1)
+            ls = MoreToraldoLineSearch(Float; ftol=1e-3, gamma=(0.1,0.5))
         end
+    else
+        ls = lnsrch
     end
+
+    # Call the real method.
+    _vmlmb!(fg!, x, Int(mem), flags, lo, hi, bounds, method,
+            Float(fmin), Int(maxiter), Int(maxeval),
+            Float(ftol[1]), Float(ftol[2]),
+            Float(gtol[1]), Float(gtol[2]),
+            Float(epsilon), verb, printer, output, ls)
+end
+
+# The real worker.
+function _vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
+                    lo::Union{Float, T},
+                    hi::Union{Float, T},
+                    bounds::UInt,
+                    method::Int,
+                    fmin::Float, maxiter::Int, maxeval::Int,
+                    fatol::Float, frtol::Float,
+                    gatol::Float, grtol::Float,
+                    epsilon::Float,
+                    verb::Bool, printer::Function, output::IO,
+                    lnsrch::LineSearch{Float})
+
+    @assert mem ≥ 1
+    @assert maxiter ≥ 0
+    @assert maxeval ≥ 1
+    @assert fatol ≥ 0
+    @assert frtol ≥ 0
+    @assert gatol ≥ 0
+    @assert grtol ≥ 0
+    @assert 0 ≤ epsilon < 1
+
+    const STPMIN = Float(1e-20)
+    const STPMAX = Float(1e+20)
+
     sel = Array{Int}(0)
     if bounds != 0
         sizehint!(sel, length(x))
@@ -329,40 +341,40 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
 
         if stage == 1
             # Line search is in progress.
-            if usederivative(lnsrch)
+            if usederivatives(lnsrch)
                 if method > 0
                     gd = (vdot(g, x) - vdot(g, S[mark]))/stp
                 else
                     gd = -vdot(g, d)
                 end
             end
-            (stp, search) = iterate!(lnsrch, stp, f, gd)
-            if ! search
-                if check_status(lnsrch) == :CONVERGENCE
-                    # Line search has converged.  Increment iteration counter
-                    # and check for stopping condition.
-                    iter += 1
-                    delta = max(abs(f - f0), stp*abs(gd0))
-                    if delta ≤ frtol*abs(f0)
-                        stage = 3
-                        reason = "frtol test satisfied"
-                    elseif delta ≤ fatol
-                        stage = 3
-                        reason = "fatol test satisfied"
-                    elseif iter ≥ maxiter
-                        stage = 4
-                        reason = "too many iterations"
-                    elseif eval ≥ maxeval
-                        stage = 4
-                        reason = "too many evaluations"
-                    else
-                        stage = 2
-                    end
-                else
-                    # Line seach terminated with a warning.
+            task = iterate!(lnsrch, stp, f, gd)
+            if task == :SEARCH
+                stp = getstep(lnsrch)
+            elseif task == :CONVERGENCE
+                # Line search has converged.  Increment iteration counter
+                # and check for stopping condition.
+                iter += 1
+                delta = max(abs(f - f0), stp*abs(gd0))
+                if delta ≤ frtol*abs(f0)
+                    stage = 3
+                    reason = "frtol test satisfied"
+                elseif delta ≤ fatol
+                    stage = 3
+                    reason = "fatol test satisfied"
+                elseif iter ≥ maxiter
                     stage = 4
-                    reason = getreason(lnsrch)
+                    reason = "too many iterations"
+                elseif eval ≥ maxeval
+                    stage = 4
+                    reason = "too many evaluations"
+                else
+                    stage = 2
                 end
+            else
+                # Line seach terminated with a warningor an error.
+                stage = 4
+                reason = getreason(lnsrch)
             end
         end
         if stage < 2 && eval ≥ maxeval
@@ -477,7 +489,8 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
             end
 
             # Initialize the line search.
-            if ! start!(lnsrch, f0, gd0, stp, stpmin, stpmax)
+            task = start!(lnsrch, f0, gd0, stp; stpmin=stpmin, stpmax=stpmax)
+            if task != :SEARCH
                 # Something wrong happens.
                 stage = 4
                 reason = getreason(lnsrch)
@@ -503,32 +516,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
     return x
 end
 
-function check_status(lnsrch::AbstractLineSearch)
-    # Check for errors.
-    task = gettask(lnsrch)
-    if task != :CONVERGENCE
-        reason = getreason(lnsrch)
-        # FIXME: use a constant instead
-        if task == :WARNING
-            if reason == "rounding errors prevent progress"
-                task = :CONVERGENCE
-            end
-        else
-            error(reason)
-        end
-    end
-    return task
-end
-
-function sufficient_descent{T}(gd::Float, ε::Float, gnorm::Float, d::T)
-    ε > 0 ? (gd ≤ -ε*vnorm2(d)*gnorm) : gd < 0
-end
-
-function sufficient_descent(gd::Float, ε::Float, gnorm::Float, dnorm::Float)
-    ε > 0 ? (gd ≤ -ε*dnorm*gnorm) : gd < 0
-end
-
-@doc """
+"""
     sufficient_descent(gd, ε, gnorm, d)
 
 checks whether `d` is a sufficient descent direction (Zoutenjdik condition).
@@ -541,7 +529,13 @@ If the Euclidean norm of `d` has already been computed, then
     sufficient_descent(gd, ε, gnorm, dnorm)
 
 should be used instead with `dnorm = vnorm2(d)`.
-""" sufficient_descent
+"""
+sufficient_descent{T}(gd::Float, ε::Float, gnorm::Float, d::T) =
+    sufficient_descent(gd, ε, gnorm, vnorm2(d))
+
+sufficient_descent(gd::Float, ε::Float, gnorm::Float, dnorm::Float) =
+    ε > 0 ? (gd ≤ -ε*dnorm*gnorm) : gd < 0
+
 
 function print_iteration(iter::Int, eval::Int, rejects::Int,
                          f::Float, gnorm::Float, step::Float)

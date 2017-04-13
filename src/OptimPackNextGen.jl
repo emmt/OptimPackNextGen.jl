@@ -36,7 +36,7 @@ function getreason end
 
 include("algebra.jl"); importall .Algebra
 include("conjgrad.jl")
-include("lnsrch.jl")
+include("linesearches.jl")
 include("quasinewton.jl"); importall .QuasiNewton
 include("step.jl"); importall .Step
 include("spg.jl"); importall .SPG
