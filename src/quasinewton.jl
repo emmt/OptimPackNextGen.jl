@@ -99,7 +99,7 @@ The following keywords are available:
    line search is `MoreThuenteLineSearch`).
 
 * `lower` and `upper` specify the lower and upper bounds for the variables.
-   The bound can be a scalar to indicate that all variables gave the same bound
+   The bound can be a scalar to indicate that all variables have the same bound
    value.  If the lower (resp. upper) bound is unspecified or set to `±∞`, the
    variables are assumed to be unbounded below (resp. above).  If no bounds are
    set, VMLMB amounts to an unconstrained limited memory BFGS method (L-BFGS).
@@ -111,8 +111,8 @@ The following keywords are available:
 ### History
 
 The VMLMB algorithm in OptimPack.jl provides a pure Julia implementation of the
-original method with some improvements and the capability to emulate L-BFGS and
-BLMVM methods.
+original method (Thiébaut, 2002) with some improvements and the capability to
+emulate L-BFGS and BLMVM methods.
 
 The limited memory BFGS method (L-BFGS) was first described by Nocedal (1980)
 who dubbed it SQN.  The method is implemented in MINPACK-2 (1995) by the
@@ -124,23 +124,23 @@ and Moré (2001) and Thiébaut (2002) to account for separable bound constraints
 on the variables.  These two latter methods are rather different than L-BFGS-B
 by Byrd at al. (1995) which has more overheads and is slower.
 
-* Nocedal, J. "Updating Quasi-Newton Matrices with Limited Storage,"
+* J. Nocedal, "*Updating Quasi-Newton Matrices with Limited Storage*" in
   Mathematics of Computation, vol. 35, pp. 773-782 (1980).
 
-* Liu, D. C. & Nocedal, J. "On the limited memory BFGS method for large scale
-  optimization," Mathematical programming, Springer, vol. 45, pp. 503-528
+* D.C. Liu & J. Nocedal, "*On the limited memory BFGS method for large scale
+  optimization*" in Mathematical programming, vol. 45, pp. 503-528
   (1989).
 
-* Byrd, R. H., Lu, P., Nocedal, J. & Zhu, C. "A limited memory algorithm for
-  bound constrained optimization," SIAM Journal on Scientific Computing, SIAM,
+* R.H. Byrd, P. Lu, J. Nocedal, & C. Zhu, "*A limited memory algorithm for
+  bound constrained optimization*" in SIAM Journal on Scientific Computing,
   vol. 16, pp. 1190-1208 (1995).
 
-* Benson, S. J. & Moré, J. J. "A limited memory variable metric method in
-  subspaces and bound constrained optimization problems," in Subspaces and
-  Bound Constrained Optimization Problems, (2001).
+* S.J. Benson & J.J. Moré, "*A limited memory variable metric method in
+  subspaces and bound constrained optimization problems*" in Subspaces and
+  Bound Constrained Optimization Problems (2001).
 
-* Thiébaut, É. "Optimization issues in blind deconvolution algorithms,"
-  Astronomical Data Analysis II, Proc. SPIE 4847, 174-183 (2002).
+* É. Thiébaut, "*Optimization issues in blind deconvolution algorithms*" in
+  Astronomical Data Analysis II, Proc. SPIE 4847, pp. 174-183 (2002).
 
 """
 vmlmb{T}(fg!::Function, x0::T; kwds...) = vmlmb!(fg!, vcopy(x0); kwds...)

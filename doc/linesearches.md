@@ -1,4 +1,4 @@
-### Line Search Methods
+# Line search methods
 
 The objective of line search is to (approximately) minimize:
 
