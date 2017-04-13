@@ -2,7 +2,7 @@ if ! isdefined(:OptimPackNextGen)
     include("../src/OptimPackNextGen.jl")
 end
 
-module Test
+module OptimTest
 
 using Base.Test
 using OptimPackNextGen.Algebra
