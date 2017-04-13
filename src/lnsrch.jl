@@ -5,17 +5,26 @@
 #
 # ------------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License.
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
 
 module LineSearch
 
-export start!, iterate!, get_task, get_reason, get_step, requires_derivative,
-       AbstractLineSearch, DefaultLineSearch, defaultlinesearch,
-       BacktrackingLineSearch, MoreThuenteLineSearch
+export
+    start!,
+    iterate!,
+    getreason,
+    getstep,
+    gettask,
+    usederivative,
+    AbstractLineSearch,
+    DefaultLineSearch,
+    defaultlinesearch,
+    BacktrackingLineSearch,
+    MoreThuenteLineSearch
 
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
@@ -40,7 +49,7 @@ type, a typical line search is performed as follows:
     stp = ...           # initial step
     stpmin = ...        # lower bound for the step
     stpmax = ...        # upper bound for the step
-    searching = start!(ls, stp, f0, dtg0, stpmin, stpmax)
+    searching = start!(ls, f0, dtg0, stp, stpmin, stpmax)
     while searching
         x = x0 + stp*d    # compute trial point
         f = func(x)       # function value at x
@@ -48,12 +57,12 @@ type, a typical line search is performed as follows:
         dtg = vdot(d, g)  # directional derivative at x
         stp, searching = iterate!(ls, stp, f, dtg)
     end
-    task = get_task(ls)
+    task = gettask(ls)
     if task != :CONVERGENCE
-        if task == :ERROR
-            error(get_reason(ls))
+        if task == :WARNING
+            warn(getreason(ls))
         else
-            warn(get_reason(ls))
+            error(getreason(ls))
         end
     end
 
@@ -109,7 +118,7 @@ type CommonData
 end
 
 """
-`get_task(ls)` yields the current pending task for the line search instance
+`gettask(ls)` yields the current pending task for the line search instance
 `ls`.  The result is one of the following symbols:
 
 * `:START` if line search has not yet been started with `start!(ls, ...)`.
@@ -121,37 +130,37 @@ end
 * `:CONVERGENCE` if line search has converged.
 
 * `:WARNING` if line search has been stopped with a warning; use
-  `get_reason(ls)` to retrieve a textual explanation.
+  `getreason(ls)` to retrieve a textual explanation.
 
-* `:ERROR` if there are any errors; use `get_reason(ls)` to retrieve a textual
+* `:ERROR` if there are any errors; use `getreason(ls)` to retrieve a textual
   error message.
 """
-get_task(ls::AbstractLineSearch) = ls.base.task
+gettask(ls::AbstractLineSearch) = ls.base.task
 
 """
-`get_step(ls)` yields the current trial step for the line search instance `ls`.
+`getstep(ls)` yields the current trial step for the line search instance `ls`.
 """
-get_step(ls::AbstractLineSearch) = ls.base.step
+getstep(ls::AbstractLineSearch) = ls.base.step
 
 
 """
-`get_reason(ls)` yields the error or warning message for the line search
+`getreason(ls)` yields the error or warning message for the line search
 instance `ls`.
 """
-get_reason(ls::AbstractLineSearch) = ls.base.reason
+getreason(ls::AbstractLineSearch) = ls.base.reason
 
 """
-`requires_derivative(ls)` indicates whether the line search instance `ls`
+`usederivative(ls)` indicates whether the line search instance `ls`
 requires the derivative of the function when calling `iterate!`.  Alternatively
 `ls` can also be the line search type.  Note that the derivative is always
 needed by the `start!` method.
 """
-requires_derivative{T<:AbstractLineSearch}(::T) = requires_derivative(T)
+usederivative{T<:AbstractLineSearch}(::T) = usederivative(T)
 
 """
 A line search is started by:
 
-    search = start!(ls, stp, f0, g0, stpmin, stpmax)
+    search = start!(ls, f0, g0, stp, stpmin, stpmax)
 
 which returns a boolean `search` indicating whether to try `stp` as the first
 step.  If `search` is true then the caller shall compute the value of the
@@ -172,9 +181,9 @@ Arguments are:
 * `search` is a boolean indicating whether to try `stp` as the first step.
 
 """
-function start!(ls::AbstractLineSearch, stp::Real, f0::Real, g0::Real,
+function start!(ls::AbstractLineSearch, f0::Real, g0::Real, stp::Real,
                 stpmin::Real, stpmax::Real)
-    start!(ls, Float(stp), Float(f0), Float(g0), Float(stpmin), Float(stpmax))
+    start!(ls, Float(f0), Float(g0), Float(stp), Float(stpmin), Float(stpmax))
 end
 
 """
@@ -204,7 +213,7 @@ end
 
 # Private method to check and instanciate common parameters when starting a new
 # line search.
-function start!(ws::CommonData, stp::Float, f0::Float, g0::Float,
+function start!(ws::CommonData, f0::Float, g0::Float, stp::Float,
                 stpmin::Float, stpmax::Float)
     @assert 0 ≤ stpmin ≤ stpmax
     @assert stpmin ≤ stp ≤ stpmax
@@ -294,11 +303,11 @@ type BacktrackingLineSearch <: AbstractLineSearch
     end
 end
 
-requires_derivative(::Type{BacktrackingLineSearch}) = false
+usederivative(::Type{BacktrackingLineSearch}) = false
 
-function start!(ls::BacktrackingLineSearch, stp::Float, f0::Float, g0::Float,
+function start!(ls::BacktrackingLineSearch, f0::Float, g0::Float, stp::Float,
                 stpmin::Float, stpmax::Float)
-    start!(ls.base, stp, f0, g0, stpmin, stpmax)
+    start!(ls.base, f0, g0, stp, stpmin, stpmax)
     ls.gtest = ls.ftol*ls.base.ginit
     return true
 end
@@ -382,7 +391,7 @@ type LineSearchInterval
     LineSearchInterval() = new(0, 0, 0, 0, 0, 0, 0, 0, false)
 end
 
-function start!(it::LineSearchInterval, stp::Float, f0::Float, g0::Float,
+function start!(it::LineSearchInterval, f0::Float, g0::Float, stp::Float,
                 lower::Float, upper::Float)
     @assert 0 ≤ lower ≤ upper
     @assert lower ≤ stp ≤ upper
@@ -747,17 +756,18 @@ type MoreThuenteLineSearch <: AbstractLineSearch
     end
 end
 
-requires_derivative(::Type{MoreThuenteLineSearch}) = true
+usederivative(::Type{MoreThuenteLineSearch}) = true
 
 const xtrapl = Float(1.1)
 const xtrapu = Float(4.0)
 
 # The arguments `stp`, `f`, `g` contain the values of the step,
 # function, and directional derivative at `stp`.
-function start!(ls::MoreThuenteLineSearch, stp::Float, f0::Float, g0::Float,
+function start!(ls::MoreThuenteLineSearch, f0::Float, g0::Float, stp::Float,
                 stpmin::Float, stpmax::Float)
-    start!(ls.base, stp, f0, g0, stpmin, stpmax)
-    start!(ls.interval, stp, f0, g0, Float(0), stp + xtrapu*stp)
+    # FIXME: really call start! twice?
+    start!(ls.base, f0, g0, stp, stpmin, stpmax)
+    start!(ls.interval, f0, g0, stp, Float(0), stp + xtrapu*stp)
     ls.stage = 1
     ls.gtest = ls.ftol*ls.base.ginit
     ls.width = ls.base.stpmax - ls.base.stpmin

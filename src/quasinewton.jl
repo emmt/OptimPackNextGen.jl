@@ -329,7 +329,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
 
         if stage == 1
             # Line search is in progress.
-            if requires_derivative(lnsrch)
+            if usederivative(lnsrch)
                 if method > 0
                     gd = (vdot(g, x) - vdot(g, S[mark]))/stp
                 else
@@ -361,7 +361,7 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                 else
                     # Line seach terminated with a warning.
                     stage = 4
-                    reason = get_reason(lnsrch)
+                    reason = getreason(lnsrch)
                 end
             end
         end
@@ -477,10 +477,10 @@ function vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
             end
 
             # Initialize the line search.
-            if ! start!(lnsrch, stp, f0, gd0, stpmin, stpmax)
+            if ! start!(lnsrch, f0, gd0, stp, stpmin, stpmax)
                 # Something wrong happens.
                 stage = 4
-                reason = get_reason(lnsrch)
+                reason = getreason(lnsrch)
                 break
             end
             stage = 1 # line search is in progress
@@ -505,9 +505,9 @@ end
 
 function check_status(lnsrch::AbstractLineSearch)
     # Check for errors.
-    task = get_task(lnsrch)
+    task = gettask(lnsrch)
     if task != :CONVERGENCE
-        reason = get_reason(lnsrch)
+        reason = getreason(lnsrch)
         # FIXME: use a constant instead
         if task == :WARNING
             if reason == "rounding errors prevent progress"
