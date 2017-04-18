@@ -5,8 +5,8 @@
 #
 # ------------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License.
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
@@ -48,27 +48,37 @@ start with all variables set to zero.
 
 There are several keywords to control the algorithm:
 
-* `tol` specifies the tolerances for convergence, it is a tuple of two values
-  `(atol, rtol)` where `atol` and `rtol` are the absolute and relative
-  tolerances.  Convergence occurs when the Euclidean norm of the residuals is
-  less or equal the largest of `atol` and `rtol` times the Eucliden norm of the
-  initial residuals.  By default, `tol = (0.0, 1.0e-3)`.
+* `ftol` specifies the function tolerance for convergence.  The convergence is
+  assumed as soon as the variation of the objective function between two
+  successive iterations is less or equal `ftol` times the largest variation so
+  far.  By default, `ftol = 1e-7`.
+
+* `gtol` specifies the gradient tolerances for convergence, it is a tuple of
+  two values `(gatol, grtol)` where `gatol` and `grtol` are the absolute and
+  relative tolerances.  Convergence occurs when the Euclidean norm of the
+  residuals (which is that of the gradient of the associated objective
+  function) is less or equal the largest of `gatol` and `grtol` times the
+  Eucliden norm of the initial residuals.  By default, `gtol = (0.0, 0.0)`.
 
 * `maxiter` specifies the maximum number of iterations.
 
 """
-conjgrad{T}(A, b::T; kws...) =
-    conjgrad!(A, b, vfill!(vcreate(b), 0); kws...)
+conjgrad{T}(A, b::T; kwds...) =
+    conjgrad!(A, b, vfill!(vcreate(b), 0); kwds...)
 
-conjgrad{T}(A, b::T, x0::T; kws...) =
-    conjgrad!(A, b, vcopy(x0); kws...)
+conjgrad{T}(A, b::T, x0::T; kwds...) =
+    conjgrad!(A, b, vcopy(x0); kwds...)
 
 function conjgrad!{T}(A, b::T, x::T;
-                      tol::NTuple{2,Real} = (0.0,1e-3),
-                      maxiter::Integer = typemax(Int))
+                      ftol::Real = 1e-7,
+                      gtol::NTuple{2,Real} = (0.0,0.0),
+                      maxiter::Integer = typemax(Int),
+                      verb::Bool = false,
+                      io::IO = STDOUT)
     # Initialization.
-    @assert tol[1] ≥ 0
-    @assert tol[2] ≥ 0
+    @assert ftol ≥ 0
+    @assert gtol[1] ≥ 0
+    @assert gtol[2] ≥ 0
     if vdot(x,x) > 0 # cheap trick to check whether x is non-zero
         r = vcreate(x)
         A(r, x)
@@ -76,40 +86,59 @@ function conjgrad!{T}(A, b::T, x::T;
     else
         r = vcopy(b)
     end
-    rho::Float = vdot(r, r)
-    rho0::Float = 0
-    alpha::Float = 0
-    gamma::Float = 0
-    epsilon::Float = epsilon = Float(tol[1]) + Float(tol[2])*sqrt(rho)
+    local rho::Float = vdot(r, r)
+    const ftest = Float(ftol)
+    const gtest = Float(max(gtol[1], gtol[2]*sqrt(rho)))
+    local alpha::Float = 0, gamma::Float = 0, psi::Float = 0
+    local psimax::Float = 0, oldrho::Float = 0
 
     # Conjugate gradient iterations.
     k = 0
+    n = length(b)
     while true
+        if verb
+            if k == 0
+                @printf(io, "# %s\n# %s\n",
+                        "Iter.  Delta f(x)    ||∇f(x)||",
+                        "-------------------------------")
+            end
+            @printf(io, "%6d %12.4e %12.4e\n",
+                    k, Cdouble(psi), Cdouble(sqrt(rho)))
+        end
         k += 1
-        if sqrt(rho) <= epsilon
+        if sqrt(rho) ≤ gtest
             # Normal convergence.
             break
         elseif k > maxiter
             warn("too many ($(maxiter)) conjugate gradient iterations")
             break
         end
-        if k == 1
-            # First iteration.
-            p = vcopy(r)
-            q = vcreate(x)
+        if rem(k, n) == 1
+            # First iteration or restart.
+            if k == 1
+                p = vcopy(r)
+                q = vcreate(x)
+            else
+                vcopy!(p, r)
+            end
         else
-            vcombine!(p, 1, r, (rho/rho0), p)
+            vcombine!(p, 1, r, (rho/oldrho), p)
         end
         A(q, p)
         gamma = vdot(p, q)
-        if gamma <= 0
+        if gamma ≤ 0
             error("left-hand-side operator A is not positive definite")
-            break
         end
         alpha = rho/gamma
         vupdate!(x, +alpha, p)
+        psi = rho*alpha
+        psimax = max(psi, psimax)
+        if psi ≤ ftest*psimax
+            # Normal convergence.
+            break
+        end
         vupdate!(r, -alpha, q)
-        rho0 = rho
+        oldrho = rho
         rho = vdot(r, r)
     end
     return x
