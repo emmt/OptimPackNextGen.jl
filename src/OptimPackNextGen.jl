@@ -5,8 +5,8 @@
 #
 # ------------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License.
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
@@ -22,8 +22,6 @@ export
     vmlmb!,
     spg,
     spg!,
-    globmin,
-    globmax,
     getreason
 
 doc"""
@@ -38,7 +36,7 @@ include("algebra.jl"); importall .Algebra
 include("conjgrad.jl")
 include("linesearches.jl")
 include("quasinewton.jl"); importall .QuasiNewton
-include("step.jl"); importall .Step
+include("step.jl")
 include("spg.jl"); importall .SPG
 
 end # module

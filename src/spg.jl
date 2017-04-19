@@ -15,8 +15,8 @@
 #
 # ------------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License.
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
@@ -28,9 +28,9 @@ using OptimPackNextGen.Algebra
 
 import OptimPackNextGen: Float, getreason
 
-export spg, spg!
+export spg, spg!, SPGInfo
 
-const WORK_IN_PROGRESS     =  0
+const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
 const TWONORM_CONVERGENCE  =  2
 const TOO_MANY_ITERATIONS  = -1
@@ -120,11 +120,11 @@ The `SPGInfo` type has the following members:
 
     Status                        Reason
     ----------------------------------------------------------------------------
-    SPG.WORK_IN_PROGRESS (0)      work in progress
-    SPG.INFNORM_CONVERGENCE (1)   convergence with projected gradient infinite-norm
-    SPG.TWONORM_CONVERGENCE (2)   convergence with projected gradient 2-norm
-    SPG.TOO_MANY_ITERATIONS (-1)  too many iterations
-    SPG.TOO_MANY_EVALUATIONS (-2) too many function evaluations
+    SPG.SEARCHING (0)             Work in progress
+    SPG.INFNORM_CONVERGENCE (1)   Convergence with projected gradient infinite-norm
+    SPG.TWONORM_CONVERGENCE (2)   Convergence with projected gradient 2-norm
+    SPG.TOO_MANY_ITERATIONS (-1)  Too many iterations
+    SPG.TOO_MANY_EVALUATIONS (-2) Too many function evaluations
 
 
 ## References
@@ -137,15 +137,15 @@ The `SPGInfo` type has the following members:
   convex-constrained optimization", ACM Transactions on Mathematical Software
   (TOMS) 27, pp. 340-349 (2001).
 """
-function spg{T}(fg!, prj!, x0::T, m::Integer; kws...)
-    spg!(fg!, prj!, vcopy(x0), m; kws...)
+function spg{T}(fg!, prj!, x0::T, m::Integer; kwds...)
+    spg!(fg!, prj!, vcopy(x0), m; kwds...)
 end
 
-REASON = Dict{Int,String}(WORK_IN_PROGRESS => "work in progress",
-                          INFNORM_CONVERGENCE => "convergence with projected gradient infinite-norm",
-                          TWONORM_CONVERGENCE => "convergence with projected gradient 2-norm",
-                          TOO_MANY_ITERATIONS => "too many iterations",
-                          TOO_MANY_EVALUATIONS => "too many function evaluations")
+REASON = Dict{Int,String}(SEARCHING => "Work in progress",
+                          INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
+                          TWONORM_CONVERGENCE => "Convergence with projected gradient 2-norm",
+                          TOO_MANY_ITERATIONS => "Too many iterations",
+                          TOO_MANY_EVALUATIONS => "Too many function evaluations")
 
 getreason(ws::SPGInfo) = get(REASON, ws.status, "unknown status")
 
@@ -159,51 +159,52 @@ function spg!{T}(fg!, prj!, x::T, m::Integer;
                   printer::Function=default_printer,
                   verb::Bool=false,
                   io::IO=STDOUT)
+    _spg!(fg!, prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
+          Float(eps1), Float(eps2), Float(eta),
+          printer, verb, io)
+end
 
+function _spg!{T}(fg!, prj!, x::T, m::Int, ws::SPGInfo,
+                  maxit::Int, maxfc::Int,
+                  eps1::Float, eps2::Float, eta::Float,
+                  printer::Function, verb::Bool, io::IO)
     # Initialization.
-    m::Int = m
-    maxit::Int = maxit
-    maxfc::Int = maxfc
-    eps1::Float = eps1
-    eps2::Float = eps2
-    eta::Float = eta
+    @assert m ≥ 1
     @assert eps1 ≥ 0.0
     @assert eps2 ≥ 0.0
     @assert eta > 0.0
-    lmin::Float = 1e-30
-    lmax::Float = 1e+30
-    ftol::Float = 1e-4
-    amin::Float = 0.1
-    amax::Float = 0.9
-    iter::Int = 0
-    fcnt::Int = 0
-    pcnt::Int = 0
-    status::Int = WORK_IN_PROGRESS
+    const lmin = Float(1e-30)
+    const lmax = Float(1e+30)
+    const ftol = Float(1e-4)
+    const amin = Float(0.1)
+    const amax = Float(0.9)
+    local iter::Int = 0, fcnt::Int = 0, pcnt::Int = 0
+    local status::Int = SEARCHING
     if m > 1
-        lastfv = Array(Float, max(m,0))
+        lastfv = Array(Float, m)
         fill!(lastfv, -Inf)
     end
-    x0::T = vcopy(x)
-    g::T = vcreate(x)
-    d::T = vcreate(x)
-    s::T = vcreate(x)
-    y::T = vcreate(x)
-    g0::T = vcreate(x)
-    pg::T = vcreate(x)
-    xbest::T = vcreate(x)
-    f::Float = 0.0
-    f0::Float = 0.0
-    fbest::Float = 0.0
-    fmax::Float = 0.0
-    pgtwon::Float = 0.0
-    pginfn::Float = 0.0
-    sty::Float = 0.0
-    sts::Float = 0.0
-    lambda::Float = 0.0
-    delta::Float = 0.0
-    stp::Float = 0.0
-    q::Float = 0.0
-    r::Float = 0.0
+    local x0::T = vcopy(x),
+        g::T = vcreate(x),
+        d::T = vcreate(x),
+        s::T = vcreate(x),
+        y::T = vcreate(x),
+        g0::T = vcreate(x),
+        pg::T = vcreate(x),
+        xbest::T = vcreate(x),
+        f::Float = 0.0,
+        f0::Float = 0.0,
+        fbest::Float = 0.0,
+        fmax::Float = 0.0,
+        pgtwon::Float = 0.0,
+        pginfn::Float = 0.0,
+        sty::Float = 0.0,
+        sts::Float = 0.0,
+        lambda::Float = 0.0,
+        delta::Float = 0.0,
+        stp::Float = 0.0,
+        q::Float = 0.0,
+        r::Float = 0.0
 
     # Project initial guess.
     prj!(x, x)
@@ -237,7 +238,7 @@ function spg!{T}(fg!, prj!, x::T, m::Integer;
             ws.fcnt = fcnt
             ws.pcnt = pcnt
             ws.status = status
-            printer(ws)
+            printer(io, ws)
         end
 
         # Test stopping criteria.
@@ -338,7 +339,7 @@ function spg!{T}(fg!, prj!, x::T, m::Integer;
             vcombine!(x, 1, x0, stp, d) # x = x0 + stp*d
         end
 
-        if status != WORK_IN_PROGRESS
+        if status != SEARCHING
             # The number of function evaluations was exceeded inside the line
             # search.
             break
@@ -357,26 +358,25 @@ function spg!{T}(fg!, prj!, x::T, m::Integer;
     ws.pcnt = pcnt
     ws.status = status
     if verb
-        io::IO = STDERR
         reason = getreason(ws)
         if status < 0
-            print_with_color(:red, io, "# WARNING: ", reason)
+            print_with_color(:red, STDERR, "# WARNING: ", reason, "\n")
         else
-            print_with_color(:green, io, "# SUCCESS: ", reason)
+            print_with_color(:green, io, "# SUCCESS: ", reason, "n")
         end
-        println(io)
     end
     return xbest
 end
 
-function default_printer(ws::SPGInfo)
-    if ws.iter == 0
-        println("#  ITER   EVAL   PROJ             F(x)              ‖PG(X)‖_2 ‖PG(X)‖_∞")
-        println("# ------ ------ ------ ---------------------------- --------- ---------")
+function default_printer(io::IO, nfo::SPGInfo)
+    if nfo.iter == 0
+        @printf(io, "# %s\n# %s\n",
+                " ITER   EVAL   PROJ             F(x)              ‖PG(X)‖_2 ‖PG(X)‖_∞",
+                "---------------------------------------------------------------------")
     end
-    @printf(" %6d %6d %6d %3s %24.17e %9.2e %9.2e\n",
-            ws.iter, ws.fcnt, ws.pcnt, (ws.f ≤ ws.fbest ? "(*)" : "   "),
-            ws.f, ws.pgtwon, ws.pginfn)
+    @printf(io, " %6d %6d %6d %3s %24.17e %9.2e %9.2e\n",
+            nfo.iter, nfo.fcnt, nfo.pcnt, (nfo.f ≤ nfo.fbest ? "(*)" : "   "),
+            nfo.f, nfo.pgtwon, nfo.pginfn)
 end
 
 end # module

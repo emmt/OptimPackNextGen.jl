@@ -22,8 +22,6 @@
 
 module Step
 
-export globmin, globmax
-
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
 
@@ -64,8 +62,8 @@ const TOL = (realmin(Float), sqrt(eps(Float)))
 @inline sqrtdifmin(lvl,val) = sqrt(val - lvl)
 @inline sqrtdifmax(lvl,val) = sqrt(lvl - val)
 
-for (func, cmp, incr, wgt) in ((:globmin, <, -, :sqrtdifmin),
-                               (:globmax, >, +, :sqrtdifmax))
+for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
+                               (:maximize, >, +, :sqrtdifmax))
     @eval begin
 
         function $func(f::Function, a::Float, b::Float;
@@ -207,8 +205,8 @@ end
 @doc """
 # Find a global minimum or maximum
 
-    (xbest, fbest, xtol, n) = globmin(f, a, b)
-    (xbest, fbest, xtol, n) = globmax(f, a, b)
+    Step.minimize(f, a, b) -> (xbest, fbest, xtol, n)
+    Step.maximize(f, a, b) -> (xbest, fbest, xtol, n)
 
 finds a global minimum (resp. maximum) of `f(x)` in the interval `[a,b]` and
 returns its position `xbest`, the corresponding function value `fbest =
@@ -222,7 +220,7 @@ The algorithm is based on the STEP method described in:
 > Proceedings of the First IEEE Conference on Evolutionary Computation, vol. 1,
 > pp. 519-524 (1994).
 
-The following optinal keywords can be used:
+The following optional keywords can be used:
 
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
@@ -239,9 +237,9 @@ The following optinal keywords can be used:
 * `output` specifies the output stream for printing information (`STDOUT` is
   used by default).
 
-""" globmin
+""" minimize
 
-@doc @doc(globmin) globmax
+@doc @doc(minimize) maximize
 
 function default_printer(eval::Int, xm::Float, fm::Float, prec::Float)
     default_printer(STDOUT, eval, xm, fm, prec)
@@ -280,23 +278,23 @@ end
 
 function runtests()
     println("\n# Simple parabola:")
-    (xbest, fbest, xtol, n) = globmin(testParabola, -1, 2, verb=true,
+    (xbest, fbest, xtol, n) = minimize(testParabola, -1, 2, verb=true,
                                       maxeval=50, alpha=0, beta=0)
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
 
     println("\n# Brent's 5th function:")
-    (xbest, fbest, xtol, n) = globmin(testBrent5, -10, 10, verb=true,
+    (xbest, fbest, xtol, n) = minimize(testBrent5, -10, 10, verb=true,
                                       maxeval=1000, alpha=0, beta=0)
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
 
     println("\n# Michalewicz's 1st function:")
-    (xbest, fbest, xtol, n) = globmin(testMichalewicz1, -1, 2, verb=true,
+    (xbest, fbest, xtol, n) = minimize(testMichalewicz1, -1, 2, verb=true,
                                       maxeval=1000, alpha=0, beta=0)
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
 
     println("\n# Michalewicz's 2nd function:")
-    (xbest, fbest, xtol, n) = globmax(testMichalewicz2, 0, pi, verb=true,
-                                      maxeval=1000, tol=(1e-12,0))
+    (xbest, fbest, xtol, n) = maximize(testMichalewicz2, 0, pi, verb=true,
+                                       maxeval=1000, tol=(1e-12,0))
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
 end
 

@@ -5,8 +5,8 @@
 #
 # ------------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
-# "Expat" License.
+# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
+# License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
