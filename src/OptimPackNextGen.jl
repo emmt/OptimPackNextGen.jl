@@ -16,6 +16,9 @@ isdefined(Base, :__precompile__) && __precompile__()
 module OptimPackNextGen
 
 export
+    Brent,
+    fmin,
+    fzero,
     conjgrad,
     conjgrad!,
     vmlmb,
@@ -32,11 +35,22 @@ typealias Float Cdouble
 
 function getreason end
 
-include("algebra.jl"); importall .Algebra
+include("algebra.jl")
+importall .Algebra
+
 include("conjgrad.jl")
+
 include("linesearches.jl")
-include("quasinewton.jl"); importall .QuasiNewton
+
+include("quasinewton.jl")
+importall .QuasiNewton
+
+include("brent.jl")
+import .Brent: fmin, fzero
+
 include("step.jl")
-include("spg.jl"); importall .SPG
+
+include("spg.jl")
+importall .SPG
 
 end # module
