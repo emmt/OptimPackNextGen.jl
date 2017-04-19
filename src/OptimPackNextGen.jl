@@ -16,7 +16,6 @@ isdefined(Base, :__precompile__) && __precompile__()
 module OptimPackNextGen
 
 export
-    Brent,
     fmin,
     fzero,
     conjgrad,
@@ -47,6 +46,8 @@ importall .QuasiNewton
 
 include("brent.jl")
 import .Brent: fmin, fzero
+
+include("bradi.jl")
 
 include("step.jl")
 
