@@ -47,6 +47,8 @@ importall .QuasiNewton
 include("brent.jl")
 import .Brent: fmin, fzero
 
+include("powell.jl")
+
 include("bradi.jl")
 
 include("step.jl")
