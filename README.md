@@ -28,8 +28,8 @@ The following methods are provided for univariate functions:
 * `Brent.fmin` implements Brent's method for finding a minimum of a function.
 
 * `Bradi.minimize` (resp. `Bradi.maximize`) implements the BRADI ("Bracket"
-  then "Dig") method for finding a global minimum (resp. maximum) of a
-  function.
+  then "Dig") method for finding the global minimum (resp. maximum) of a
+  function on an interval.
 
 * `Step.minimize` (resp. `Step.maximize`) implements the STEP method for
-  finding a global minimum (resp. maximum) of a function.
+  finding the global minimum (resp. maximum) of a function on an interval.
