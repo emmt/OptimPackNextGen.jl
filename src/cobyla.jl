@@ -18,11 +18,13 @@ export
     cobyla,
     cobyla!
 
+import ..find_dll
+
+const DLL = find_dll("cobyla")
+
 # FIXME: with Julia 0.5 all relative (prefixed by .. or ...) symbols must be
 #        on the same line as `import`
-import ..AbstractStatus, ..AbstractContext, ..dllname, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
-
-const DLL = dllname("cobyla")
+import ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
 
 immutable Status <: AbstractStatus
     _code::Cint
@@ -195,7 +197,7 @@ optimize(fc::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
 
 function optimize!(fc::Function, x::DenseVector{Cdouble},
                    m::Integer, rhobeg::Real, rhoend::Real;
-                   scale::DenseVector{Cdouble} = Array(Cdouble, 0),
+                   scale::DenseVector{Cdouble} = Array{Cdouble}(0),
                    maximize::Bool = false,
                    check::Bool = false,
                    verbose::Integer = 0,
@@ -209,8 +211,8 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
     else
         error("bad number of scaling factors")
     end
-    work = Array(Cdouble, _wslen(n, m))
-    iact = Array(Cptrdiff_t, m + 1)
+    work = Array{Cdouble}(_wslen(n, m))
+    iact = Array{Cptrdiff_t}(m + 1)
     status = Status(ccall((:cobyla_optimize, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
@@ -235,8 +237,8 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
                  verbose::Integer = 0,
                  maxeval::Integer = 30*length(x))
     n = length(x)
-    work = Array(Cdouble, _wslen(n, m))
-    iact = Array(Cptrdiff_t, m + 1)
+    work = Array{Cdouble}(_wslen(n, m))
+    iact = Array{Cptrdiff_t}(m + 1)
     status = Status(ccall((:cobyla, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
@@ -271,8 +273,8 @@ end
 creates a new reverse communication workspace for COBYLA algorithm.  A typical
 usage is:
 
-    x = Array(Cdouble, n)
-    c = Array(Cdouble, m)
+    x = Array{Cdouble}(n)
+    c = Array{Cdouble}(m)
     x[...] = ... # initial solution
     ctx = Cobyla.create(n, m, rhobeg, rhoend, verbose=1, maxeval=500)
     status = getstatus(ctx)
@@ -358,7 +360,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 1 (Simple quadratic)")
             n = 2
             m = 0
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = -1.0
             xopt[2] = 0.0
             ftest = (x::DenseVector{Cdouble}) -> begin
@@ -372,7 +374,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 2 (2D unit circle calculation)")
             n = 2
             m = 1
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = sqrt(0.5)
             xopt[2] = -xopt[1]
             ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
@@ -385,7 +387,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 3 (3D ellipsoid calculation)")
             n = 3
             m = 1
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = 1.0/sqrt(3.0)
             xopt[2] = 1.0/sqrt(6.0)
             xopt[3] = -0.33333333333333331
@@ -399,7 +401,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 4 (Weak Rosenbrock)")
             n = 2
             m = 0
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = -1.0
             xopt[2] = 1.0
             ftest = (x::DenseVector{Cdouble}) -> begin
@@ -414,7 +416,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 5 (Intermediate Rosenbrock)")
             n = 2
             m = 0
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = -1.0
             xopt[2] = 1.0
             ftest = (x::DenseVector{Cdouble}) -> begin
@@ -430,7 +432,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 6 (Equation (9.1.15) in Fletcher)")
             n = 2
             m = 2
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = sqrt(0.5)
             xopt[2] = xopt[1]
             ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
@@ -448,7 +450,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 7 (Equation (14.4.2) in Fletcher)")
             n = 3
             m = 3
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = 0.0
             xopt[2] = -3.0
             xopt[3] = -3.0
@@ -468,7 +470,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 8 (Rosen-Suzuki)")
             n = 4
             m = 3
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] = 0.0
             xopt[2] = 1.0
             xopt[3] = 2.0
@@ -506,7 +508,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 9 (Hock and Schittkowski 100)")
             n = 7
             m = 4
-            xopt = Array(Cdouble, n)
+            xopt = Array{Cdouble}(n)
             xopt[1] =  2.330499
             xopt[2] =  1.951372
             xopt[3] = -0.4775414
@@ -555,7 +557,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             prt("Output from test problem 10 (Hexagon area)")
             n = 9
             m = 14
-            xopt = fill!(Array(Cdouble, n), 0.0)
+            xopt = fill!(Array{Cdouble}(n), 0.0)
             ftest = (x::DenseVector{Cdouble}, con::DenseVector{Cdouble}) -> begin
                 fc = -0.5*(x[1]*x[4] - x[2]*x[3] + x[3]*x[9] - x[5]*x[9]
                            + x[5]*x[8] - x[6]*x[7])
@@ -596,14 +598,14 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             error("bad problem number ($nprob)")
         end
 
-        x = Array(Cdouble, n)
+        x = Array{Cdouble}(n)
         for icase in 1:2
             fill!(x, 1.0)
             rhobeg = 0.5
             rhoend = (icase == 2 ? 1e-4 : 0.001)
             if revcom
                 # Test the reverse communication variant.
-                c = Array(Cdouble, max(m, 0))
+                c = Array{Cdouble}(max(m, 0))
                 ctx = Cobyla.create(n, m, rhobeg, rhoend;
                                     verbose = 1, maxeval = 2000)
                 status = getstatus(ctx)
@@ -627,7 +629,7 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
                         verbose = 1, maxeval = 2000)
             else
                 Cobyla.minimize!(ftest, x, m, rhobeg/scale, rhoend/scale;
-                                 scale = fill!(Array(Cdouble, n), scale),
+                                 scale = fill!(Array{Cdouble}(n), scale),
                                  verbose = 1, maxeval = 2000)
             end
             if nprob == 10

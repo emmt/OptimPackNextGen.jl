@@ -18,9 +18,11 @@ export
     bobyqa,
     bobyqa!
 
-import ..AbstractStatus, ..AbstractContext, ..dllname, ..getreason, ..getstatus, ..iterate, ..restart
+import ..find_dll
 
-const DLL = dllname("bobyqa")
+const DLL = find_dll("bobyqa")
+
+import ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart
 
 immutable Status <: AbstractStatus
     _code::Cint
@@ -63,7 +65,7 @@ const _objfun_c = cfunction(_objfun, Cdouble, (Cptrdiff_t, Ptr{Cdouble},
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    xl::DenseVector{Cdouble}, xu::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;
-                   scale::DenseVector{Cdouble}=Array(Cdouble, 0),
+                   scale::DenseVector{Cdouble}=Array{Cdouble}(0),
                    maximize::Bool=false,
                    npt::Integer=2*length(x) + 1,
                    check::Bool=false,
@@ -82,7 +84,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     else
         error("bad number of scaling factors")
     end
-    work = Array(Cdouble, nw)
+    work = Array{Cdouble}(nw)
     status = Status(ccall((:bobyqa_optimize, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
@@ -117,7 +119,7 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
     n = length(x)
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
-    work = Array(Cdouble, _wslen(n, npt))
+    work = Array{Cdouble}(_wslen(n, npt))
     status = Status(ccall((:bobyqa, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
@@ -160,9 +162,9 @@ function runtests()
     for m in (5,10)
         q = 2.0*pi/m
         n = 2*m
-        x = Array(Cdouble, n)
-        xl = Array(Cdouble, n)
-        xu = Array(Cdouble, n)
+        x = Array{Cdouble}(n)
+        xl = Array{Cdouble}(n)
+        xu = Array{Cdouble}(n)
         for i in 1:n
             xl[i] = bdl
             xu[i] = bdu

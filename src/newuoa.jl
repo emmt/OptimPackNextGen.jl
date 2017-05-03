@@ -18,11 +18,13 @@ export
     newuoa,
     newuoa!
 
+import ..find_dll
+
+const DLL = find_dll("newuoa")
+
 # FIXME: with Julia 0.5 all relative (prefixed by .. or ...) symbols must be
 #        on the same line as `import`
-import ..AbstractStatus, ..AbstractContext, ..dllname, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
-
-const DLL = dllname("newuoa")
+import ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart
 
 immutable Status <: AbstractStatus
     _code::Cint
@@ -181,7 +183,7 @@ optimize(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;
-                   scale::DenseVector{Cdouble} = Array(Cdouble, 0),
+                   scale::DenseVector{Cdouble} = Array{Cdouble}(0),
                    maximize::Bool = false,
                    npt::Integer = 2*length(x) + 1,
                    check::Bool = true,
@@ -198,7 +200,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     else
         error("bad number of scaling factors")
     end
-    work = Array(Cdouble, nw)
+    work = Array{Cdouble}(nw)
     status = Status(ccall((:newuoa_optimize, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
@@ -222,7 +224,7 @@ function newuoa!(f::Function, x::DenseVector{Cdouble},
                  maxeval::Integer = 30*length(x),
                  check::Bool = true)
     n = length(x)
-    work = Array(Cdouble, _wslen(n, npt))
+    work = Array{Cdouble}(_wslen(n, npt))
     status = Status(ccall((:newuoa, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
@@ -257,7 +259,7 @@ end
 creates a new reverse communication workspace for NEWUOA algorithm.  A typical
 usage is:
 
-    x = Array(Cdouble, n)
+    x = Array{Cdouble}(n)
     x[...] = ... # initial solution
     ctx = Newuoa.create(n, rhobeg, rhoend; verbose=1, maxeval=500)
     status = getstatus(ctx)
@@ -316,7 +318,7 @@ function runtests(;revcom::Bool=false, scale::Real=1)
     function ftest(x::DenseVector{Cdouble})
         n = length(x)
         np = n + 1
-        y = Array(Cdouble, np, n)
+        y = Array{Cdouble}(np, n)
         for j in 1:n
             y[1,j] = 1.0
             y[2,j] = x[j]*2.0 - 1.0
@@ -347,7 +349,7 @@ function runtests(;revcom::Bool=false, scale::Real=1)
     rhoend = 1e-6
     for n = 2:2:8
         npt = 2*n + 1
-        x = Array(Cdouble, n)
+        x = Array{Cdouble}(n)
         for i in 1:n
             x[i] = i/(n + 1)
         end
