@@ -11,7 +11,7 @@
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
 
-isdefined(Base, :__precompile__) && __precompile__()
+isdefined(Base, :__precompile__) && __precompile__(false)
 
 module OptimPackNextGen
 
