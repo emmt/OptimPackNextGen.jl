@@ -14,6 +14,8 @@
 
 module Powell
 
+import Base: ENV
+
 if ! haskey(ENV, "OPTIMPACK_LIBDIR")
     OPTIMPACK_LIBDIR = ""
     warn("environment variable OPTIMPACK_LIBDIR is not set")
