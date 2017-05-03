@@ -47,7 +47,7 @@ function getreason(status::Status)
     if ptr == C_NULL
         error("unknown COBYLA status: ", status._code)
     end
-    bytestring(ptr)
+    unsafe_string(ptr)
 end
 
 """
