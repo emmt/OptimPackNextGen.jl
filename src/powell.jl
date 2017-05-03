@@ -14,16 +14,24 @@
 
 module Powell
 
-const PREFIX = "/home/eric/apps/lib/"
+if ! haskey(ENV, "OPTIMPACK_LIBDIR")
+    OPTIMPACK_LIBDIR = ""
+    warn("environment variable OPTIMPACK_LIBDIR is not set")
+elseif ! isdir(ENV["OPTIMPACK_LIBDIR"])
+    OPTIMPACK_LIBDIR = ""
+    warn("environment variable OPTIMPACK_LIBDIR is not set to a valid directory path")
+else
+    OPTIMPACK_LIBDIR = (ENV["OPTIMPACK_LIBDIR"][end] == '/' ?
+                        ENV["OPTIMPACK_LIBDIR"][end] :
+                        ENV["OPTIMPACK_LIBDIR"]*"/")
+end
 
 @static if is_unix()
-    dllname(part::String) = "$(PREFIX)/lib$(part).so"
-end
-@static if is_apple()
-    dllname(part::String) = "$(PREFIX)/lib$(part).dylib"
-end
-@static if is_windows()
-    dllname(part::String) = "$(PREFIX)/$(part).dll"
+    dllname(part::String) = "$(OPTIMPACK_LIBDIR)lib$(part).so"
+elseif is_apple()
+    dllname(part::String) = "$(OPTIMPACK_LIBDIR)lib$(part).dylib"
+elseif is_windows()
+    dllname(part::String) = "$(OPTIMPACK_LIBDIR)$(part).dll"
 end
 
 export
