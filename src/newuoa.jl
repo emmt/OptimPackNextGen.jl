@@ -48,7 +48,7 @@ function getreason(status::Status)
     if ptr == C_NULL
         error("unknown NEWUOA status: ", status._code)
     end
-    bytestring(ptr)
+    unsafe_string(ptr)
 end
 
 """
@@ -177,7 +177,7 @@ attempts to minimize the objective function.
 
 """
 optimize(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
-    optimize(f, copy(x0), args...; kwds...)
+    optimize!(f, copy(x0), args...; kwds...)
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;
