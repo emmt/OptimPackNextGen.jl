@@ -28,7 +28,7 @@ else
                         ENV["OPTIMPACK_LIBDIR"]*"/")
 end
 
-@static if is_unix()
+if is_unix()
     dllname(part::String) = "$(OPTIMPACK_LIBDIR)lib$(part).so"
 elseif is_apple()
     dllname(part::String) = "$(OPTIMPACK_LIBDIR)lib$(part).dylib"
