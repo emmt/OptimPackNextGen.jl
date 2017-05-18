@@ -178,33 +178,35 @@ function _spg!{T}(fg!, prj!, x::T, m::Int, ws::SPGInfo,
     const ftol = Float(1e-4)
     const amin = Float(0.1)
     const amax = Float(0.9)
-    local iter::Int = 0, fcnt::Int = 0, pcnt::Int = 0
+    local iter::Int = 0
+    local fcnt::Int = 0
+    local pcnt::Int = 0
     local status::Int = SEARCHING
     if m > 1
         lastfv = Array(Float, m)
         fill!(lastfv, -Inf)
     end
-    local x0::T = vcopy(x),
-        g::T = vcreate(x),
-        d::T = vcreate(x),
-        s::T = vcreate(x),
-        y::T = vcreate(x),
-        g0::T = vcreate(x),
-        pg::T = vcreate(x),
-        xbest::T = vcreate(x),
-        f::Float = 0.0,
-        f0::Float = 0.0,
-        fbest::Float = 0.0,
-        fmax::Float = 0.0,
-        pgtwon::Float = 0.0,
-        pginfn::Float = 0.0,
-        sty::Float = 0.0,
-        sts::Float = 0.0,
-        lambda::Float = 0.0,
-        delta::Float = 0.0,
-        stp::Float = 0.0,
-        q::Float = 0.0,
-        r::Float = 0.0
+    local x0::T = vcopy(x)
+    local g::T = vcreate(x)
+    local d::T = vcreate(x)
+    local s::T = vcreate(x)
+    local y::T = vcreate(x)
+    local g0::T = vcreate(x)
+    local pg::T = vcreate(x)
+    local xbest::T = vcreate(x)
+    local f::Float = 0.0
+    local f0::Float = 0.0
+    local fbest::Float = 0.0
+    local fmax::Float = 0.0
+    local pgtwon::Float = 0.0
+    local pginfn::Float = 0.0
+    local sty::Float = 0.0
+    local sts::Float = 0.0
+    local lambda::Float = 0.0
+    local delta::Float = 0.0
+    local stp::Float = 0.0
+    local q::Float = 0.0
+    local r::Float = 0.0
 
     # Project initial guess.
     prj!(x, x)

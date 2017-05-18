@@ -298,7 +298,8 @@ function fmin{T<:AbstractFloat}(f, a::T, b::T,
     if a > b
         a, b = b, a
     end
-    local x::T = a + goldstep(T)*(b - a), fx::T = f(x)
+    local x::T = a + goldstep(T)*(b - a)
+    local fx::T = f(x)
     _fmin(f, a, b, x, fx, x, fx, x, fx, atol, rtol)
 end
 

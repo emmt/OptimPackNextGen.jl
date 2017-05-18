@@ -658,7 +658,7 @@ end
 # PROJECTING DIRECTION
 
 # Orientation is indicated by a singleton.
-abstract Orientation
+@compat abstract type Orientation end
 immutable Forward  <: Orientation; end
 immutable Backward <: Orientation; end
 

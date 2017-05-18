@@ -30,7 +30,7 @@ doc"""
 `Float` is the type of all floating point scalars, it is currently an alias to
 `Cdouble` which is itself an alias to `Float64`.
 """
-typealias Float Cdouble
+const Float = Cdouble
 
 function getreason end
 

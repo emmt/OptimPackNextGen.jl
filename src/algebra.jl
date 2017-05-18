@@ -13,6 +13,8 @@
 
 module Algebra
 
+using Compat
+
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
 

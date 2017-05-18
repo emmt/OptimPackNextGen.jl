@@ -89,8 +89,11 @@ function conjgrad!{T}(A, b::T, x::T;
     local rho::Float = vdot(r, r)
     const ftest = Float(ftol)
     const gtest = Float(max(gtol[1], gtol[2]*sqrt(rho)))
-    local alpha::Float = 0, gamma::Float = 0, psi::Float = 0
-    local psimax::Float = 0, oldrho::Float = 0
+    local alpha::Float = 0
+    local gamma::Float = 0
+    local psi::Float = 0
+    local psimax::Float = 0
+    local oldrho::Float = 0
 
     # Conjugate gradient iterations.
     k = 0

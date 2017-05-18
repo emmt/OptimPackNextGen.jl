@@ -14,6 +14,8 @@
 
 module Powell
 
+using Compat
+
 # Locate the dynamic library.
 find_dll(name::String) =
     Base.Libdl.find_library(@static (is_apple() ? "lib$(name).dylib" :
@@ -40,9 +42,9 @@ export
 
 import Base: ==
 
-abstract AbstractStatus
+@compat abstract type AbstractStatus end
 
-abstract AbstractContext
+@compat abstract type AbstractContext end
 
 =={T<:AbstractStatus}(a::T, b::T) = a._code == b._code
 ==(a::AbstractStatus, b::AbstractStatus) = false

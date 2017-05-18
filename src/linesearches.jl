@@ -15,6 +15,8 @@
 
 module LineSearches
 
+using Compat
+
 import OptimPackNextGen.Float
 
 export
@@ -93,7 +95,7 @@ Note that the same line search instance may be re-used for subsequent line
 searches (with the same settings).
 
 """
-abstract LineSearch{T<:AbstractFloat}
+@compat abstract type LineSearch{T<:AbstractFloat} end
 
 """
     getstep(ls)

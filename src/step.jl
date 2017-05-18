@@ -31,9 +31,9 @@ import OptimPackNextGen.Float
 type Item{T}
     next::Item{T}
     data::T
-    Item(next::Item{T}, data::T) = new(next, data)
-    function Item(data::T)
-        newitem = new()
+    (::Type{Item{T}}){T}(next::Item{T}, data::T) = new{T}(next, data)
+    function (::Type{Item{T}}){T}(data::T)
+        newitem = new{T}()
         newitem.next = newitem
         newitem.data = data
         return newitem
