@@ -18,9 +18,11 @@ export
     bobyqa,
     bobyqa!
 
-import ..find_dll
+#import ..find_dll
+#find_dll("bobyqa")
 
-const DLL = find_dll("bobyqa")
+import ..libbobyqa
+const DLL = libbobyqa
 
 import ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart
 

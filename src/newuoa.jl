@@ -18,9 +18,12 @@ export
     newuoa,
     newuoa!
 
-import ..find_dll
+#import ..find_dll
 
-const DLL = find_dll("newuoa")
+#const DLL = find_dll("newuoa")
+
+import ..libnewuoa
+const DLL = libnewuoa
 
 # FIXME: with Julia 0.5 all relative (prefixed by .. or ...) symbols must be
 #        on the same line as `import`

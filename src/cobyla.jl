@@ -18,9 +18,11 @@ export
     cobyla,
     cobyla!
 
-import ..find_dll
+#import ..find_dll
+#const DLL = find_dll("cobyla")
 
-const DLL = find_dll("cobyla")
+import ..libcobyla
+const DLL = libcobyla
 
 # FIXME: with Julia 0.5 all relative (prefixed by .. or ...) symbols must be
 #        on the same line as `import`

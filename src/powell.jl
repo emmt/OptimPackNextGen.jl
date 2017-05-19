@@ -17,10 +17,15 @@ module Powell
 using Compat
 
 # Locate the dynamic library.
-find_dll(name::String) =
-    Base.Libdl.find_library(@static (is_apple() ? "lib$(name).dylib" :
-                                     is_windows() ? "$(name).dll" :
-                                     "lib$(name).so"))
+if isfile(joinpath(dirname(@__FILE__),"..","deps","libs.jl"))
+    include("../deps/libs.jl")
+else
+    error("OptimPackNextGen not properly installed.  Please create and edit file \"../deps/libs.jl\"")
+end
+#find_dll(name::String) =
+#    Base.Libdl.find_library(@static (is_apple() ? "lib$(name).dylib" :
+#                                     is_windows() ? "$(name).dll" :
+#                                    "lib$(name).so"))
 
 export
     iterate,
