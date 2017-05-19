@@ -45,8 +45,8 @@ type SPGInfo
     fcnt::Int     # The number of function (and gradient) evaluations.
     pcnt::Int     # The number of projections.
     status::Int   # Termination parameter.
-    SPGInfo() = new(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 end
+SPGInfo() = SPGInfo(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 
 doc"""
 # Spectral Projected Gradient Method
