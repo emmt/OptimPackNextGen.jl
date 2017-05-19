@@ -1,0 +1,5 @@
+# Copy this file without the .sample suffix and edit it to indicate below the
+# path of OptimPack-Powell libraries.
+const libbobyqa = joinpath(ENV["HOME"], "apps", "lib", "libbobyqa.so")
+const libcobyla = joinpath(ENV["HOME"], "apps", "lib", "libcobyla.so")
+const libnewuoa = joinpath(ENV["HOME"], "apps", "lib", "libnewuoa.so")
