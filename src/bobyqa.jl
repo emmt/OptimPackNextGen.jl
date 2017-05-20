@@ -5,7 +5,7 @@
 #
 # ----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
+# This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
@@ -18,13 +18,9 @@ export
     bobyqa,
     bobyqa!
 
-#import ..find_dll
-#find_dll("bobyqa")
-
-import ..libbobyqa
-const DLL = libbobyqa
-
-import ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart
+# FIXME: with Julia 0.5 all relative (prefixed by .. or ...) symbols must be
+#        on the same line as `import`
+import ..libbobyqa, ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart
 
 immutable Status <: AbstractStatus
     _code::Cint
@@ -42,7 +38,7 @@ const STEP_FAILED          = Status(-8)
 
 # Get a textual explanation of the status returned by BOBYQA.
 function getreason(status::Status)
-    ptr = ccall((:bobyqa_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:bobyqa_reason, libbobyqa), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown BOBYQA status: ", status._code)
     end
@@ -61,8 +57,14 @@ function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Void})
     convert(Cdouble, f(x))::Cdouble
 end
 
-const _objfun_c = cfunction(_objfun, Cdouble, (Cptrdiff_t, Ptr{Cdouble},
+# Addresses of callbacks cannot be precompiled so we set them at run time in
+# the __init__() method of the module.
+const _objfun_c = Ref{Ptr{Void}}(0)
+function __init__()
+    global _objfun_c
+    _objfun_c[] = cfunction(_objfun, Cdouble, (Cptrdiff_t, Ptr{Cdouble},
                                                Ptr{Void}))
+end
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    xl::DenseVector{Cdouble}, xu::DenseVector{Cdouble},
@@ -87,13 +89,13 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
         error("bad number of scaling factors")
     end
     work = Array{Cdouble}(nw)
-    status = Status(ccall((:bobyqa_optimize, DLL), Cint,
+    status = Status(ccall((:bobyqa_optimize, libbobyqa), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
                            Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble}),
                           n, npt, (maximize ? Cint(1) : Cint(0)),
-                          _objfun_c, pointer_from_objref(f),
+                          _objfun_c[], pointer_from_objref(f),
                           x, xl, xu, sclptr, rhobeg, rhoend,
                           verbose, maxeval, work))
     if check && status != SUCCESS
@@ -122,12 +124,12 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
     work = Array{Cdouble}(_wslen(n, npt))
-    status = Status(ccall((:bobyqa, DLL), Cint,
+    status = Status(ccall((:bobyqa, libbobyqa), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
                            Ptr{Cdouble}),
-                          n, npt, _objfun_c,
+                          n, npt, _objfun_c[],
                           pointer_from_objref(f), x, xl, xu,
                           rhobeg, rhoend, verbose, maxeval, work))
     if check && status != SUCCESS

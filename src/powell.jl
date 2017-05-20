@@ -5,7 +5,7 @@
 #
 # ----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
+# This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
@@ -22,10 +22,6 @@ if isfile(joinpath(dirname(@__FILE__),"..","deps","libs.jl"))
 else
     error("OptimPackNextGen not properly installed.  Please create and edit file \"../deps/libs.jl\"")
 end
-#find_dll(name::String) =
-#    Base.Libdl.find_library(@static (is_apple() ? "lib$(name).dylib" :
-#                                     is_windows() ? "$(name).dll" :
-#                                    "lib$(name).so"))
 
 export
     iterate,
