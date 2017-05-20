@@ -9,10 +9,10 @@
 #     interferometry", Proc. SPIE 9146, Optical and Infrared Interferometry
 #     IV, 91462Y (July 24, 2014); doi:10.1117/12.2056590
 #
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
-# License.
+# This file is part of OptimPackNextGen.jl which is licensed under the MIT
+# "Expat" License.
 #
 # Copyright (C) 2014-2017, Éric Thiébaut.
 #

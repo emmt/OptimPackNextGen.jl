@@ -9,9 +9,9 @@
 #     Intelligence, Proceedings of the First IEEE Conference on
 #     Evolutionary Computation,vol. 1, pp. 519-524 (1994).
 #
-# ------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
+# This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.

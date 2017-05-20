@@ -3,10 +3,10 @@
 #
 # Limited memory quasi-Newton methods for OptimPack.
 #
-# ------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
-# License.
+# This file is part of OptimPackNextGen.jl which is licensed under the MIT
+# "Expat" License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
@@ -110,7 +110,7 @@ The following keywords are available:
 
 ### History
 
-The VMLMB algorithm in OptimPack.jl provides a pure Julia implementation of the
+The VMLMB algorithm in OptimPackNextGen.jl provides a pure Julia implementation of the
 original method (Thiébaut, 2002) with some improvements and the capability to
 emulate L-BFGS and BLMVM methods.
 

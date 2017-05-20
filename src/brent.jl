@@ -7,10 +7,10 @@
 # [1] Richard Brent, "Algorithms for minimization without derivatives,"
 #     Prentice-Hall, inc. (1973).
 #
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
-# License.
+# This file is part of OptimPackNextGen.jl which is licensed under the MIT
+# "Expat" License.
 #
 # Copyright (C) 1973, Richard Brent.
 # Copyright (C) 2015-2017, Éric Thiébaut.

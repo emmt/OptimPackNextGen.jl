@@ -3,7 +3,7 @@
 #
 # Package for numerical optimization in Julia.
 #
-# ------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.

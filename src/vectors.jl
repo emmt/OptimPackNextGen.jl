@@ -7,10 +7,10 @@
 # intended to be used for numerical optimization and thus, for now,
 # elements must be real (not complex).
 #
-# ------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT "Expat"
-# License.
+# This file is part of OptimPackNextGen.jl which is licensed under the MIT
+# "Expat" License.
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #

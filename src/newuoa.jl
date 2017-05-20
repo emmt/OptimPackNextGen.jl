@@ -3,14 +3,13 @@
 #
 # Julia interface to Mike Powell's NEWUOA method.
 #
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
-# ----------------------------------------------------------------------------
 
 module Newuoa
 

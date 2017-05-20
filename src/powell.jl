@@ -3,14 +3,13 @@
 #
 # Mike Powell's derivative free optimization methods for Julia.
 #
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
-# ----------------------------------------------------------------------------
 
 module Powell
 
