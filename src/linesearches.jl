@@ -583,7 +583,7 @@ function iterate!{T<:AbstractFloat}(ls::MoreThuenteLineSearch{T},
         info, ls.brackt,
         ls.stx, fxm, gxm,
         ls.sty, fym, gym,
-        stp = cstep(ls, ls.brackt, ls.lower, ls.upper,
+        stp = cstep(ls.brackt, ls.lower, ls.upper,
                     ls.stx, ls.fx - ls.stx*gtest, ls.gx - gtest,
                     ls.sty, ls.fy - ls.sty*gtest, ls.gy - gtest,
                     stp, f - stp*gtest, g - gtest)
