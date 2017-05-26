@@ -9,6 +9,7 @@ work/
 *~
 
 # Automatically generated files:
+deps/deps.jl
 doc/*.aux
 doc/*.bbl
 doc/*.blg
@@ -18,4 +19,3 @@ doc/*.out
 doc/*.pdf
 doc/*.synctex.gz
 test/*.out
-
