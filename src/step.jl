@@ -73,11 +73,11 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                        verb::Bool=false,
                        printer::Function=default_printer, output::IO=STDOUT)
 
-            maxeval >= 2 || error("parameter `maxeval` must be at least 2")
-            tol[1] >= 0 || error("absolute tolerance `tol[1]` must be nonnegative")
-            0 <= tol[2] <= 1 || error("relative tolerance `tol[2]` must be in [0,1]")
-            alpha >= 0 || error("parameter `alpha` must be nonnegative")
-            beta >= 0 || error("parameter `beta` must be nonnegative")
+            maxeval ≥ 2 || error("parameter `maxeval` must be at least 2")
+            tol[1] ≥ 0 || error("absolute tolerance `tol[1]` must be nonnegative")
+            0 ≤ tol[2] ≤ 1 || error("relative tolerance `tol[2]` must be in [0,1]")
+            alpha ≥ 0 || error("parameter `alpha` must be nonnegative")
+            beta ≥ 0 || error("parameter `beta` must be nonnegative")
 
             if a > b
                 (a, b) = (b, a)
@@ -103,10 +103,10 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
             verb && printer(output, evaluations, xbest, fbest, xtol)
             c = xbest
             while true
-                if xtol <= hypot(tol[1], xbest*tol[2])
+                if xtol ≤ hypot(tol[1], xbest*tol[2])
                     break
                 end
-                if evaluations >= maxeval
+                if evaluations ≥ maxeval
                     warn("too many evaluations")
                     break
                 end
@@ -190,13 +190,13 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                        maxeval::Integer=10000,
                        tol::NTuple{2,Real}=TOL,
                        alpha::Real=0.0, beta::Real=0.0,
-                       keywords...)
+                       kwds...)
             $func(f, Float(a), Float(b);
                   maxeval = Int(maxeval),
                   tol = (Float(tol[1]), Float(tol[2])),
                   alpha = Float(alpha),
                   beta = Float(beta),
-                  keywords...)
+                  kwds...)
         end
 
     end
@@ -279,17 +279,17 @@ end
 function runtests()
     println("\n# Simple parabola:")
     (xbest, fbest, xtol, n) = minimize(testParabola, -1, 2, verb=true,
-                                      maxeval=50, alpha=0, beta=0)
+                                       maxeval=100, alpha=0, beta=0)
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
 
     println("\n# Brent's 5th function:")
     (xbest, fbest, xtol, n) = minimize(testBrent5, -10, 10, verb=true,
-                                      maxeval=1000, alpha=0, beta=0)
+                                       maxeval=1000)
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
 
     println("\n# Michalewicz's 1st function:")
     (xbest, fbest, xtol, n) = minimize(testMichalewicz1, -1, 2, verb=true,
-                                      maxeval=1000, alpha=0, beta=0)
+                                       maxeval=1000)
     println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
 
     println("\n# Michalewicz's 2nd function:")
