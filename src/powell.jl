@@ -16,8 +16,8 @@ module Powell
 using Compat
 
 # Locate the dynamic library.
-if isfile(joinpath(dirname(@__FILE__),"..","deps","libs.jl"))
-    include("../deps/libs.jl")
+if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
+    include("../deps/deps.jl")
 else
     error("OptimPackNextGen not properly installed.  Please create and edit file \"../deps/libs.jl\"")
 end
