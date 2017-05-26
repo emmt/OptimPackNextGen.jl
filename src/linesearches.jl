@@ -11,8 +11,6 @@
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
 
-#@reexport module LineSearches
-
 module LineSearches
 
 using Compat
