@@ -6,11 +6,16 @@ const unpacked_dir = "optimpack-$version"
 
 @BinDeps.setup
 
-optimpack = library_dependency("libopk")
+libs = [
+    cobyla = library_dependency("libcobyla")
+    bobyqa = library_dependency("libbobyqa")
+    newuoa = library_dependency("libnewuoa")
+    optimpack = library_dependency("libopk")
+]
 
 provides(Sources,
          URI("https://github.com/emmt/OptimPack/releases/download/v$version/optimpack-$version.tar.gz"),
-         optimpack,
+         libs,
          unpacked_dir=unpacked_dir)
 
 prefix = joinpath(BinDeps.depsdir(optimpack), "usr")
@@ -32,7 +37,7 @@ provides(SimpleBuild,
          (@build_steps begin
              GetSources(optimpack)
              CreateDirectory(prefix)
-             CreateDirectory(joinpath(prefix,"lib"))
+             CreateDirectory(libdir)
              @build_steps begin
                  ChangeDirectory(srcdir)
                  FileRule(destlib,
@@ -40,12 +45,13 @@ provides(SimpleBuild,
                               `./configure --enable-shared --disable-static --prefix="$prefix"`
                               `make`
                               `make install`
+                              `ls -l "$libdir"`
                           end)
              end
          end),
-         optimpack)
+         libs)
 
-@BinDeps.install Dict(:libopk => :opklib)
-
-# List installed libraries (for debugging installation).
-run(`ls -l "$libdir"`)
+@BinDeps.install @compat Dict(#:libopk => :_libopk,
+                              :libcobyla => :_libcobyla,
+                              :libbobyqa => :_libbobyqa,
+                              :libnewuoa => :_libnewuoa)

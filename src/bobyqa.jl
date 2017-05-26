@@ -19,7 +19,7 @@ export
 
 # FIXME: with Julia 0.5 all relative (prefixed by .. or ...) symbols must be
 #        on the same line as `import`
-import ..libbobyqa, ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart
+import .._libbobyqa, ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart
 
 immutable Status <: AbstractStatus
     _code::Cint
@@ -37,7 +37,7 @@ const STEP_FAILED          = Status(-8)
 
 # Get a textual explanation of the status returned by BOBYQA.
 function getreason(status::Status)
-    ptr = ccall((:bobyqa_reason, libbobyqa), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:bobyqa_reason, _libbobyqa), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown BOBYQA status: ", status._code)
     end
@@ -88,7 +88,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
         error("bad number of scaling factors")
     end
     work = Array{Cdouble}(nw)
-    status = Status(ccall((:bobyqa_optimize, libbobyqa), Cint,
+    status = Status(ccall((:bobyqa_optimize, _libbobyqa), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Void},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
@@ -123,7 +123,7 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
     work = Array{Cdouble}(_wslen(n, npt))
-    status = Status(ccall((:bobyqa, libbobyqa), Cint,
+    status = Status(ccall((:bobyqa, _libbobyqa), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
