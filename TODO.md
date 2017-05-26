@@ -16,3 +16,10 @@
 * Write doc. for `bobyqa`.
 
 * Automatically build dependencies.
+
+* Reorganize things:
+  - OptimPack.jl -> OptimPackLib.jl = Julia wrapper to use OptimPack library;
+  - OptimPackNextGen.jl -> OptimPack.jl = pure Julia version of large scale
+    optimization methods;
+  - OptimPackNextGen.jl/Powell -> OptimPackPowell.jl = Julia wrapper to use
+    Powell methods in OptimPack library;

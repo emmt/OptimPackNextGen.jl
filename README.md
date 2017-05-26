@@ -1,6 +1,8 @@
-# OptimPack.jl
+[![Build Status](https://travis-ci.org/emmt/OptimPackNextGen.jl.svg?branch=master)](https://travis-ci.org/emmt/OptimPackNextGen.jl)
 
-**OptimPack** is a package/library for numerical optimization in particular
+# OptimPackNextGen.jl
+
+**OptimPackNextGen** is a package/library for numerical optimization in particular
 large scale problems.
 
 
@@ -20,7 +22,7 @@ large scale problems.
 
 ## Small to moderate size problems
 
-For problems of small to moderate size, **OptimPack** provides:
+For problems of small to moderate size, **OptimPackNextGen** provides:
 
 * Mike Powell's **COBYLA** (see ref. [10]), **NEWUOA** (see ref. [11]), and
   **BOBYQA** (see ref. [12]) algorithms for minimizing a function of many
