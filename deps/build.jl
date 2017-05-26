@@ -21,17 +21,19 @@ provides(Sources,
 prefix = joinpath(BinDeps.depsdir(optimpack), "usr")
 srcdir = joinpath(BinDeps.depsdir(optimpack), "src", unpacked_dir)
 libdir = joinpath(prefix, "lib")
-name = "opk"
-@compat @static if is_apple()
-    libfilename = "lib$(name).dylib"
-elseif is_unix()
-    libfilename = "lib$(name).so"
-#elseif is_windows()
-#    libfilename = "$(name).dll"
-else
-    error("unknown architecture")
+
+function dynlibname(name)
+    ext = Base.Libdl.dlext
+    @compat @static if is_unix()
+        return "lib$(name).$(ext)"
+    elseif is_windows()
+        return "$(name).$(ext)"
+    else
+        error("unknown architecture")
+    end
 end
-destlib = joinpath(libdir, libfilename)
+
+destlib = joinpath(libdir, dynlibname("opk"))
 
 provides(SimpleBuild,
          (@build_steps begin
@@ -51,7 +53,7 @@ provides(SimpleBuild,
          end),
          libs)
 
-@BinDeps.install @compat Dict(#:libopk => :_libopk,
+@BinDeps.install @compat Dict(:libopk => :_libopk,
                               :libcobyla => :_libcobyla,
                               :libbobyqa => :_libbobyqa,
                               :libnewuoa => :_libnewuoa)
