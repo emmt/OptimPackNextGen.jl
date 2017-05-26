@@ -18,27 +18,28 @@ using Compat
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
 
-export vcombine,
-       vcombine!,
-       vcopy,
-       vcopy!,
-       vcreate,
-       vdot,
-       vfill!,
-       vnorm1,
-       vnorm2,
-       vnorminf,
-       vproduct,
-       vproduct!,
-       vscale,
-       vscale!,
-       vswap!,
-       vupdate!,
-       project_variables!,
-       project_direction!,
-       step_limits,
-       get_free_variables,
-       get_free_variables!
+export
+    vcombine,
+    vcombine!,
+    vcopy,
+    vcopy!,
+    vcreate,
+    vdot,
+    vfill!,
+    vnorm1,
+    vnorm2,
+    vnorminf,
+    vproduct,
+    vproduct!,
+    vscale,
+    vscale!,
+    vswap!,
+    vupdate!,
+    project_variables!,
+    project_direction!,
+    step_limits,
+    get_free_variables,
+    get_free_variables!
 
 include("vectors.jl")
 
