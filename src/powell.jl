@@ -17,9 +17,9 @@ using Compat
 
 # Locate the dynamic library.
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
-    include("../deps/deps.jl")
+    include(joinpath("..","deps","deps.jl"))
 else
-    error("OptimPackNextGen not properly installed.  Please create and edit file \"../deps/libs.jl\"")
+    error("OptimPackNextGen not properly installed.  Please run Pkg.build(\"OptimPackNextGen\")")
 end
 
 export
