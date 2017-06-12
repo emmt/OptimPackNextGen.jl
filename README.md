@@ -14,7 +14,7 @@ large scale problems.
   caller must provide means to compute the objective function and its gradient.
 
 * [Line searches methods](doc/linesearches.md) are used to approximately
-  minimize the objective function along a given serach direction.
+  minimize the objective function along a given search direction.
 
 * [Algebra](doc/algebra.md) describes operations on "vectors" (that is to say
   the "variables" of the problem to solve).
