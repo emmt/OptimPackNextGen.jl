@@ -2,8 +2,8 @@
 
 # OptimPackNextGen.jl
 
-**OptimPackNextGen** is a package/library for numerical optimization in particular
-large scale problems.
+**OptimPackNextGen** is a [Julia](http://julialang.org/) package for numerical
+optimization with particular focus on large scale problems.
 
 
 ## Large scale problems
@@ -47,3 +47,29 @@ The following methods are provided for univariate functions:
 
 * `Step.minimize` (resp. `Step.maximize`) implements the STEP method for
   finding the global minimum (resp. maximum) of a function on an interval.
+
+
+## Installation
+
+**OptimPackNextGen** is not yet an
+[official Julia package](https://pkg.julialang.org/) so you have to clone the
+repository and build the associated
+[`OptimPack`](https://github.com/emmt/OptimPack) library:
+
+   Pkg.clone("https://github.com/emmt/OptimPackNextGen.jl.git")
+   Pkg.build("OptimPackNextGen")
+
+
+## Rationale and related software
+
+Related software are the [`OptimPack`](https://github.com/emmt/OptimPack)
+library which implements the C version of the algorithms and the
+[`OptimPack.jl`](https://github.com/emmt/OptimPack.jl) Julia package which is a
+wrapper of this library for Julia.  Compared to `OptimPack.jl`, the new
+`OptimPackNextGen.jl` implements in pure Julia the algorithms dedicated to
+large scale problems but still relies on the C library for a few algorithms
+(notably the Powell methods).  The rationale is to facilitate the integration
+of exotic types of variables for optimization problems in Julia.  Eventually,
+`OptimPackNextGen.jl` will become the next version of `OptimPack.jl` but, until
+then, it is more flexible to have two separate modules and avoid coping with
+compatibility and design issues.

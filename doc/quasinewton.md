@@ -101,7 +101,7 @@ The limited memory BFGS method (L-BFGS) was first described by Nocedal (1980)
 who dubbed it SQN.  The method is implemented in MINPACK-2 (1995) by the
 FORTRAN routine VMLM.  The numerical performances of L-BFGS have been studied
 by Liu and Nocedal (1989) who proved that it is globally convergent for
-unfiformly convex problems with a R-linear rate of convergence.  They provided
+uniformly convex problems with a R-linear rate of convergence.  They provided
 the FORTRAN code LBFGS.  The BLMVM and VMLMB algorithms were proposed by Benson
 and Moré (2001) and Thiébaut (2002) to account for separable bound constraints
 on the variables.  These two latter methods are rather different than L-BFGS-B
