@@ -170,7 +170,7 @@ function fzero{T<:AbstractFloat}(f, a::T, b::T,
 
         # Check for convergence.
         m = (c - b)*HALF
-        if abs(m) ≤ δ #FIXME: || fb == ZERO
+        if abs(m) ≤ δ || fb == ZERO
 	    break
         end
 
