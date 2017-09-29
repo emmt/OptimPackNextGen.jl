@@ -284,14 +284,14 @@ function _vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
         p = vcreate(x) # projected gradient
     end
     d = vcreate(x)     # search direction
-    S = Array(T, mem)  # memorized steps
-    Y = Array(T, mem)  # memorized gradient differences
+    S = Array{T}(mem)  # memorized steps
+    Y = Array{T}(mem)  # memorized gradient differences
     for k in 1:mem
         S[k] = vcreate(x)
         Y[k] = vcreate(x)
     end
-    rho = Array(Float, mem)
-    alpha = Array(Float, mem)
+    rho = Array{Float}(mem)
+    alpha = Array{Float}(mem)
 
     # Variable used to control the stage of the algorithm:
     #   * stage = 0 at start or restart;
