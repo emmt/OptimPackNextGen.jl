@@ -139,7 +139,7 @@ The `SPG.Info` type has the following members:
   convex-constrained optimization", ACM Transactions on Mathematical Software
   (TOMS) 27, pp. 340-349 (2001).
 """
-spg{T}(fg!, prj!, x0::T, m::Integer; kwds...) =
+spg(fg!, prj!, x0, m::Integer; kwds...) =
     spg!(fg!, prj!, vcopy(x0), m; kwds...)
 
 REASON = Dict{Int,String}(SEARCHING => "Work in progress",
@@ -150,16 +150,16 @@ REASON = Dict{Int,String}(SEARCHING => "Work in progress",
 
 getreason(ws::Info) = get(REASON, ws.status, "unknown status")
 
-function spg!{T}(fg!, prj!, x::T, m::Integer;
-                  ws::Info=Info(),
-                  maxit::Integer=typemax(Int),
-                  maxfc::Integer=typemax(Int),
-                  eps1::Real=1e-6,
-                  eps2::Real=1e-6,
-                  eta::Real=1.0,
-                  printer::Function=default_printer,
-                  verb::Bool=false,
-                  io::IO=STDOUT)
+function spg!(fg!, prj!, x, m::Integer;
+              ws::Info=Info(),
+              maxit::Integer=typemax(Int),
+              maxfc::Integer=typemax(Int),
+              eps1::Real=1e-6,
+              eps2::Real=1e-6,
+              eta::Real=1.0,
+              printer::Function=default_printer,
+              verb::Bool=false,
+              io::IO=STDOUT)
     _spg!(fg!, prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
           Float(eps1), Float(eps2), Float(eta),
           printer, verb, io)
