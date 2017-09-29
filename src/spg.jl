@@ -365,7 +365,7 @@ function _spg!{T}(fg!, prj!, x::T, m::Int, ws::Info,
         if status < 0
             print_with_color(:red, STDERR, "# WARNING: ", reason, "\n")
         else
-            print_with_color(:green, io, "# SUCCESS: ", reason, "n")
+            print_with_color(:green, io, "# SUCCESS: ", reason, "\n")
         end
     end
     return xbest
