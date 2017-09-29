@@ -55,9 +55,10 @@ The following keywords are available:
 
 * `ftol` is a tuple of two nonnegative reals specifying respectively the
   absolute and relative errors desired in the function.  Convergence occurs if
+  the absolute error between `f(x)` and `f(xsol)` is less than `ftol[1]` or if
   the estimate of the relative error between `f(x)` and `f(xsol)`, where `xsol`
-  is a local minimizer, is less than `ftol[1]` or if the absolute error between
-  `f(x)` and `f(xsol)` is less than `ftol[2]`.  By default, `ftol = (0.0,1e-8)`.
+  is a local minimizer, is less than `ftol[2]`.  By default, `ftol =
+  (0.0,1e-8)`.
 
 * `gtol` is a tuple of two nonnegative reals specifying the absolute and a
   relative thresholds for the norm of the gradient, convergence is assumed as
@@ -356,12 +357,12 @@ function _vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
                 # and check for stopping condition.
                 iter += 1
                 delta = max(abs(f - f0), stp*abs(gd0))
-                if delta ≤ frtol*abs(f0)
-                    stage = 3
-                    reason = "frtol test satisfied"
-                elseif delta ≤ fatol
+                if delta ≤ fatol
                     stage = 3
                     reason = "fatol test satisfied"
+                elseif delta ≤ frtol*abs(f0)
+                    stage = 3
+                    reason = "frtol test satisfied"
                 elseif iter ≥ maxiter
                     stage = 4
                     reason = "too many iterations"
