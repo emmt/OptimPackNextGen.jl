@@ -137,9 +137,8 @@ The `SPGInfo` type has the following members:
   convex-constrained optimization", ACM Transactions on Mathematical Software
   (TOMS) 27, pp. 340-349 (2001).
 """
-function spg{T}(fg!, prj!, x0::T, m::Integer; kwds...)
+spg{T}(fg!, prj!, x0::T, m::Integer; kwds...) =
     spg!(fg!, prj!, vcopy(x0), m; kwds...)
-end
 
 REASON = Dict{Int,String}(SEARCHING => "Work in progress",
                           INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
