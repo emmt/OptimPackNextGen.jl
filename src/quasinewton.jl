@@ -144,7 +144,7 @@ by Byrd at al. (1995) which has more overheads and is slower.
   Astronomical Data Analysis II, Proc. SPIE 4847, pp. 174-183 (2002).
 
 """
-vmlmb{T}(fg!::Function, x0::T; kwds...) = vmlmb!(fg!, vcopy(x0); kwds...)
+vmlmb(fg!::Function, x0; kwds...) = vmlmb!(fg!, vcopy(x0); kwds...)
 
 """
 `vmlmb!` is the in-place version of `vmlmb` (which to see):
