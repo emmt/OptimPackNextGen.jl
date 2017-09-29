@@ -28,7 +28,7 @@ using OptimPackNextGen.Algebra
 
 import OptimPackNextGen: Float, getreason
 
-export spg, spg!, SPGInfo
+export spg, spg!
 
 const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
@@ -36,7 +36,7 @@ const TWONORM_CONVERGENCE  =  2
 const TOO_MANY_ITERATIONS  = -1
 const TOO_MANY_EVALUATIONS = -2
 
-type SPGInfo
+type Info
     f::Float      # The final/current function value.
     fbest::Float  # The best function value so far.
     pginfn::Float # ||projected grad||_inf at the final/current iteration.
@@ -46,16 +46,17 @@ type SPGInfo
     pcnt::Int     # The number of projections.
     status::Int   # Termination parameter.
 end
-SPGInfo() = SPGInfo(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
+Info() = Info(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 
 doc"""
 # Spectral Projected Gradient Method
 
-    x = spg(fg!, prj!, x0, m)
+The `spg` method implements the Spectral Projected Gradient Method (Version 2:
+"continuous projected gradient direction") to find the local minimizers of a
+given function with convex constraints, described in the references below.  A
+typical use is:
 
-SPG implements the Spectral Projected Gradient Method (Version 2: "continuous
-projected gradient direction") to find the local minimizers of a given function
-with convex constraints, described in the references below.
+    x = spg(fg!, prj!, x0, m)
 
 The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
@@ -71,9 +72,10 @@ region.  These functions must be defined as:
          return dst
      end
 
-Argument `x0` is the initial solution and argument `m` is the number of previous
-function values to be considered in the nonmonotone line search.  If `m ≤ 1`,
-then a monotone line search with Armijo-like stopping criterion will be used.
+Argument `x0` is the initial solution and argument `m` is the number of
+previous function values to be considered in the nonmonotone line search.  If
+`m ≤ 1`, then a monotone line search with Armijo-like stopping criterion will
+be used.
 
 The following keywords are available:
 
@@ -94,20 +96,20 @@ The following keywords are available:
 
 * `maxfc` specifies the maximum number of function evaluations.
 
-* `ws` is an instance of `SPGInfo` to store information about the final
+* `ws` is an instance of `SPG.Info` to store information about the final
   iterate.
 
 * `verb` indicates whether to print some information at each iteration.
 
 * `printer` specifies a subroutine to print some information at each iteration.
   This subroutine will be called as `printer(io, ws)` with `io` the output
-  stream and `ws` an instance of `SPGInfo` with information about the current
+  stream and `ws` an instance of `SPG.Info` with information about the current
   iterate.
 
 * `io` specifes the output stream for iteration information.  It is `STDOUT` by
   default.
 
-The `SPGInfo` type has the following members:
+The `SPG.Info` type has the following members:
 
 * `f` is the function value.
 * `fbest` is the best function value so far.
@@ -146,10 +148,10 @@ REASON = Dict{Int,String}(SEARCHING => "Work in progress",
                           TOO_MANY_ITERATIONS => "Too many iterations",
                           TOO_MANY_EVALUATIONS => "Too many function evaluations")
 
-getreason(ws::SPGInfo) = get(REASON, ws.status, "unknown status")
+getreason(ws::Info) = get(REASON, ws.status, "unknown status")
 
 function spg!{T}(fg!, prj!, x::T, m::Integer;
-                  ws::SPGInfo=SPGInfo(),
+                  ws::Info=Info(),
                   maxit::Integer=typemax(Int),
                   maxfc::Integer=typemax(Int),
                   eps1::Real=1e-6,
@@ -163,7 +165,7 @@ function spg!{T}(fg!, prj!, x::T, m::Integer;
           printer, verb, io)
 end
 
-function _spg!{T}(fg!, prj!, x::T, m::Int, ws::SPGInfo,
+function _spg!{T}(fg!, prj!, x::T, m::Int, ws::Info,
                   maxit::Int, maxfc::Int,
                   eps1::Float, eps2::Float, eta::Float,
                   printer::Function, verb::Bool, io::IO)
@@ -369,7 +371,7 @@ function _spg!{T}(fg!, prj!, x::T, m::Int, ws::SPGInfo,
     return xbest
 end
 
-function default_printer(io::IO, nfo::SPGInfo)
+function default_printer(io::IO, nfo::Info)
     if nfo.iter == 0
         @printf(io, "# %s\n# %s\n",
                 " ITER   EVAL   PROJ             F(x)              ‖PG(X)‖_2 ‖PG(X)‖_∞",
