@@ -4,10 +4,10 @@
 # Implement the STEP (Select The Easiest Point) method for global univariate
 # optimization [1].
 #
-# [1] Swarzberg, S., Seront, G. & Bersini, H., "S.T.E.P.: the easiest way
-#     to optimize a function," in IEEE World Congress on Computational
-#     Intelligence, Proceedings of the First IEEE Conference on
-#     Evolutionary Computation,vol. 1, pp. 519-524 (1994).
+# [1] S. Swarzberg, G. Seront & H. Bersini, "S.T.E.P.: the easiest way to
+#     optimize a function," in IEEE World Congress on Computational
+#     Intelligence, Proceedings of the First IEEE Conference on Evolutionary
+#     Computation,vol. 1, pp. 519-524 (1994).
 #
 # -----------------------------------------------------------------------------
 #

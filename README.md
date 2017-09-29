@@ -24,12 +24,12 @@ optimization with particular focus on large scale problems.
 
 For problems of small to moderate size, **OptimPackNextGen** provides:
 
-* Mike Powell's **COBYLA** (see ref. [10]), **NEWUOA** (see ref. [11]), and
-  **BOBYQA** (see ref. [12]) algorithms for minimizing a function of many
-  variables.  These methods are *derivatives free* (only the function
-  values are needed).  **NEWUOA** is for unconstrained optimization.
-  **COBYLA** accounts for general inequality constraints.  **BOBYQA** accounts
-  for bound constraints on the variables.
+* Mike Powell's **COBYLA** (Powell, 1994), **NEWUOA** (Powell, 2006), and
+  **BOBYQA** (Powell, 2009) algorithms for minimizing a function of many
+  variables.  These methods are *derivatives free* (only the function values
+  are needed).  **NEWUOA** is for unconstrained optimization.  **COBYLA**
+  accounts for general inequality constraints.  **BOBYQA** accounts for bound
+  constraints on the variables.
 
 
 ## Univariate functions
@@ -37,16 +37,18 @@ For problems of small to moderate size, **OptimPackNextGen** provides:
 The following methods are provided for univariate functions:
 
 * `Brent.fzero` implements van Wijngaarden–Dekker–Brent method for finding a
-  zero of a function.
+  zero of a function (Brent, 1973).
 
-* `Brent.fmin` implements Brent's method for finding a minimum of a function.
+* `Brent.fmin` implements Brent's method for finding a minimum of a function
+  (Brent, 1973).
 
 * `Bradi.minimize` (resp. `Bradi.maximize`) implements the BRADI ("Bracket"
-  then "Dig") method for finding the global minimum (resp. maximum) of a
-  function on an interval.
+  then "Dig"; Soulez *et al.*, 2014) method for finding the global minimum
+  (resp. maximum) of a function on an interval.
 
-* `Step.minimize` (resp. `Step.maximize`) implements the STEP method for
-  finding the global minimum (resp. maximum) of a function on an interval.
+* `Step.minimize` (resp. `Step.maximize`) implements the STEP method (Swarzberg
+  *et al.*, 1994) for finding the global minimum (resp. maximum) of a function
+  on an interval.
 
 
 ## Installation
@@ -56,8 +58,8 @@ The following methods are provided for univariate functions:
 repository and build the associated
 [`OptimPack`](https://github.com/emmt/OptimPack) library:
 
-   Pkg.clone("https://github.com/emmt/OptimPackNextGen.jl.git")
-   Pkg.build("OptimPackNextGen")
+    Pkg.clone("https://github.com/emmt/OptimPackNextGen.jl.git")
+    Pkg.build("OptimPackNextGen")
 
 
 ## Rationale and related software
@@ -73,3 +75,68 @@ of exotic types of variables for optimization problems in Julia.  Eventually,
 `OptimPackNextGen.jl` will become the next version of `OptimPack.jl` but, until
 then, it is more flexible to have two separate modules and avoid coping with
 compatibility and design issues.
+
+
+## References
+
+* S.J. Benson & J.J. Moré, "*A limited memory variable metric method in
+  subspaces and bound constrained optimization problems*", in Subspaces and
+  Bound Constrained Optimization Problems, (2001).
+
+* E.G. Birgin, J.M. Martínez & M. Raydan, "*Nonmonotone Spectral Projected
+  Gradient Methods on Convex Sets*," SIAM J. Optim. **10**, 1196-1211 (2000).
+
+* R.P. Brent, "*Algorithms for Minimization without Derivatives*,"
+  Prentice-Hall, Inc. (1973).
+
+* W.W. Hager & H. Zhang, "*A New Conjugate Gradient Method with Guaranteed
+  Descent and an Efficient Line Search*," SIAM J. Optim., Vol. 16, pp. 170-192
+  (2005).
+
+* W.W. Hager & H. Zhang, "*A survey of nonlinear conjugate gradient methods*,"
+  Pacific Journal of Optimization, Vol. 2, pp. 35-58 (2006).
+
+* M.R. Hestenes & E. Stiefel, "*Methods of Conjugate Gradients for Solving
+  Linear Systems*," Journal of Research of the National Bureau of Standards 49,
+  pp. 409-436 (1952).
+
+* D. Liu and J. Nocedal, "*On the limited memory BFGS method for large scale
+  optimization*", Mathematical Programming B **45**, 503-528 (1989).
+
+* J.J. Moré & D.C. Sorensen, "*Computing A Trust Region Step*," SIAM
+  J. Sci. Stat. Comp. **4**, 553-572 (1983).
+
+* J.J. Moré and D.J. Thuente, "*Line search algorithms with guaranteed
+  sufficient decrease*" in ACM Transactions on Mathematical Software (TOMS)
+  Volume 20, Issue 3, Pages 286-307 (1994).
+
+* M.J.D. Powell, "*A direct search optimization method that models the
+  objective and constraint functions by linear interpolation*" in Advances in
+  Optimization and Numerical Analysis Mathematics and Its Applications,
+  vol. **275** (eds. Susana Gomez and Jean-Pierre Hennart), Kluwer Academic
+  Publishers, pp. 51-67 (1994).
+
+* M.J.D. Powell, "*The NEWUOA software for unconstrained minimization without
+  derivatives*" in Large-Scale Nonlinear Optimization, editors G. Di Pillo and
+  M. Roma, Springer, pp. 255-297 (2006).
+
+* M.J.D. Powell, "*The BOBYQA Algorithm for Bound Constrained Optimization
+  Without Derivatives*",  Technical report, Department of Applied Mathematics
+  and Theoretical Physics, University of Cambridge (2009).
+
+* F. Soulez, É. Thiébaut, M. Tallon, I. Tallon-Bosc & P. Garcia, "*Optimal a
+  posteriori fringe tracking in optical interferometry*" in Proc. SPIE 9146
+  "*Optical and Infrared Interferometry IV*", 91462Y (2014);
+  [doi:10.1117/12.2056590](http://dx.doi.org/10.1117/12.2056590).
+
+* T. Steihaug, "*The conjugate gradient method and trust regions in large scale
+  optimization*", SIAM Journal on Numerical Analysis, vol. **20**, pp. 626-637
+  (1983).
+
+* S. Swarzberg, G. Seront & H. Bersini, "*S.T.E.P.: the easiest way to optimize
+  a function*" in IEEE World Congress on Computational Intelligence,
+  Proceedings of the First IEEE Conference on Evolutionary Computation,
+  vol. **1**, pp. 519-524 (1994).
+
+* É. Thiébaut, "*Optimization issues in blind deconvolution algorithms*," in
+  Astronomical Data Analysis II, SPIE Proc. **4847**, 174-183 (2002).
