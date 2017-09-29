@@ -49,7 +49,7 @@ import Base: ==
 =={T<:AbstractStatus}(a::T, b::T) = a._code == b._code
 ==(a::AbstractStatus, b::AbstractStatus) = false
 
-doc"""
+"""
 The `iterate(ctx, ...)` method performs the next iteration of the reverse
 communication associated with the context `ctx`.  Other arguments depend on the
 type of algorithm.
@@ -87,7 +87,7 @@ an explanatory message).
 """
 function iterate end
 
-doc"""
+"""
 
     restart(ctx) -> status
 
@@ -98,7 +98,7 @@ algorithm, see `getstatus` for details.
 """
 function restart end
 
-doc"""
+"""
 
     getstatus(ctx) -> status
 
@@ -116,7 +116,7 @@ Anything else indicates an error (see `getreason` for an explanatory message).
 """
 function getstatus end
 
-doc"""
+"""
 
     getreason(ctx) -> msg
 
@@ -133,7 +133,7 @@ function getreason end
 
 getreason(ctx::AbstractContext) = getreason(getstatus(ctx))
 
-doc"""
+"""
 
     getlastf(ctx) -> fx
 
@@ -145,7 +145,7 @@ previous set of variables.
 """
 function getlastf end
 
-doc"""
+"""
 
     getncalls(ctx) -> nevals
 
@@ -156,7 +156,7 @@ wrong, nonnegative otherwise.
 """
 function getncalls end
 
-doc"""
+"""
 
     getradius(ctx) -> rho
 

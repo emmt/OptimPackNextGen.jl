@@ -11,7 +11,7 @@
 # Copyright (C) 2015-2017, Éric Thiébaut.
 #
 
-doc"""
+"""
 # Linear Conjugate Gradient Algorithm
 
 This method iteratively solves the linear system:
