@@ -177,10 +177,11 @@ end
 
 # With precompilation, `__init__()` carries on initializations that must occur
 # at runtime like `cfunction` which returns a raw pointer.
+const _objfun_c = Ref{Ptr{Void}}()
 function __init__()
-    global const _objfun_c = cfunction(_objfun, Cdouble,
-                                       (Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
-                                        Ptr{Cdouble}, Ptr{Void}))
+    _objfun_c[] = cfunction(_objfun, Cdouble,
+                            (Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
+                             Ptr{Cdouble}, Ptr{Void}))
 end
 
 """
@@ -221,7 +222,7 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
                            Ptr{Void}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
                            Ptr{Cdouble}, Ptr{Cptrdiff_t}), n, m,
-                          maximize, _objfun_c, pointer_from_objref(fc),
+                          maximize, _objfun_c[], pointer_from_objref(fc),
                           x, sclptr, rhobeg, rhoend, verbose, maxeval,
                           work, iact))
     if check && status != SUCCESS
@@ -246,7 +247,7 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Void}, Ptr{Void},
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
                            Cptrdiff_t, Ptr{Cdouble}, Ptr{Cptrdiff_t}),
-                          n, m, _objfun_c, pointer_from_objref(f),
+                          n, m, _objfun_c[], pointer_from_objref(f),
                           x, rhobeg, rhoend, verbose, maxeval, work, iact))
     if check && status != SUCCESS
         error(getreason(status))
