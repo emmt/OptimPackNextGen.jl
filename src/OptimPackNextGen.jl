@@ -18,6 +18,8 @@ module OptimPackNextGen
 export
     fmin,
     fzero,
+    nllsq,
+    nllsq!,
     conjgrad,
     conjgrad!,
     vmlmb,
@@ -48,6 +50,9 @@ include("brent.jl")
 import .Brent: fmin, fzero
 
 include("powell.jl")
+
+include("nllsq.jl")
+using .NonLinearLeastSquares
 
 include("bradi.jl")
 
