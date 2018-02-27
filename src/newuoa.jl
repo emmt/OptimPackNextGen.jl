@@ -182,8 +182,8 @@ specifies whether to maximize the objective function; otherwise, the method
 attempts to minimize the objective function.
 
 """
-optimize(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
-    optimize!(f, copy(x0), args...; kwds...)
+optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+    optimize!(f, copy!(Array{Cdouble}(length(x0)), x0), args...; kwds...)
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;
