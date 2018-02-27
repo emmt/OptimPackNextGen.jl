@@ -25,10 +25,12 @@ module Step
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
 
+using Compat
+
 """
 # Cyclic singly linked list
 """
-type Item{T}
+@compat mutable struct Item{T}
     next::Item{T}
     data::T
     (::Type{Item{T}}){T}(next::Item{T}, data::T) = new{T}(next, data)
@@ -50,7 +52,7 @@ function append!{T}(item::Item{T}, data::T)
     return newitem
 end
 
-type NodeData
+@compat mutable struct NodeData
     x::Float # position
     y::Float # function value
     q::Float # "quality" factor

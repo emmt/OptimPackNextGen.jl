@@ -60,10 +60,10 @@ function nllsq(y::AbstractArray{<:Real,N},
 end
 
 function nllsq(w::AbstractArray{<:Real,N},
-                  y::AbstractArray{<:Real,N},
-                  f::Function,
-                  p0::AbstractVector{<:Real},
-                  x; kwds...) where {N}
+               y::AbstractArray{<:Real,N},
+               f::Function,
+               p0::AbstractVector{<:Real},
+               x; kwds...) where {N}
     return nllsq!(w, y, f, copyparameters(p0), x; kwds...)
 end
 

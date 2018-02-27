@@ -659,8 +659,8 @@ end
 
 # Orientation is indicated by a singleton.
 @compat abstract type Orientation end
-immutable Forward  <: Orientation; end
-immutable Backward <: Orientation; end
+@compat struct Forward  <: Orientation; end
+@compat struct Backward <: Orientation; end
 
 const FORWARD = Forward()
 const BACKWARD = Backward()

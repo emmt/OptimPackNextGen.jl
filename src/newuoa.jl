@@ -27,7 +27,7 @@ using Compat
 const _LIB = _libnewuoa
 
 # Status returned by most functions of the library.
-immutable Status <: AbstractStatus
+@compat struct Status <: AbstractStatus
     _code::Cint
 end
 
@@ -247,7 +247,7 @@ newuoa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
     newuoa!(f, copy(x0), args...; kwds...)
 
 # Context for reverse communication variant of NEWUOA.
-type Context <: AbstractContext
+@compat mutable struct Context <: AbstractContext
     ptr::Ptr{Void}
     n::Int
     npt::Int

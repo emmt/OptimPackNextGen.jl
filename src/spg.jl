@@ -23,6 +23,7 @@
 
 module SPG
 
+using Compat
 using OptimPackNextGen
 using OptimPackNextGen.Algebra
 
@@ -36,7 +37,7 @@ const TWONORM_CONVERGENCE  =  2
 const TOO_MANY_ITERATIONS  = -1
 const TOO_MANY_EVALUATIONS = -2
 
-type Info
+@compat mutable struct Info
     f::Float      # The final/current function value.
     fbest::Float  # The best function value so far.
     pginfn::Float # ||projected grad||_inf at the final/current iteration.

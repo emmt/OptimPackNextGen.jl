@@ -27,7 +27,7 @@ using Compat
 const _LIB = _libcobyla
 
 # Status returned by most functions of the library.
-immutable Status <: AbstractStatus
+@compat struct Status <: AbstractStatus
     _code::Cint
 end
 
@@ -261,7 +261,7 @@ cobyla(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
     cobyla!(f, copy(x0), args...; kwds...)
 
 # Context for reverse communication variant of COBYLA.
-type CobylaContext <: AbstractContext
+@compat mutable struct CobylaContext <: AbstractContext
     ptr::Ptr{Void}
     n::Int
     m::Int

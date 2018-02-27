@@ -31,7 +31,7 @@ For problems of small to moderate size, **OptimPackNextGen** provides:
   accounts for general inequality constraints.  **BOBYQA** accounts for bound
   constraints on the variables.
 
-* `nllsq` implements non-linear (weighted) least squares. Powell's NEWUOA
+* `nllsq` implements non-linear (weighted) least squares fit. Powell's NEWUOA
   method is exploited to find the best fit parameters of given data by a user
   defined model function.
 

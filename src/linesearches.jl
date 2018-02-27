@@ -183,7 +183,7 @@ iterate!{T<:AbstractFloat}(ls::LineSearch{T}, stp::Real, f::Real, g::Real) =
 
 #-------------------------------------------------------------------------------
 
-type ArmijoLineSearch{T<:AbstractFloat} <: LineSearch{T}
+@compat mutable struct ArmijoLineSearch{T<:AbstractFloat} <: LineSearch{T}
     task::Symbol
     status::Symbol
     ftol::T
@@ -250,7 +250,7 @@ end
 
 #-------------------------------------------------------------------------------
 
-type MoreToraldoLineSearch{T<:AbstractFloat} <: LineSearch{T}
+@compat mutable struct MoreToraldoLineSearch{T<:AbstractFloat} <: LineSearch{T}
     task::Symbol
     status::Symbol
     gamma1::T
@@ -414,7 +414,7 @@ method) to compute a new step (based on cubic or quadratic interpolation) and
 to maintain the interval of search.
 
 """
-type MoreThuenteLineSearch{T<:AbstractFloat} <: LineSearch{T}
+@compat mutable struct MoreThuenteLineSearch{T<:AbstractFloat} <: LineSearch{T}
     task::Symbol
     status::Symbol
     ftol::T

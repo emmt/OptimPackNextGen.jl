@@ -27,7 +27,7 @@ using Compat
 const _LIB = _libbobyqa
 
 # Status returned by most functions of the library.
-immutable Status <: AbstractStatus
+@compat struct Status <: AbstractStatus
     _code::Cint
 end
 
