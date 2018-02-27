@@ -21,6 +21,8 @@ export
 #        on the same line as `import`
 import ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart,  .._libbobyqa
 
+using Compat
+
 # The dynamic library implementing the method.
 const _LIB = _libbobyqa
 
@@ -106,7 +108,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     return (status, x, work[1])
 end
 
-optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+@compat optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
     optimize!(f, copy!(Array{Cdouble}(length(x0)), x0), args...; kwds...)
 
 minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)

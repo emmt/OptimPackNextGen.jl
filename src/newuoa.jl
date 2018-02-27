@@ -21,6 +21,8 @@ export
 #        on the same line as `import`
 import ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart, .._libnewuoa
 
+using Compat
+
 # The dynamic library implementing the method.
 const _LIB = _libnewuoa
 
@@ -182,7 +184,7 @@ specifies whether to maximize the objective function; otherwise, the method
 attempts to minimize the objective function.
 
 """
-optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+@compat optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
     optimize!(f, copy!(Array{Cdouble}(length(x0)), x0), args...; kwds...)
 
 function optimize!(f::Function, x::DenseVector{Cdouble},

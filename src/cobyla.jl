@@ -21,6 +21,8 @@ export
 #        on the same line as `import`
 import ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart, .._libcobyla
 
+using Compat
+
 # The dynamic library implementing the method.
 const _LIB = _libcobyla
 
@@ -196,7 +198,7 @@ specifies whether to maximize the objective function; otherwise, the method
 attempts to minimize the objective function.
 
 """
-optimize(fc::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+@compat optimize(fc::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
     optimize!(fc, copy!(Array{Cdouble}(length(x0)), x0), args...; kwds...)
 
 function optimize!(fc::Function, x::DenseVector{Cdouble},
