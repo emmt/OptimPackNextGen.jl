@@ -57,13 +57,22 @@ The following methods are provided for univariate functions:
 
 ## Installation
 
+[MockAlgebra](https://github.com/emmt/MockAlgebra.jl) is a prerequisite for
+`OptimPackNextGen`.  To install `MockAlgebra`, simply do:
+
+```julia
+Pkg.clone("https://github.com/emmt/MockAlgebra.jl.git")
+```
+
 **OptimPackNextGen** is not yet an
 [official Julia package](https://pkg.julialang.org/) so you have to clone the
 repository and build the associated
 [`OptimPack`](https://github.com/emmt/OptimPack) library:
 
-    Pkg.clone("https://github.com/emmt/OptimPackNextGen.jl.git")
-    Pkg.build("OptimPackNextGen")
+```julia
+Pkg.clone("https://github.com/emmt/OptimPackNextGen.jl.git")
+Pkg.build("OptimPackNextGen")
+```
 
 
 ## Rationale and related software
