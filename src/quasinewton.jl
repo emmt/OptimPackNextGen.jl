@@ -20,18 +20,48 @@
 
 module QuasiNewton
 
-using OptimPackNextGen
-using OptimPackNextGen.Algebra
+using MockAlgebra
+using ...OptimPackNextGen
 using OptimPackNextGen.LineSearches
-
-import OptimPackNextGen.LineSearches: getreason
+using OptimPackNextGen.SimpleBounds
 
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
 
-export vmlmb, vmlmb!, EMULATE_BLMVM
+export
+    vmlmb,
+    vmlmb!,
+    EMULATE_BLMVM
 
 const EMULATE_BLMVM = UInt(1)
+
+# All scalar computations are done in double precision.  Thus manage to have
+# `vdot` and `vnorm2` return a double precision result.
+
+function vdot(x::AbstractArray{Float,N},
+              y::AbstractArray{Float,N}) where {N}
+    return MockAlgebra.vdot(x, y)
+end
+
+function vdot(x::AbstractArray{<:Real,N},
+              y::AbstractArray{<:Real,N}) where {N}
+    return Float(MockAlgebra.vdot(x, y))
+end
+
+function vdot(w::Union{AbstractArray{Float,N},AbstractVector{Int}},
+              x::AbstractArray{Float,N},
+              y::AbstractArray{Float,N}) where {N}
+    return MockAlgebra.vdot(w, x, y)
+end
+
+function vdot(w::Union{AbstractArray{<:Real,N},AbstractVector{Int}},
+              x::AbstractArray{<:Real,N},
+              y::AbstractArray{<:Real,N}) where {N}
+    return Float(MockAlgebra.vdot(w, x, y))
+end
+
+vnorm2(x::AbstractArray{Float,N}) where {N} = MockAlgebra.vnorm2(x)
+vnorm2(x::AbstractArray{<:Real,N}) where {N} = Float(MockAlgebra.vnorm2(x))
 
 """
 ## VMLMB: limited memory BFGS method with optional bounds
@@ -531,20 +561,20 @@ If the Euclidean norm of `d` has already been computed, then
 
 should be used instead with `dnorm = vnorm2(d)`.
 """
-sufficient_descent{T}(gd::Float, ε::Float, gnorm::Float, d::T) =
+sufficient_descent(gd::Real, ε::Real, gnorm::Real, d::AbstractVector) =
     sufficient_descent(gd, ε, gnorm, vnorm2(d))
 
-sufficient_descent(gd::Float, ε::Float, gnorm::Float, dnorm::Float) =
+sufficient_descent(gd::Real, ε::Real, gnorm::Real, dnorm::Real) =
     ε > 0 ? (gd ≤ -ε*dnorm*gnorm) : gd < 0
 
 
-function print_iteration(iter::Int, eval::Int, rejects::Int,
-                         f::Float, gnorm::Float, step::Float)
+function print_iteration(iter::Integer, eval::Integer, rejects::Integer,
+                         f::Real, gnorm::Real, step::Real)
     print_iteration(STDOUT, iter, eval, rejects, f, gnorm, step)
 end
 
-function print_iteration(io::IO, iter::Int, eval::Int, rejects::Int,
-                         f::Float, gnorm::Float, step::Float)
+function print_iteration(io::IO, iter::Integer, eval::Integer, rejects::Integer,
+                         f::Real, gnorm::Real, step::Real)
     if iter == 0
         @printf(io, "#%s%s\n#%s%s\n",
                 " ITER   EVAL   REJECTS",

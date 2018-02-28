@@ -15,6 +15,7 @@ module LineSearches
 
 using Compat
 
+import ...OptimPackNextGen
 import OptimPackNextGen.Float
 
 export

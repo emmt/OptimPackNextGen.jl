@@ -28,23 +28,23 @@ export
     spg!,
     getreason
 
+using MockAlgebra
+
 doc"""
 `Float` is the type of all floating point scalars, it is currently an alias to
 `Cdouble` which is itself an alias to `Float64`.
 """
 const Float = Cdouble
 
-function getreason end
-
-include("algebra.jl")
-importall .Algebra
+include("bounds.jl")
 
 include("conjgrad.jl")
 
 include("linesearches.jl")
+import .LineSearches: getreason
 
 include("quasinewton.jl")
-importall .QuasiNewton
+import .QuasiNewton: vmlmb!, vmlmb, EMULATE_BLMVM
 
 include("brent.jl")
 import .Brent: fmin, fzero
@@ -52,13 +52,13 @@ import .Brent: fmin, fzero
 include("powell.jl")
 
 include("nllsq.jl")
-using .NonLinearLeastSquares
+import .NonLinearLeastSquares: nllsq, nllsq!
 
 include("bradi.jl")
 
 include("step.jl")
 
 include("spg.jl")
-importall .SPG
+import .SPG: spg, spg!
 
 end # module

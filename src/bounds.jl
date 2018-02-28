@@ -1,564 +1,58 @@
 #
-# vectors.jl --
+# bounds.jl --
 #
-# Implement basic operations for *vectors*.  Here arrays of any rank are
-# considered as *vectors*, the only requirements are that, when combining
-# *vectors*, they have the same type and dimensions.  These methods are
-# intended to be used for numerical optimization and thus, for now,
-# elements must be real (not complex).
+# Implement operations involving simple bound constraints.
 #
 # -----------------------------------------------------------------------------
 #
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018, Éric Thiébaut.
 #
 
-"""
-    vnorm2(v)
+module SimpleBounds
 
-yields the Euclidean (L2) norm of `v`.  Also see `vnorm1` and `vnorminf`.
+export
+    clip,
+    get_free_variables!,
+    get_free_variables,
+    project_direction!,
+    project_variables!,
+    step_limits
 
-"""
-function vnorm2{T<:AbstractFloat,N}(v::AbstractArray{T,N}) :: Float
-    local s::Float = zero(Float)
-    @inbounds @simd for i in eachindex(v)
-        s += v[i]*v[i]
-    end
-    return sqrt(s)
-end
-
-vnorm2{V}(x::V) = Float(sqrt(vdot(x, y)))
+using Compat
 
 """
-    vnorm1(v)
+```julia
+clip(x, lo, hi)
+```
 
-yields the L1 norm of `v`, that is the sum of the absolute values of its
-elements.  Also see `vnorm2` and `vnorminf`.
+yields `x` subject to simple bound constraints.  That is, returns `x` if `lo ≤
+x ≤ hi`, `lo` if 'x < lo' and `hi` if `x > hi`.  This method is similar to
+`clamp` except that bounds may be `nothing` to indicate that there is no limit
+for the corresponding bound.
 
-"""
-function vnorm1{T<:AbstractFloat,N}(v::AbstractArray{T,N}) :: Float
-    local s::Float = zero(Float)
-    @inbounds @simd for i in eachindex(v)
-        s += abs(v[i])
-    end
-    return s
-end
+See also [`clamp`](@ref).
 
 """
-    vnorminf(v)
-
-yields the infinite norm of `v`, that is the maximum absolute value of its
-elements.  Also see `vnorm2` and `vnorm1`.
-
-"""
-function vnorminf{T<:AbstractFloat,N}(v::AbstractArray{T,N}) :: Float
-    local s::T = zero(T)
-    @inbounds @simd for i in eachindex(v)
-        s = max(s, abs(v[i]))
-    end
-    return Float(s)
-end
-
-#------------------------------------------------------------------------------
-
-"""
-### Inner product
-
-The call:
-
-    vdot(x, y)
-
-yields the inner product (a.k.a. scalar or dot product) between `x` and `y`
-(which must have the same size).  The triple inner product between `w`, `x` and
-`y` can be computed by:
-
-    vdot(w, x, y)
-
-Finally:
-
-    vdot(sel, x, y)
-
-computes the sum of the product of the elements of `x` and `y` whose indices
-are given by the `sel` argument.
-
-If the arguments are complex, they are considered as vectors of pairs of reals
-and the result is:
-
-    vdot(x, y) = x[1].re*y[1].re + x[1].im*y[1].im +
-                 x[2].re*y[2].re + x[2].im*y[2].im + ...
-
-which is the real part of the usual definition.
-
-"""
-function vdot{T<:AbstractFloat,N}(x::AbstractArray{T,N},
-                                  y::AbstractArray{T,N}) :: Float
-    @assert size(x) == size(y)
-    local s::Float = zero(Float)
-    @inbounds @simd for i in eachindex(x, y)
-        @inbounds s += x[i]*y[i]
-    end
-    return s
-end
-
-# FIXME: use v0.6 feature to enforce arguments to be the same type of arrays.
-
-function vdot{T<:AbstractFloat,N}(w::AbstractArray{T,N},
-                                  x::AbstractArray{T,N},
-                                  y::AbstractArray{T,N}) :: Float
-    @assert size(w) == size(x)== size(y)
-    local s::Float = zero(Float)
-    @inbounds @simd for i in eachindex(w, x, y)
-        s += w[i]*x[i]*y[i]
-    end
-    return s
-end
-
-function vdot{T<:AbstractFloat,N}(sel::AbstractVector{Int},
-                                  x::DenseArray{T,N},
-                                  y::DenseArray{T,N}) :: Float
-    @assert size(y) == size(x)
-    local s::Float = zero(Float)
-    const n = length(x)
-    @inbounds @simd for i in eachindex(sel)
-        j = sel[i]
-        1 ≤ j ≤ n || throw(BoundsError())
-        s += x[j]*y[j]
-    end
-    return s
-end
-
-function vdot{T<:AbstractFloat,N}(x::AbstractArray{Complex{T},N},
-                                  y::AbstractArray{Complex{T},N}) :: Float
-    @assert size(x) == size(y)
-    local s::Float = zero(Float)
-    @inbounds @simd for i in eachindex(x, y)
-        s += x[i].re*y[i].re + x[i].im*y[i].im
-    end
-    return s
-end
-
-#------------------------------------------------------------------------------
-
-"""
-### Create a new variable instance
-
-The call:
-
-    vcreate(x)
-
-creates a new variable instance similar to `x`.
-"""
-vcreate{T<:DenseArray}(x::T) = T(size(x))
-
-#= FIXME: force element type to be derived from `AbstractFloat` and (maybe) use
-`similar` =#
-
-#------------------------------------------------------------------------------
-
-"""
-### Copy contents
-
-The call:
-
-    vcopy!(dst, src) -> dst
-
-copies the contents of `src` into `dst` (which must have the same type and
-size) and returns `dst`.  Nothing is done if `src` and `dst` are the same
-object.  To create a fresh copy of `src`, do:
-
-    dst = vcopy(src)
-
-"""
-function vcopy!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
-                                    src::DenseArray{T,N})
-    if pointer(dst) != pointer(src)
-        @assert size(src) == size(dst)
-        @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = src[i]
-        end
-    end
-    return dst
-end
-
-vcopy(src) = vcopy!(vcreate(src), src)
-
-@doc @doc(vcopy) vcopy!
-
-#------------------------------------------------------------------------------
-
-"""
-### Exchange contents
-
-The call:
-
-    vswap!(x, y)
-
-exchanges the contents of `x` and `y` (which must have the same type and size).
-Nothing is done if `src` and `dst` are the same object.
-"""
-function vswap!{T,N}(x::DenseArray{T,N}, y::DenseArray{T,N})
-    if pointer(x) != pointer(y)
-        @assert size(x) == size(y)
-        @inbounds @simd for i in eachindex(x, y)
-            temp = x[i]
-            x[i] = y[i]
-            y[i] = temp
-        end
-    end
-end
-
-#------------------------------------------------------------------------------
-
-"""
-### Scaling
-
-    vscale(alpha, src) -> dst
-
-yields a new *vector* `dst` whose components are the corresponding components
-of `src` multiplied by the scalar `alpha`.  Alternatively:
-
-    vscale!(dst, alpha) -> dst
-
-performs in-place scaling of `dst` and
-
-    vscale!(dst, alpha, src) -> dst
-
-stores in `dst` the result of scaling `src` by `alpha`.  The two latter methods
-return argument `dst`.
-
-"""
-vscale{T<:Real}(alpha::T, x) =
-    alpha == one(T) ? vcopy(x) : vscale!(vcreate(x), alpha, x)
-
-vscale!{T<:AbstractFloat,N}(dst::DenseArray{T,N}, alpha::Real) =
-    vscale!(dst, T(alpha))
-
-function vscale!{T<:AbstractFloat,N}(dst::DenseArray{T,N}, alpha::T)
-    if alpha == zero(T)
-        @inbounds @simd for i in eachindex(dst)
-            dst[i] = alpha
-        end
-    elseif alpha == -one(T)
-        @inbounds @simd for i in eachindex(dst)
-            dst[i] = -dst[i]
-        end
-    elseif alpha != one(T)
-        @inbounds @simd for i in eachindex(dst)
-            dst[i] *= alpha
-        end
-    end
-    return dst
-end
-
-function vscale!{T<:AbstractFloat,N}(dst::DenseArray{T,N}, alpha::Real,
-                                     src::DenseArray{T,N})
-    vscale!(dst, T(alpha), src)
-end
-
-function vscale!{T<:AbstractFloat,N}(dst::DenseArray{T,N}, alpha::T,
-                                     src::DenseArray{T,N})
-    @assert size(src) == size(dst)
-    if alpha == zero(T)
-        @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = alpha
-        end
-    elseif alpha == -one(T)
-        @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = -src[i]
-        end
-    elseif alpha == one(T)
-        if pointer(dst) != pointer(src)
-            @inbounds @simd for i in eachindex(dst, src)
-                dst[i] = src[i]
-            end
-        end
-    else
-        @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = alpha*src[i]
-        end
-    end
-    return dst
-end
-
-vscale!{V}(dst::V, alpha::Real, src::V) = vcombine!(dst, alpha, src, 0, src)
-
-vscale!(dst, alpha::Real) = vscale!(dst, alpha, dst)
-
-@doc @doc(vscale) vscale!
-
-#------------------------------------------------------------------------------
-
-"""
-### Fill with a value
-
-The call:
-
-    vfill!(x, alpha) -> x
-
-sets all elements of `x` with the scalar value `alpha` and return `x`.
-"""
-function vfill!{T<:AbstractFloat,N}(x::DenseArray{T,N}, alpha::T)
-    @inbounds @simd for i in eachindex(x)
-        x[i] = alpha
-    end
-    return x
-end
-
-vfill!{T<:AbstractFloat,N}(x::DenseArray{T,N}, alpha::Real) =
-    vfill!(x, T(alpha))
-
-#------------------------------------------------------------------------------
-
-"""
-### Increment an array by a scaled step
-
-The call:
-
-    vupdate!(dst, alpha, x) -> dst
-
-increments the components of the destination *vector* `dst` by those of
-`alpha*x` and returns `dst`.  The code is optimized for some specific values of
-the multiplier `alpha`.  For instance, if `alpha` is zero, then `dst` left
-unchanged without using `x`.
-
-Another possibility is:
-
-    vupdate!(dst, sel, alpha, x) -> dst
-
-with `sel` a selection of indices to which apply the operation.  Note that if
-an indice is repeated, the operation will be performed several times at this
-location.
-
-"""
-function vupdate!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
-                                      alpha::T,
-                                      x::DenseArray{T,N})
-    @assert size(dst) == size(x)
-    if alpha == one(T)
-        @inbounds @simd for i in eachindex(dst, x)
-            dst[i] += x[i]
-        end
-    elseif alpha == -one(T)
-        @inbounds @simd for i in eachindex(dst, x)
-            dst[i] -= x[i]
-        end
-    elseif alpha != zero(T)
-        @inbounds @simd for i in eachindex(dst, x)
-            dst[i] += alpha*x[i]
-        end
-    end
-    return dst
-end
-
-function vupdate!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
-                                      alpha::Real,
-                                      x::DenseArray{T,N})
-    vupdate!(dst, T(alpha), x)
-end
-
-function vupdate!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
-                                      sel::AbstractVector{Int},
-                                      alpha::T,
-                                      x::DenseArray{T,N})
-    @assert size(dst) == size(x)
-    const n = length(dst)
-    if alpha == one(T)
-        @inbounds @simd for i in eachindex(sel)
-            j = sel[i]
-            1 ≤ j ≤ n || throw(BoundsError())
-            dst[j] += x[j]
-        end
-    elseif alpha == -one(T)
-        @inbounds @simd for i in eachindex(sel)
-            j = sel[i]
-            1 ≤ j ≤ n || throw(BoundsError())
-            dst[j] -= x[j]
-        end
-    elseif alpha != zero(T)
-        @inbounds @simd for i in eachindex(sel)
-            j = sel[i]
-            1 ≤ j ≤ n || throw(BoundsError())
-            dst[j] += alpha*x[j]
-        end
-    end
-    return dst
-end
-
-function vupdate!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
-                                      sel::AbstractVector{Int},
-                                      alpha::Real,
-                                      x::DenseArray{T,N})
-    vupdate!(dst, sel, T(alpha), x)
-end
-
-#------------------------------------------------------------------------------
-
-"""
-### Elementwise multiplication
-
-    vproduct(x, y) -> dst
-
-yields the elementwise multiplication of `x` by `y`.  To avoid allocating the
-result, the destination array `dst` can be specified with the in-place version
-of the method:
-
-    vproduct!(dst, x, y) -> dst
-
-Another possibility is:
-
-    vproduct!(dst, sel, x, y) -> dst
-
-with `sel` a selection of indices to which apply the operation.
-
-"""
-vproduct{V}(x::V, y::V) = vproduct!(vcreate(x), x, y)
-
-vproduct!{V}(dst::V, src::V) = vproduct!(dst, dst, src)
-
-function vproduct!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
-                                       x::DenseArray{T,N},
-                                       y::DenseArray{T,N})
-    @assert size(dst) == size(x) == size(y)
-    @inbounds @simd for i in eachindex(dst, x, y)
-        dst[i] = x[i]*y[i]
-    end
-    return dst
-end
-
-function vproduct!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
-                                       sel::AbstractVector{Int},
-                                       x::DenseArray{T,N},
-                                       y::DenseArray{T,N})
-    @assert size(dst) == size(x) == size(y)
-    const n = length(dst)
-    @inbounds @simd for i in eachindex(sel)
-        j = sel[i]
-        1 ≤ j ≤ n || throw(BoundsError())
-        dst[j] = x[j]*y[j]
-    end
-    return dst
-end
-
-@doc @doc(vproduct) vproduct!
-
-#------------------------------------------------------------------------------
-
-vcombine(alpha::Real, x) = vscale(alpha, x)
-
-vcombine!{T}(dst::T, alpha::Real, x::T) = vscale!(dst, alpha, x)
-
-"""
-### Linear combination of arrays
-
-    vcombine(alpha, x)          -> dst
-    vcombine(alpha, x, beta, y) -> dst
-
-yields the linear combinations `alpha*x` and `alpha*x + beta*y`.  To avoid
-allocating the result, the destination array `dst` can be specified with the
-in-place version of the method:
-
-    vcombine!(dst, alpha, x)          -> dst
-    vcombine!(dst, alpha, x, beta, y) -> dst
-
-The code is optimized for some specific values of the coefficients `alpha` and
-`beta`.  For instance, if `alpha` (resp. `beta`) is zero, then the contents of
-`x` (resp. `y`) is not used.
-
-The source(s) and the destination can be the same.  For instance, the two
-following lines of code produce the same result:
-
-    vcombine!(dst, 1, dst, alpha, x)
-    vupdate!(dst, alpha, x)
-
-and the following statements also yied the same result:
-
-    vcombine!(dst, alpha, x)
-    vscale!(dst, alpha, x)
-
-"""
-vcombine{T}(alpha::Real, x::T, beta::Real, y::T) =
-    vcombine!(vcreate(x), alpha, x, beta, y)
-
-function vcombine!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
-                                       alpha::Real, x::DenseArray{T,N},
-                                       beta::Real, y::DenseArray{T,N})
-    vcombine!(dst, T(alpha), x, T(beta), y)
-end
-
-function vcombine!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
-                                       alpha::T, x::DenseArray{T,N},
-                                       beta::T, y::DenseArray{T,N})
-    @assert size(dst) == size(x) == size(y)
-    if alpha == zero(T)
-        vcombine!(dst, beta, y)
-    elseif beta == zero(T)
-        vcombine!(dst, alpha, x)
-    elseif alpha == one(T)
-        if beta == one(T)
-            @inbounds @simd for i in eachindex(dst, x, y)
-                dst[i] = x[i] + y[i]
-            end
-        elseif beta == -one(T)
-            @inbounds @simd for i in eachindex(dst, x, y)
-                dst[i] = x[i] - y[i]
-            end
-        else
-            @inbounds @simd for i in eachindex(dst, x, y)
-                dst[i] = x[i] + beta*y[i]
-            end
-        end
-    elseif alpha == -one(T)
-        if beta == one(T)
-            @inbounds @simd for i in eachindex(dst, x, y)
-                dst[i] = y[i] - x[i]
-            end
-        elseif beta == -one(T)
-            @inbounds @simd for i in eachindex(dst, x, y)
-                dst[i] = -x[i] - y[i]
-            end
-        else
-            @inbounds @simd for i in eachindex(dst, x, y)
-                dst[i] = beta*y[i] - x[i]
-            end
-        end
-    else
-        if beta == one(T)
-            @inbounds @simd for i in eachindex(dst, x, y)
-                dst[i] = alpha*x[i] + y[i]
-            end
-        elseif beta == -one(T)
-            @inbounds @simd for i in eachindex(dst, x, y)
-                dst[i] = alpha*x[i] - y[i]
-            end
-        else
-            @inbounds @simd for i in eachindex(dst, x, y)
-                dst[i] = alpha*x[i] + beta*y[i]
-            end
-        end
-    end
-    return dst
-end
-
-@doc @doc(vcombine) vcombine!
+@inline clip{T<:Real}(x::T, lo::T, hi::T) = max(lo, min(x, hi))
+@inline clip{T<:Real}(x::T, ::Void, hi::T) = min(x, hi)
+@inline clip{T<:Real}(x::T, lo::T, ::Void) = max(lo, x)
 
 #-------------------------------------------------------------------------------
 # PROJECTING VARIABLES
 
-# clamp for scalars and unset bounds:
-@inline clamp{T<:Real}(x::T, lo::T, hi::T) = max(lo, min(x, hi))
-@inline clamp{T<:Real}(x::T, ::Void, hi::T) = min(x, hi)
-@inline clamp{T<:Real}(x::T, lo::T, ::Void) = max(lo, x)
-
 """
-    project_variables!(dst, src, lo, hi) -> dst
+```julia
+project_variables!(dst, src, lo, hi) -> dst
+```
 
-stores in destination `dst` the projection of the source variables `src` in the
+overwrites destination `dst` the projection of the source variables `src` in the
 box whose lower bound is `lo` and upper bound is `hi`.  The destination `dst`
 is returned.
 
-This is the same as `dst = clamp(src, lo, hi)` except that the result is
+This is the same as `dst = clip(src, lo, hi)` except that the result is
 preallocated and that the operation is *much* faster (by a factor of 2-3).
 
 """
@@ -579,15 +73,15 @@ function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
     const bounded_above = (hi < T(+Inf))
     if bounded_below && bounded_above
         @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = clamp(src[i], lo, hi)
+            dst[i] = clip(src[i], lo, hi)
         end
     elseif bounded_below
         @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = clamp(src[i], lo, nothing)
+            dst[i] = clip(src[i], lo, nothing)
         end
     elseif bounded_above
         @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = clamp(src[i], nothing, hi)
+            dst[i] = clip(src[i], nothing, hi)
         end
     elseif !is(dst, src)
         vcopy!(dst, src)
@@ -609,11 +103,11 @@ function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
     @assert size(dst) == size(src) == size(lo)
     if hi < T(+Inf)
         @inbounds @simd for i in eachindex(dst, src, lo)
-            dst[i] = clamp(src[i], lo[i], hi)
+            dst[i] = clip(src[i], lo[i], hi)
         end
     else
         @inbounds @simd for i in eachindex(dst, src, lo)
-            dst[i] = clamp(src[i], lo[i], nothing)
+            dst[i] = clip(src[i], lo[i], nothing)
         end
     end
     return dst
@@ -633,11 +127,11 @@ function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
     @assert size(dst) == size(src) == size(hi)
     if lo > T(-Inf)
         @inbounds @simd for i in eachindex(dst, src, hi)
-            dst[i] = clamp(src[i], lo, hi[i])
+            dst[i] = clip(src[i], lo, hi[i])
         end
     else
         @inbounds @simd for i in eachindex(dst, src, hi)
-            dst[i] = clamp(src[i], nothing, hi[i])
+            dst[i] = clip(src[i], nothing, hi[i])
         end
     end
     return dst
@@ -649,7 +143,7 @@ function project_variables!{T<:AbstractFloat,N}(dst::DenseArray{T,N},
                                                 hi::DenseArray{T,N})
     @assert size(dst) == size(src) == size(lo) == size(hi)
     @inbounds  @simd for i in eachindex(dst, src, lo, hi)
-        dst[i] = clamp(src[i], lo[i], hi[i])
+        dst[i] = clip(src[i], lo[i], hi[i])
     end
     return dst
 end
@@ -665,13 +159,13 @@ end
 const FORWARD = Forward()
 const BACKWARD = Backward()
 
-convert(::Type{Orientation}, ::Union{Forward,Type{Forward}}) = FORWARD
-convert(::Type{Orientation}, ::Union{Backward,Type{Backward}}) = BACKWARD
-convert(::Type{Orientation}, s::Real) = (s > 0 ? FORWARD :
-                                         s < 0 ? BACKWARD :
-                                         error("invalid orientation"))
-sign(::Union{Forward,Type{Forward}}) = +1
-sign(::Union{Backward,Type{Backward}}) = -1
+Base.convert(::Type{Orientation}, ::Union{Forward,Type{Forward}}) = FORWARD
+Base.convert(::Type{Orientation}, ::Union{Backward,Type{Backward}}) = BACKWARD
+Base.convert(::Type{Orientation}, s::Real) = (s > 0 ? FORWARD :
+                                              s < 0 ? BACKWARD :
+                                              error("invalid orientation"))
+Base.sign(::Union{Forward,Type{Forward}}) = +1
+Base.sign(::Union{Backward,Type{Backward}}) = -1
 
 Orientation(x) = convert(Orientation, x)
 orientation(T::DataType, x) = Orientation(x) === FORWARD ? +one(T) : -one(T)
@@ -1267,3 +761,5 @@ function newvariablelengthvector{T}(::Type{T}, n::Integer)
 end
 
 #------------------------------------------------------------------------------
+
+end # module

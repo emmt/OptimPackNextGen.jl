@@ -21,7 +21,7 @@ end
 
 function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
   T = (single ? Float32 : Float64)
-  x0 = Array(T, n)
+  x0 = Array{T}(n)
   rosenbrock_init!(x0)
   lbfgs(rosenbrock_fg!, x0, m, verb=VERBOSE)
 end
@@ -29,7 +29,7 @@ end
 # Run tests in double and single precisions.
 for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
-    x0 = Array(T, 20)
+    x0 = Array{T}(20)
     rosenbrock_init!(x0)
 
     #@printf("\nTesting NLCG in %s precision\n", prec)
@@ -53,4 +53,7 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     #                     scaling=OptimPack.SCALING_BARZILAI_BORWEIN)
     #@test_approx_eq_eps x3 ones(T,20) 1e-4
 
+    @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)
+    x4 = spg(rosenbrock_fg!, (dst, src) -> dst .= max.(src, zero(eltype(src))),
+             x0, 10; verb=VERBOSE)
 end

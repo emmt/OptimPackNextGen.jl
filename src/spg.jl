@@ -23,13 +23,15 @@
 
 module SPG
 
+export
+    spg,
+    spg!
+
 using Compat
-using OptimPackNextGen
-using OptimPackNextGen.Algebra
+using MockAlgebra
+using ...OptimPackNextGen
 
 import OptimPackNextGen: Float, getreason
-
-export spg, spg!
 
 const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
@@ -122,9 +124,10 @@ The `SPG.Info` type has the following members:
 * `status` indicates the type of termination:
 
     Status                        Reason
-    ----------------------------------------------------------------------------
+    -------------------------------------------------------------------------
     SPG.SEARCHING (0)             Work in progress
-    SPG.INFNORM_CONVERGENCE (1)   Convergence with projected gradient infinite-norm
+    SPG.INFNORM_CONVERGENCE (1)   Convergence with projected gradient
+                                  infinite-norm
     SPG.TWONORM_CONVERGENCE (2)   Convergence with projected gradient 2-norm
     SPG.TOO_MANY_ITERATIONS (-1)  Too many iterations
     SPG.TOO_MANY_EVALUATIONS (-2) Too many function evaluations
@@ -143,11 +146,12 @@ The `SPG.Info` type has the following members:
 spg(fg!, prj!, x0, m::Integer; kwds...) =
     spg!(fg!, prj!, vcopy(x0), m; kwds...)
 
-REASON = Dict{Int,String}(SEARCHING => "Work in progress",
-                          INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
-                          TWONORM_CONVERGENCE => "Convergence with projected gradient 2-norm",
-                          TOO_MANY_ITERATIONS => "Too many iterations",
-                          TOO_MANY_EVALUATIONS => "Too many function evaluations")
+REASON = Dict{Int,String}(
+    SEARCHING => "Work in progress",
+    INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
+    TWONORM_CONVERGENCE => "Convergence with projected gradient 2-norm",
+    TOO_MANY_ITERATIONS => "Too many iterations",
+    TOO_MANY_EVALUATIONS => "Too many function evaluations")
 
 getreason(ws::Info) = get(REASON, ws.status, "unknown status")
 
@@ -225,14 +229,14 @@ function _spg!{T}(fg!, prj!, x::T, m::Int, ws::Info,
     # Main loop.
     while true
 
-        # Compute continuous projected gradient (and its norms).
-        # as: `pg = (x - prj(x - eta*g))/eta`
+        # Compute continuous projected gradient (and its norms)
+        # as: `pg = (x - prj(x - eta*g))/eta`.
         vcombine!(pg, 1/eta, x, -1/eta, prj!(pg, vcombine!(pg, 1, x, -eta, g)))
         pcnt += 1
         pgtwon = vnorm2(pg)
         pginfn = vnorminf(pg)
 
-        # Print iteration information
+        # Print iteration information.
         if verb
             ws.f = f
             ws.fbest = fbest
