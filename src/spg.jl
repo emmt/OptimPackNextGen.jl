@@ -28,7 +28,7 @@ export
     spg!
 
 using Compat
-using MockAlgebra
+using LazyAlgebra
 using ...OptimPackNextGen
 
 import OptimPackNextGen: Float, getreason

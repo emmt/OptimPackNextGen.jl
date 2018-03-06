@@ -20,7 +20,7 @@
 
 module QuasiNewton
 
-using MockAlgebra
+using LazyAlgebra
 using ...OptimPackNextGen
 using OptimPackNextGen.LineSearches
 using OptimPackNextGen.SimpleBounds
@@ -40,28 +40,28 @@ const EMULATE_BLMVM = UInt(1)
 
 function vdot(x::AbstractArray{Float,N},
               y::AbstractArray{Float,N}) where {N}
-    return MockAlgebra.vdot(x, y)
+    return LazyAlgebra.vdot(x, y)
 end
 
 function vdot(x::AbstractArray{<:Real,N},
               y::AbstractArray{<:Real,N}) where {N}
-    return Float(MockAlgebra.vdot(x, y))
+    return Float(LazyAlgebra.vdot(x, y))
 end
 
 function vdot(w::Union{AbstractArray{Float,N},AbstractVector{Int}},
               x::AbstractArray{Float,N},
               y::AbstractArray{Float,N}) where {N}
-    return MockAlgebra.vdot(w, x, y)
+    return LazyAlgebra.vdot(w, x, y)
 end
 
 function vdot(w::Union{AbstractArray{<:Real,N},AbstractVector{Int}},
               x::AbstractArray{<:Real,N},
               y::AbstractArray{<:Real,N}) where {N}
-    return Float(MockAlgebra.vdot(w, x, y))
+    return Float(LazyAlgebra.vdot(w, x, y))
 end
 
-vnorm2(x::AbstractArray{Float,N}) where {N} = MockAlgebra.vnorm2(x)
-vnorm2(x::AbstractArray{<:Real,N}) where {N} = Float(MockAlgebra.vnorm2(x))
+vnorm2(x::AbstractArray{Float,N}) where {N} = LazyAlgebra.vnorm2(x)
+vnorm2(x::AbstractArray{<:Real,N}) where {N} = Float(LazyAlgebra.vnorm2(x))
 
 """
 ## VMLMB: limited memory BFGS method with optional bounds

@@ -57,11 +57,11 @@ The following methods are provided for univariate functions:
 
 ## Installation
 
-[MockAlgebra](https://github.com/emmt/MockAlgebra.jl) is a prerequisite for
-`OptimPackNextGen`.  To install `MockAlgebra`, simply do:
+[LazyAlgebra](https://github.com/emmt/LazyAlgebra.jl) is a prerequisite for
+`OptimPackNextGen`.  To install `LazyAlgebra`, simply do:
 
 ```julia
-Pkg.clone("https://github.com/emmt/MockAlgebra.jl.git")
+Pkg.clone("https://github.com/emmt/LazyAlgebra.jl.git")
 ```
 
 **OptimPackNextGen** is not yet an

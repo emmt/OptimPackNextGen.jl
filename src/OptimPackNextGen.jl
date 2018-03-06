@@ -28,7 +28,7 @@ export
     spg!,
     getreason
 
-using MockAlgebra
+using LazyAlgebra
 
 doc"""
 `Float` is the type of all floating point scalars, it is currently an alias to
