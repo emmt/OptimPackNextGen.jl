@@ -8,7 +8,8 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2017, Éric Thiébaut,
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 isdefined(Base, :__precompile__) && __precompile__(true)
@@ -18,6 +19,8 @@ module OptimPackNextGen
 export
     fmin,
     fzero,
+    qgtpar,
+    gqtpar!,
     nllsq,
     nllsq!,
     conjgrad,
@@ -39,6 +42,9 @@ const Float = Cdouble
 include("bounds.jl")
 
 include("conjgrad.jl")
+
+include("gqtpar.jl")
+import .MoreSorensen: qgtpar, gqtpar!
 
 include("linesearches.jl")
 import .LineSearches: getreason

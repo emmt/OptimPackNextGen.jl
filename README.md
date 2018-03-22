@@ -55,6 +55,12 @@ The following methods are provided for univariate functions:
   on an interval.
 
 
+## Trust region
+
+* Methods `qgtpar` and `gqtpar!` implement Moré & Sorensen algorithm for
+  computing a trust region step.
+
+
 ## Installation
 
 [LazyAlgebra](https://github.com/emmt/LazyAlgebra.jl) is a prerequisite for
@@ -116,7 +122,7 @@ compatibility and design issues.
 * D. Liu and J. Nocedal, "*On the limited memory BFGS method for large scale
   optimization*", Mathematical Programming B **45**, 503-528 (1989).
 
-* J.J. Moré & D.C. Sorensen, "*Computing A Trust Region Step*," SIAM
+* J.J. Moré & D.C. Sorensen, "*Computing a Trust Region Step*," SIAM
   J. Sci. Stat. Comp. **4**, 553-572 (1983).
 
 * J.J. Moré and D.J. Thuente, "*Line search algorithms with guaranteed
