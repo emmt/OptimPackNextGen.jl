@@ -19,7 +19,7 @@ module OptimPackNextGen
 export
     fmin,
     fzero,
-    qgtpar,
+    gqtpar,
     gqtpar!,
     nllsq,
     nllsq!,
@@ -44,7 +44,7 @@ include("bounds.jl")
 include("conjgrad.jl")
 
 include("gqtpar.jl")
-import .MoreSorensen: qgtpar, gqtpar!
+import .MoreSorensen: gqtpar, gqtpar!
 
 include("linesearches.jl")
 import .LineSearches: getreason

@@ -57,8 +57,8 @@ The following methods are provided for univariate functions:
 
 ## Trust region
 
-* Methods `qgtpar` and `gqtpar!` implement Moré & Sorensen algorithm for
-  computing a trust region step.
+* Methods `gqtpar` and `gqtpar!` implement Moré & Sorensen algorithm for
+  computing a trust region step (Moré & D.C. Sorensen, 1983).
 
 
 ## Installation

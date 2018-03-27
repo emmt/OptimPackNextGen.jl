@@ -25,7 +25,7 @@
 
 module MoreSorensen
 
-export qgtpar, gqtpar!
+export gqtpar, gqtpar!
 
 import Base.BLAS
 import Base.BLAS: trsv!, nrm2
