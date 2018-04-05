@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2017, Éric Thiébaut,
+# Copyright (C) 2015-2018, Éric Thiébaut,
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -32,16 +32,15 @@ export
     getreason
 
 using LazyAlgebra
+import LazyAlgebra: conjgrad, conjgrad!
 
-doc"""
+"""
 `Float` is the type of all floating point scalars, it is currently an alias to
 `Cdouble` which is itself an alias to `Float64`.
 """
 const Float = Cdouble
 
 include("bounds.jl")
-
-include("conjgrad.jl")
 
 include("gqtpar.jl")
 import .MoreSorensen: gqtpar, gqtpar!
