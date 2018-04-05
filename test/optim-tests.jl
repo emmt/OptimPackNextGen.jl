@@ -5,17 +5,17 @@ end
 module OptimTest
 
 using Base.Test
-using OptimPackNextGen.Algebra
+using LazyAlgebra
 using OptimPackNextGen.LineSearches
 using OptimPackNextGen.QuasiNewton
 
-function rosenbrock_init!{T<:Real}(x0::Array{T,1})
+function rosenbrock_init!(x0::Vector{<:Real})
   x0[1:2:end] = -1.2
   x0[2:2:end] =  1.0
   return nothing
 end
 
-function rosenbrock_fg!{T<:Real}(x::Array{T,1}, gx::Array{T,1})
+function rosenbrock_fg!(x::Vector{T}, gx::Vector{T}) where {T<:Real}
   const c1 = T(1)
   const c2 = T(2)
   const c10 = T(10)
@@ -32,7 +32,7 @@ end
 
 function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
   T = (single ? Float32 : Float64)
-  x0 = Array(T, n)
+  x0 = Array{T}(n)
   rosenbrock_init!(x0)
   vmlmb(rosenbrock_fg!, x0, m, verb=true)
 end
@@ -41,7 +41,7 @@ end
 n = 20
 for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
-    x0 = Array(T, n)
+    x0 = Array{T}(n)
     rosenbrock_init!(x0)
     armijo = ArmijoLineSearch()
     moretoraldo = MoreToraldoLineSearch(gamma=(0.1,0.5))
