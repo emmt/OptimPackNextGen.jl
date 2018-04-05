@@ -8,12 +8,11 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018, Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 module LineSearches
-
-using Compat
 
 import ...OptimPackNextGen
 import OptimPackNextGen.Float
@@ -94,7 +93,7 @@ Note that the same line search instance may be re-used for subsequent line
 searches (with the same settings).
 
 """
-@compat abstract type LineSearch{T<:AbstractFloat} end
+abstract type LineSearch{T<:AbstractFloat} end
 
 """
     getstep(ls)
@@ -102,21 +101,21 @@ searches (with the same settings).
 yields the length of the next step to try in the line search implemented by
 `ls`.
 """
-getstep{L<:LineSearch}(ls::L) = ls.stp
+getstep(ls::L) where {L<:LineSearch} = ls.stp
 
 """
     gettask(ls)
 
 yields the current pending task in the line search implemented by `ls`.
 """
-gettask{L<:LineSearch}(ls::L) = ls.task
+gettask(ls::L) where {L<:LineSearch} = ls.task
 
 """
     getstatus(ls)
 
 yields the current status of the line search implemented by `ls`.
 """
-getstatus{L<:LineSearch}(ls::L) = ls.status
+getstatus(ls::L) where {L<:LineSearch} = ls.status
 
 # Helper function.
 function report!(ls::LineSearch, task::Symbol, status::Symbol)
@@ -131,7 +130,7 @@ end
 yields a textual explanation for the current state of the line search
 implemented by `ls`.
 """
-getreason{L<:LineSearch}(ls::L) = REASONS[ls.status]
+getreason(ls::L) where {L<:LineSearch} = REASONS[ls.status]
 
 """
     usederivative(ls)
@@ -141,7 +140,7 @@ objective function when calling `iterate!`.  Alternatively `ls` can also be the
 line search type.  Note that the derivative is always needed by the `start!`
 method.
 """
-usederivatives{T<:LineSearch}(::T) = usederivatives(T)
+usederivatives(::T) where {T<:LineSearch} = usederivatives(T)
 
 """
     start!(ls, f0, g0, stp; stpmin = 0, stpmax = Inf) -> task
@@ -154,10 +153,10 @@ search (that is for a step length equal to zero).  Argument `stp` is the length
 of the next step to try and must be nonnegative.  Keywords `stpmin` and
 `stpmax` can be used to specify bounds for the length of the step.
 """
-function start!{T<:AbstractFloat}(ls::LineSearch{T},
-                                  f0::Real, g0::Real, stp::Real;
-                                  stpmin::Real = zero(T),
-                                  stpmax::Real = typemax(T))
+function start!(ls::LineSearch{T},
+                f0::Real, g0::Real, stp::Real;
+                stpmin::Real = zero(T),
+                stpmax::Real = typemax(T)) where {T<:AbstractFloat}
     start!(ls, T(f0), T(g0), T(stp), T(stpmin), T(stpmax))
 end
 
@@ -179,12 +178,14 @@ The returned `task` is one of the following symbolic values:
 * `:WARNING` to indicate that no further progresses are possible.
 
 """
-iterate!{T<:AbstractFloat}(ls::LineSearch{T}, stp::Real, f::Real, g::Real) =
+function iterate!(ls::LineSearch{T},
+                  stp::Real, f::Real, g::Real) where {T<:AbstractFloat}
     iterate!(ls, T(stp), T(f), T(g))
+end
 
 #-------------------------------------------------------------------------------
 
-@compat mutable struct ArmijoLineSearch{T<:AbstractFloat} <: LineSearch{T}
+mutable struct ArmijoLineSearch{T<:AbstractFloat} <: LineSearch{T}
     task::Symbol
     status::Symbol
     ftol::T
@@ -221,21 +222,21 @@ consists in reducing the step (by a factor 2) until the criterion holds.
   (1966).
 
 """
-function ArmijoLineSearch{T<:AbstractFloat}(::Type{T} = Float;
-                                            ftol::Real = 1e-4)
+function ArmijoLineSearch(::Type{T} = Float;
+                          ftol::Real = 1e-4) where {T<:AbstractFloat}
     @assert 0 < ftol ≤ 1/2
     ArmijoLineSearch{T}(:START, :NOT_STARTED, ftol, 0, 0, 0, 0)
 end
 
 # Armijo's line search does not use the directional derivative to refine the
 # step.
-usederivatives{T<:ArmijoLineSearch}(::Type{T}) = false
+usederivatives(::Type{T}) where {T<:ArmijoLineSearch} = false
 
 # start! method for Armijo's line search has the same implementation as the
 # Moré & Toraldo line search.
 
-function iterate!{T<:AbstractFloat}(ls::ArmijoLineSearch{T},
-                                    stp::T, f::T, g::T)
+function iterate!(ls::ArmijoLineSearch{T},
+                  stp::T, f::T, g::T) where {T<:AbstractFloat}
     @assert ls.task == :SEARCH
     @assert stp == ls.stp
     if f ≤ ls.finit + ls.ftol*stp*ls.ginit
@@ -251,7 +252,7 @@ end
 
 #-------------------------------------------------------------------------------
 
-@compat mutable struct MoreToraldoLineSearch{T<:AbstractFloat} <: LineSearch{T}
+mutable struct MoreToraldoLineSearch{T<:AbstractFloat} <: LineSearch{T}
     task::Symbol
     status::Symbol
     gamma1::T
@@ -316,10 +317,11 @@ reach the minimum of the quadratic interpolation of the objective function.
   (2000).
 
 """
-function MoreToraldoLineSearch{T<:AbstractFloat}(::Type{T} = Float;
-                                                 ftol::Real = 1e-4,
-                                                 strict::Bool = false,
-                                                 gamma::NTuple{2,Real} = (0.1,0.5))
+function MoreToraldoLineSearch(::Type{T} = Float;
+                               ftol::Real = 1e-4,
+                               strict::Bool = false,
+                               gamma::NTuple{2,Real} = (0.1,0.5)
+                               ) where {T<:AbstractFloat}
     @assert 0 < ftol ≤ 1/2
     @assert 0 < gamma[1] < gamma[2] < 1
     MoreToraldoLineSearch{T}(:START, :NOT_STARTED, gamma[1], gamma[2], ftol,
@@ -328,12 +330,11 @@ end
 
 # Backtracking line search does not use the directional derivative to refine
 # the step but it does use the initial derivative.
-usederivatives{T<:MoreToraldoLineSearch}(::Type{T}) = false
+usederivatives(::Type{T}) where {T<:MoreToraldoLineSearch} = false
 
-function start!{T<:AbstractFloat}(ls::Union{MoreToraldoLineSearch{T},
-                                            ArmijoLineSearch{T}},
-                                  f0::T, g0::T, stp::T,
-                                  stpmin::T, stpmax::T)
+function start!(ls::Union{MoreToraldoLineSearch{T},ArmijoLineSearch{T}},
+                f0::T, g0::T, stp::T,
+                stpmin::T, stpmax::T) where {T<:AbstractFloat}
     # Check the input arguments for errors.
     if stpmax < stpmin
         throw(ArgumentError("STPMAX < STPMIN"))
@@ -361,8 +362,8 @@ function start!{T<:AbstractFloat}(ls::Union{MoreToraldoLineSearch{T},
     return report!(ls, :SEARCH, :COMPUTE_FG)
 end
 
-function iterate!{T<:AbstractFloat}(ls::MoreToraldoLineSearch{T},
-                                    stp::T, f::T, g::T)
+function iterate!(ls::MoreToraldoLineSearch{T},
+                  stp::T, f::T, g::T) where {T<:AbstractFloat}
     @assert ls.task == :SEARCH
     @assert stp == ls.stp
     if f ≤ ls.finit + ls.ftol*stp*ls.ginit
@@ -415,7 +416,7 @@ method) to compute a new step (based on cubic or quadratic interpolation) and
 to maintain the interval of search.
 
 """
-@compat mutable struct MoreThuenteLineSearch{T<:AbstractFloat} <: LineSearch{T}
+mutable struct MoreThuenteLineSearch{T<:AbstractFloat} <: LineSearch{T}
     task::Symbol
     status::Symbol
     ftol::T
@@ -440,10 +441,10 @@ to maintain the interval of search.
     brackt::Bool # minimum has been bracketed?
 end
 
-function MoreThuenteLineSearch{T<:AbstractFloat}(::Type{T} = Float;
-                                                 ftol::Real = 0.001,
-                                                 gtol::Real = 0.9,
-                                                 xtol::Real = 0.1)
+function MoreThuenteLineSearch(::Type{T} = Float;
+                               ftol::Real = 0.001,
+                               gtol::Real = 0.9,
+                               xtol::Real = 0.1) where {T<:AbstractFloat}
     @assert 0 < ftol < 1
     @assert 0 < gtol < 1
     @assert 0 < xtol < 1
@@ -455,28 +456,28 @@ end
 
 # Moré & Thuente line search does use the directional derivative to refine the
 # step.
-usederivatives{T<:MoreThuenteLineSearch}(::Type{T}) = true
+usederivatives(::Type{T}) where {T<:MoreThuenteLineSearch} = true
 
 # A few constants.
-XTRAPL{T}(::Type{T}) = T(1.1)
-XTRAPU{T}(::Type{T}) = T(4.0)
-STPMAX{T}(::Type{T}) = T(1e20)
+XTRAPL(::Type{T}) where {T} = T(1.1)
+XTRAPU(::Type{T}) where {T} = T(4.0)
+STPMAX(::Type{T}) where {T} = T(1e20)
 
-function start!{T<:AbstractFloat}(ls::MoreThuenteLineSearch{T},
-                                  f0::Real, g0::Real, stp::Real;
-                                  ftol::Real = ls.ftol,
-                                  gtol::Real = ls.gtol,
-                                  xtol::Real = ls.xtol,
-                                  stpmin::Real = zero(T),
-                                  stpmax::Real = stp*STPMAX(T))
+function start!(ls::MoreThuenteLineSearch{T},
+                f0::Real, g0::Real, stp::Real;
+                ftol::Real = ls.ftol,
+                gtol::Real = ls.gtol,
+                xtol::Real = ls.xtol,
+                stpmin::Real = zero(T),
+                stpmax::Real = stp*STPMAX(T)) where {T<:AbstractFloat}
     start!(ls, T(f0), T(g0), T(stp), T(ftol), T(gtol), T(xtol),
            T(stpmin), T(stpmax))
 end
 
-function start!{T<:AbstractFloat}(ls::MoreThuenteLineSearch{T},
-                                  f0::T, g0::T, stp::T,
-                                  ftol::T, gtol::T, xtol::T,
-                                  stpmin::T, stpmax::T)
+function start!(ls::MoreThuenteLineSearch{T},
+                f0::T, g0::T, stp::T,
+                ftol::T, gtol::T, xtol::T,
+                stpmin::T, stpmax::T) where {T<:AbstractFloat}
 
     # Check the input arguments for errors.
     if stpmax < stpmin
@@ -534,8 +535,8 @@ function start!{T<:AbstractFloat}(ls::MoreThuenteLineSearch{T},
     report!(ls, :SEARCH, :COMPUTE_FG)
 end
 
-function iterate!{T<:AbstractFloat}(ls::MoreThuenteLineSearch{T},
-                                    stp::T, f::T, g::T)
+function iterate!(ls::MoreThuenteLineSearch{T},
+                  stp::T, f::T, g::T) where {T<:AbstractFloat}
 
     @assert ls.task == :SEARCH
     @assert stp == ls.stp
@@ -707,10 +708,10 @@ function cstep(brackt::Bool, stpmin::Real, stpmax::Real,
           promote(stpmin, stpmax, stx, fx, dx, sty, fy, dy, stp, fp, dp)...)
 end
 
-function cstep{T<:AbstractFloat}(brackt::Bool, stpmin::T, stpmax::T,
-                                 stx::T, fx::T, dx::T,
-                                 sty::T, fy::T, dy::T,
-                                 stp::T, fp::T, dp::T)
+function cstep(brackt::Bool, stpmin::T, stpmax::T,
+               stx::T, fx::T, dx::T,
+               sty::T, fy::T, dy::T,
+               stp::T, fp::T, dp::T) where {T<:AbstractFloat}
 
     const ZERO = zero(T)
     const ONE = one(T)

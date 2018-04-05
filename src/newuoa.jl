@@ -8,7 +8,8 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018 Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 module Newuoa
@@ -21,13 +22,11 @@ export
 #        on the same line as `import`
 import ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart, .._libnewuoa
 
-using Compat
-
 # The dynamic library implementing the method.
 const _LIB = _libnewuoa
 
 # Status returned by most functions of the library.
-@compat struct Status <: AbstractStatus
+struct Status <: AbstractStatus
     _code::Cint
 end
 
@@ -184,7 +183,7 @@ specifies whether to maximize the objective function; otherwise, the method
 attempts to minimize the objective function.
 
 """
-@compat optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
     optimize!(f, copy!(Array{Cdouble}(length(x0)), x0), args...; kwds...)
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
@@ -247,7 +246,7 @@ newuoa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
     newuoa!(f, copy(x0), args...; kwds...)
 
 # Context for reverse communication variant of NEWUOA.
-@compat mutable struct Context <: AbstractContext
+mutable struct Context <: AbstractContext
     ptr::Ptr{Void}
     n::Int
     npt::Int

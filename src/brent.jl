@@ -13,7 +13,8 @@
 # "Expat" License.
 #
 # Copyright (C) 1973, Richard Brent.
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018, Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 module Brent
@@ -32,8 +33,8 @@ yields default absolute and relative tolerances for Brent's `fzero` method.
 Argument `T` is the floating-point type used for the computations.
 
 """
-fzero_atol{T<:AbstractFloat}(::Type{T}) = realmin(T)
-fzero_rtol{T<:AbstractFloat}(::Type{T}) = T(4)*eps(T)
+fzero_atol(::Type{T}) where {T<:AbstractFloat} = realmin(T)
+fzero_rtol(::Type{T}) where {T<:AbstractFloat} = T(4)*eps(T)
 
 """
 
@@ -44,15 +45,15 @@ yields default absolute and relative tolerances for Brent's `fmin` method.
 Argument `T` is the floating-point type used for the computations.
 
 """
-fmin_atol{T<:AbstractFloat}(::Type{T}) = realmin(T)
-fmin_rtol{T<:AbstractFloat}(::Type{T}) = sqrt(eps(T))
+fmin_atol(::Type{T}) where {T<:AbstractFloat} = realmin(T)
+fmin_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
 
 
 # goldstep = 1/φ^2 = 2 - φ ≈ 0.3812
-goldstep{T<:AbstractFloat}(::Type{T}) = convert(T, (3 - sqrt(big(5)))/2)
-half{T<:AbstractFloat}(::Type{T}) = convert(T,1//2)
-two{T<:AbstractFloat}(::Type{T}) = convert(T,2)
-three{T<:AbstractFloat}(::Type{T}) = convert(T,3)
+goldstep(::Type{T}) where {T<:AbstractFloat} = convert(T, (3 - sqrt(big(5)))/2)
+half(::Type{T}) where {T<:AbstractFloat} = convert(T,1//2)
+two(::Type{T}) where {T<:AbstractFloat} = convert(T,2)
+three(::Type{T}) where {T<:AbstractFloat} = convert(T,3)
 
 """
 # Van Wijngaarden–Dekker–Brent method for finding a zero of a function
@@ -105,14 +106,14 @@ f(x)` is the function value at `x`.
 """
 fzero(f, a::Real, b::Real; kwds...) = fzero(Float, f, a, b; kwds...)
 
-function fzero{T<:AbstractFloat}(::Type{T}, f, a::Real, b::Real;
-                                 atol::Real = fzero_atol(T),
-                                 rtol::Real = fzero_rtol(T))
+function fzero(::Type{T}, f, a::Real, b::Real;
+               atol::Real = fzero_atol(T),
+               rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
     fzero(f, T(a), T(b), T(atol), T(rtol))
 end
 
-function fzero{T<:AbstractFloat}(f, a::T, b::T,
-                                 atol::T, rtol::T) :: NTuple{2,T}
+function fzero(f, a::T, b::T,
+               atol::T, rtol::T) :: NTuple{2,T} where {T<:AbstractFloat}
 
     # Some constants.
     const ZERO::T = zero(T)
@@ -284,15 +285,15 @@ minimum.
 """
 fmin(f, a::Real, b::Real; kwds...) = fmin(Float64, f, a, b; kwds...)
 
-function fmin{T<:AbstractFloat}(::Type{T}, f, a::Real, b::Real;
-                                atol::Real = fmin_atol(T),
-                                rtol::Real = fmin_rtol(T))
+function fmin(::Type{T}, f, a::Real, b::Real;
+              atol::Real = fmin_atol(T),
+              rtol::Real = fmin_rtol(T)) where {T<:AbstractFloat}
     fmin(f, T(a), T(b), T(atol), T(rtol))
 end
 
 
-function fmin{T<:AbstractFloat}(f, a::T, b::T,
-                                atol::T, rtol::T)
+function fmin(f, a::T, b::T,
+              atol::T, rtol::T) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered.  Initialize the search and call
     # the real worker.
     if a > b
@@ -313,9 +314,9 @@ This method is called to start Brent's algorithm with a single given point,
 `fx = f(x)`.
 
 """
-function fmin1{T<:AbstractFloat}(f, a::T, b::T,
-                                 x::T, fx::T,
-                                 atol::T, rtol::T)
+function fmin1(f, a::T, b::T,
+               x::T, fx::T,
+               atol::T, rtol::T) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered and check that given point is in
     # the interval.  Then call main loop of Brent's algorithm.
     if a > b
@@ -334,10 +335,10 @@ and `w` (not necessarily distinct) inside the search interval `[a,b]` and with
 known function values `fx = f(x)` and `fw = f(w)`.
 
 """
-function fmin2{T<:AbstractFloat}(f, a::T, b::T,
-                                 x::T, fx::T,
-                                 w::T, fw::T,
-                                 atol::T, rtol::T)
+function fmin2(f, a::T, b::T,
+               x::T, fx::T,
+               w::T, fw::T,
+               atol::T, rtol::T) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered and check that given points are in
     # the interval.
     if a > b
@@ -360,12 +361,12 @@ This method is called to start Brent's algorithm with three given points `x`,
 `w` and `v` (not necessarily distinct) inside the search interval `[a,b]` and
 with known function values `fx = f(x)`, `fw = f(w)` and `fv = f(v)`.
 
-"""
-function fmin3{T<:AbstractFloat}(f, a::T, b::T,
-                                 x::T, fx::T,
-                                 w::T, fw::T,
-                                 v::T, fv::T,
-                                 atol::T, rtol::T)
+    """
+function fmin3(f, a::T, b::T,
+               x::T, fx::T,
+               w::T, fw::T,
+               v::T, fv::T,
+               atol::T, rtol::T) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered and check that given points are in
     # the interval.
     if a > b
@@ -419,11 +420,11 @@ other internal variables are:
     e = w - v
 
 """
-function _fmin{T<:AbstractFloat}(f, a::T, b::T,
-                                 x::T, fx::T,
-                                 w::T, fw::T,
-                                 v::T, fv::T,
-                                 atol::T, rtol::T) :: NTuple{4,T}
+function _fmin(f, a::T, b::T,
+               x::T, fx::T,
+               w::T, fw::T,
+               v::T, fv::T,
+               atol::T, rtol::T) :: NTuple{4,T} where {T<:AbstractFloat}
     # Constants.
     const ZERO::T = zero(T)
     const ONE::T = one(T)
@@ -531,8 +532,8 @@ defined by 3 points (`x`, `w` and `v`) with known function values (`fx`, `fw`
 and `fv`) and such that the least function value is at `x` which is inside the
 interval `[v,w]`.
 """
-function fminbrkt{T<:AbstractFloat}(f, x::T, fx::T, w::T, fw::T,
-                                    v::T, fv::T, atol::T, rtol::T)
+function fminbrkt(f, x::T, fx::T, w::T, fw::T,
+                  v::T, fv::T, atol::T, rtol::T) where {T<:AbstractFloat}
     # Reorder the points as assumed by Brent's algorithm.
     if fv < fw
         v, fv, w, fw = w, fw, v, fv

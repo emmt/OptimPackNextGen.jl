@@ -8,7 +8,8 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018, Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 module Cobyla
@@ -21,13 +22,11 @@ export
 #        on the same line as `import`
 import ..AbstractStatus, ..AbstractContext, ..getncalls, ..getradius, ..getreason, ..getstatus, ..iterate, ..restart, .._libcobyla
 
-using Compat
-
 # The dynamic library implementing the method.
 const _LIB = _libcobyla
 
 # Status returned by most functions of the library.
-@compat struct Status <: AbstractStatus
+struct Status <: AbstractStatus
     _code::Cint
 end
 
@@ -198,7 +197,7 @@ specifies whether to maximize the objective function; otherwise, the method
 attempts to minimize the objective function.
 
 """
-@compat optimize(fc::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+optimize(fc::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
     optimize!(fc, copy!(Array{Cdouble}(length(x0)), x0), args...; kwds...)
 
 function optimize!(fc::Function, x::DenseVector{Cdouble},
@@ -261,7 +260,7 @@ cobyla(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
     cobyla!(f, copy(x0), args...; kwds...)
 
 # Context for reverse communication variant of COBYLA.
-@compat mutable struct CobylaContext <: AbstractContext
+mutable struct CobylaContext <: AbstractContext
     ptr::Ptr{Void}
     n::Int
     m::Int

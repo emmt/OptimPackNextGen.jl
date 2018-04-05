@@ -14,9 +14,11 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018, Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
+# FIXME: use priority queues
 # FIXME: fix estimation of precision (compared to Yorick version)
 # FIXME: make sure no other minima exist when precision test is satisfied
 
@@ -25,34 +27,32 @@ module Step
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
 
-using Compat
-
 """
 # Cyclic singly linked list
 """
-@compat mutable struct Item{T}
+mutable struct Item{T}
     next::Item{T}
     data::T
-    (::Type{Item{T}}){T}(next::Item{T}, data::T) = new{T}(next, data)
-    function (::Type{Item{T}}){T}(data::T)
+    (::Type{Item{T}})(next::Item{T}, data::T) where {T} = new{T}(next, data)
+    function (::Type{Item{T}})(data::T) where {T}
         newitem = new{T}()
         newitem.next = newitem
         newitem.data = data
         return newitem
     end
 end
-Item{T}(data::T) = Item{T}(data)
+Item(data::T) where {T} = Item{T}(data)
 
 """
 Append a new item after a given item of a cyclic singly linked list.
 """
-function append!{T}(item::Item{T}, data::T)
+function append!(item::Item{T}, data::T) where {T}
     newitem = Item{T}(item.next, data)
     item.next = newitem
     return newitem
 end
 
-@compat mutable struct NodeData
+mutable struct NodeData
     x::Float # position
     y::Float # function value
     q::Float # "quality" factor
@@ -204,7 +204,7 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
     end
 end
 
-@doc """
+"""
 # Find a global minimum or maximum
 
     Step.minimize(f, a, b) -> (xbest, fbest, xtol, n)

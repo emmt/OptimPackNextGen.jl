@@ -8,12 +8,11 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018, Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 module Powell
-
-using Compat
 
 # Locate the dynamic library.
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
@@ -42,11 +41,11 @@ export
 
 import Base: ==
 
-@compat abstract type AbstractStatus end
+abstract type AbstractStatus end
 
-@compat abstract type AbstractContext end
+abstract type AbstractContext end
 
-=={T<:AbstractStatus}(a::T, b::T) = a._code == b._code
+==(a::T, b::T) where {T<:AbstractStatus} = a._code == b._code
 ==(a::AbstractStatus, b::AbstractStatus) = false
 
 """

@@ -14,7 +14,8 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2014-2017, Éric Thiébaut.
+# Copyright (C) 2014-2018, Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 module Bradi
@@ -54,13 +55,21 @@ in:
 See also `Brent.fmin` and `Step.minimize`.
 
 """
-function minimize{T<:AbstractFloat}(f, x::AbstractVector{T};
-                                    atol::Real = Brent.fmin_atol(T),
-                                    rtol::Real = Brent.fmin_rtol(T))
+function minimize(f, x::AbstractVector{T};
+                  atol::Real = Brent.fmin_atol(T),
+                  rtol::Real = Brent.fmin_rtol(T)) where {T<:AbstractFloat}
     minimize(f, x, T(atol), T(rtol))
 end
 
-function minimize{T<:AbstractFloat}(f, x::AbstractArray{T,1}, atol::T, rtol::T)
+function maximize(f, x::AbstractVector{T};
+                  atol::Real = Brent.fmin_atol(T),
+                  rtol::Real = Brent.fmin_rtol(T)) where {T<:AbstractFloat}
+    (xb, fb) = minimize((x) -> -f(x), x, T(atol), T(rtol))
+    return (xb, -fb)
+end
+
+function minimize(f, x::AbstractVector{T},
+                  atol::T, rtol::T) where {T<:AbstractFloat}
 
     local xbest::T, xa::T, xb::T, xc::T
     local fbest::T, fa::T, fb::T, fc::T
@@ -89,13 +98,6 @@ function minimize{T<:AbstractFloat}(f, x::AbstractArray{T,1}, atol::T, rtol::T)
         end
     end
     return (xbest, fbest)
-end
-
-function maximize{T<:AbstractFloat}(f, x::AbstractVector{T};
-                                    atol::Real = Brent.fmin_atol(T),
-                                    rtol::Real = Brent.fmin_rtol(T))
-    (xb, fb) = minimize((x) -> -f(x), x, T(atol), T(rtol))
-    return (xb, -fb)
 end
 
 @doc @doc(minimize) maximize

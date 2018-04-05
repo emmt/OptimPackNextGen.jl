@@ -8,7 +8,8 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018, Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 # Improvements:
@@ -141,9 +142,10 @@ The following keywords are available:
 
 ### History
 
-The VMLMB algorithm in OptimPackNextGen.jl provides a pure Julia implementation of the
-original method (Thiébaut, 2002) with some improvements and the capability to
-emulate L-BFGS and BLMVM methods.
+The VMLMB algorithm in
+[OptimPackNextGen](https://github.com/emmt/OptimPackNextGen.jl) provides a pure
+Julia implementation of the original method (Thiébaut, 2002) with some
+improvements and the capability to emulate L-BFGS and BLMVM methods.
 
 The limited memory BFGS method (L-BFGS) was first described by Nocedal (1980)
 who dubbed it SQN.  The method is implemented in MINPACK-2 (1995) by the
@@ -184,21 +186,21 @@ vmlmb(fg!::Function, x0; kwds...) = vmlmb!(fg!, vcopy(x0); kwds...)
 finds a local minimizer of `f(x)` starting at `x` and stores the best solution
 in `x`.
 """
-function vmlmb!{T}(fg!::Function, x::T;
-                   mem::Integer = min(5, length(x)),
-                   lower = -Inf, # FIXME: lower::Union{Real,T} = -Inf,
-                   upper = +Inf, # FIXME: upper::Union{Real,T} = +Inf,
-                   blmvm::Bool = false,
-                   fmin::Real = -Inf,
-                   maxiter::Integer = typemax(Int),
-                   maxeval::Integer = typemax(Int),
-                   ftol::NTuple{2,Real} = (0.0, 1e-8),
-                   gtol::NTuple{2,Real} = (0.0, 1e-6),
-                   epsilon::Real = 0.0,
-                   verb::Bool = false,
-                   printer::Function = print_iteration,
-                   output::IO = STDOUT,
-                   lnsrch::Union{LineSearch{Float},Void} = nothing)
+function vmlmb!(fg!::Function, x::T;
+                mem::Integer = min(5, length(x)),
+                lower = -Inf, # FIXME: lower::Union{Real,T} = -Inf,
+                upper = +Inf, # FIXME: upper::Union{Real,T} = +Inf,
+                blmvm::Bool = false,
+                fmin::Real = -Inf,
+                maxiter::Integer = typemax(Int),
+                maxeval::Integer = typemax(Int),
+                ftol::NTuple{2,Real} = (0.0, 1e-8),
+                gtol::NTuple{2,Real} = (0.0, 1e-6),
+                epsilon::Real = 0.0,
+                verb::Bool = false,
+                printer::Function = print_iteration,
+                output::IO = STDOUT,
+                lnsrch::Union{LineSearch{Float},Void} = nothing) where {T}
     # Determine which options are used.
     flags::UInt = (blmvm ? EMULATE_BLMVM : 0)
 
@@ -251,17 +253,17 @@ function vmlmb!{T}(fg!::Function, x::T;
 end
 
 # The real worker.
-function _vmlmb!{T}(fg!::Function, x::T, mem::Int, flags::UInt,
-                    lo::Union{Float, T},
-                    hi::Union{Float, T},
-                    bounds::UInt,
-                    method::Int,
-                    fmin::Float, maxiter::Int, maxeval::Int,
-                    fatol::Float, frtol::Float,
-                    gatol::Float, grtol::Float,
-                    epsilon::Float,
-                    verb::Bool, printer::Function, output::IO,
-                    lnsrch::LineSearch{Float})
+function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
+                 lo::Union{Float, T},
+                 hi::Union{Float, T},
+                 bounds::UInt,
+                 method::Int,
+                 fmin::Float, maxiter::Int, maxeval::Int,
+                 fatol::Float, frtol::Float,
+                 gatol::Float, grtol::Float,
+                 epsilon::Float,
+                 verb::Bool, printer::Function, output::IO,
+                 lnsrch::LineSearch{Float}) where {T}
 
     @assert mem ≥ 1
     @assert maxiter ≥ 0
@@ -627,22 +629,22 @@ ways:
   and stores the result in `u` (in-place operation).
 
 """
-function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
-                         gamma::Float, m::Int, mark::Int, v::T,
-                         alpha::Vector{Float})
+function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+                      gamma::Float, m::Int, mark::Int, v::T,
+                      alpha::Vector{Float}) where {T}
     @assert gamma > 0
     apply_lbfgs!(S, Y, rho, u -> vscale!(u, gamma), m, mark, v, alpha)
 end
 
-function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
-                         d::T, m::Int, mark::Int, v::T,
-                         alpha::Vector{Float})
+function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+                      d::T, m::Int, mark::Int, v::T,
+                      alpha::Vector{Float}) where {T}
     apply_lbfgs!(S, Y, rho, u -> vproduct!(u, d, u), m, mark, v, alpha)
 end
 
-function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
-                         H0!::Function, m::Int, mark::Int, v::T,
-                         alpha::Vector{Float})
+function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+                      H0!::Function, m::Int, mark::Int, v::T,
+                      alpha::Vector{Float}) where {T}
     mem = min(length(S), length(Y), length(rho), length(alpha))
     @assert 1 ≤ m ≤ mem
     @assert 1 ≤ mark ≤ mem
@@ -671,9 +673,9 @@ function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
     return modif
 end
 
-function apply_lbfgs!{T}(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
-                         m::Int, mark::Int, v::T,
-                         alpha::Vector{Float}, sel)
+function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+                      m::Int, mark::Int, v::T,
+                      alpha::Vector{Float}, sel) where {T}
     mem = min(length(S), length(Y), length(rho), length(alpha))
     @assert 1 ≤ m ≤ mem
     @assert 1 ≤ mark ≤ mem

@@ -8,7 +8,8 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018, Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 module Bobyqa
@@ -21,13 +22,11 @@ export
 #        on the same line as `import`
 import ..AbstractStatus, ..AbstractContext, ..getreason, ..getstatus, ..iterate, ..restart,  .._libbobyqa
 
-using Compat
-
 # The dynamic library implementing the method.
 const _LIB = _libbobyqa
 
 # Status returned by most functions of the library.
-@compat struct Status <: AbstractStatus
+struct Status <: AbstractStatus
     _code::Cint
 end
 
@@ -108,7 +107,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     return (status, x, work[1])
 end
 
-@compat optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
     optimize!(f, copy!(Array{Cdouble}(length(x0)), x0), args...; kwds...)
 
 minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)

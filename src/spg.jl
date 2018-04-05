@@ -18,7 +18,8 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2017, Éric Thiébaut.
+# Copyright (C) 2015-2018, Éric Thiébaut.
+# <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
 module SPG
@@ -27,7 +28,6 @@ export
     spg,
     spg!
 
-using Compat
 using LazyAlgebra
 using ...OptimPackNextGen
 
@@ -39,7 +39,7 @@ const TWONORM_CONVERGENCE  =  2
 const TOO_MANY_ITERATIONS  = -1
 const TOO_MANY_EVALUATIONS = -2
 
-@compat mutable struct Info
+mutable struct Info
     f::Float      # The final/current function value.
     fbest::Float  # The best function value so far.
     pginfn::Float # ||projected grad||_inf at the final/current iteration.
@@ -51,7 +51,7 @@ const TOO_MANY_EVALUATIONS = -2
 end
 Info() = Info(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 
-doc"""
+"""
 # Spectral Projected Gradient Method
 
 The `spg` method implements the Spectral Projected Gradient Method (Version 2:
@@ -65,12 +65,12 @@ The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
 region.  These functions must be defined as:
 
-     function fg!{T}(x::T, g::T)
+     function fg!(x::T, g::T) where {T}
         g[:] = gradient_at(x)
         return function_value_at(x)
      end
 
-     function prj!{T}(dst::T, src::T)
+     function prj!(dst::T, src::T) where {T}
          dst[:] = projection_of(src)
          return dst
      end
@@ -170,10 +170,10 @@ function spg!(fg!, prj!, x, m::Integer;
           printer, verb, io)
 end
 
-function _spg!{T}(fg!, prj!, x::T, m::Int, ws::Info,
-                  maxit::Int, maxfc::Int,
-                  eps1::Float, eps2::Float, eta::Float,
-                  printer::Function, verb::Bool, io::IO)
+function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
+               maxit::Int, maxfc::Int,
+               eps1::Float, eps2::Float, eta::Float,
+               printer::Function, verb::Bool, io::IO) where {T}
     # Initialization.
     @assert m ≥ 1
     @assert eps1 ≥ 0.0
