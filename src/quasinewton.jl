@@ -563,7 +563,7 @@ If the Euclidean norm of `d` has already been computed, then
 
 should be used instead with `dnorm = vnorm2(d)`.
 """
-sufficient_descent(gd::Real, ε::Real, gnorm::Real, d::AbstractVector) =
+sufficient_descent(gd::Real, ε::Real, gnorm::Real, d) =
     sufficient_descent(gd, ε, gnorm, vnorm2(d))
 
 sufficient_descent(gd::Real, ε::Real, gnorm::Real, dnorm::Real) =
