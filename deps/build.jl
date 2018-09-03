@@ -23,7 +23,7 @@ srcdir = joinpath(BinDeps.depsdir(optimpack), "src", unpacked_dir)
 libdir = joinpath(prefix, "lib")
 
 function dynlibname(name)
-    ext = Base.Libdl.dlext
+    ext = Libdl.dlext
     @compat @static if is_unix()
         return "lib$(name).$(ext)"
     elseif is_windows()

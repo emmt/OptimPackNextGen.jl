@@ -22,6 +22,8 @@ export
     project_variables!,
     step_limits
 
+using Compat
+
 """
 ```julia
 clip(x, lo, hi)
@@ -36,8 +38,8 @@ See also [`clamp`](@ref).
 
 """
 @inline clip(x::T, lo::T,  hi::T) where {T<:Real} = max(lo, min(x, hi))
-@inline clip(x::T, ::Void, hi::T) where {T<:Real} = min(x, hi)
-@inline clip(x::T, lo::T, ::Void) where {T<:Real} = max(lo, x)
+@inline clip(x::T, ::Nothing, hi::T) where {T<:Real} = min(x, hi)
+@inline clip(x::T, lo::T, ::Nothing) where {T<:Real} = max(lo, x)
 
 #-------------------------------------------------------------------------------
 # PROJECTING VARIABLES
@@ -68,8 +70,8 @@ function project_variables!(dst::DenseArray{T,N},
                             hi::T) where {T<:AbstractFloat,N}
     @assert size(dst) == size(src)
     @assert lo ≤ hi # this also check for NaN
-    const bounded_below = (lo > T(-Inf))
-    const bounded_above = (hi < T(+Inf))
+    bounded_below = (lo > T(-Inf))
+    bounded_above = (hi < T(+Inf))
     if bounded_below && bounded_above
         @inbounds @simd for i in eachindex(dst, src)
             dst[i] = clip(src[i], lo, hi)
@@ -175,16 +177,16 @@ orientation(T::DataType, x) = Orientation(x) === FORWARD ? +one(T) : -one(T)
 @inline projdir(x::T, lo::T, hi::T, ::Backward, d::T) where {T<:AbstractFloat} =
     (d < zero(T) ? x < hi : x > lo) ? d : zero(T)
 
-@inline projdir(x::T, ::Void, hi::T, ::Forward, d::T) where {T<:AbstractFloat} =
+@inline projdir(x::T, ::Nothing, hi::T, ::Forward, d::T) where {T<:AbstractFloat} =
     (d < zero(T) || x < hi) ? d : zero(T)
 
-@inline projdir(x::T, ::Void, hi::T, ::Backward, d::T) where {T<:AbstractFloat} =
+@inline projdir(x::T, ::Nothing, hi::T, ::Backward, d::T) where {T<:AbstractFloat} =
     (d > zero(T) || x < hi) ? d : zero(T)
 
-@inline projdir(x::T, lo::T, ::Void, ::Forward, d::T) where {T<:AbstractFloat} =
+@inline projdir(x::T, lo::T, ::Nothing, ::Forward, d::T) where {T<:AbstractFloat} =
     (d > zero(T) || x > lo) ? d : zero(T)
 
-@inline projdir(x::T, lo::T, ::Void, ::Backward, d::T) where {T<:AbstractFloat} =
+@inline projdir(x::T, lo::T, ::Nothing, ::Backward, d::T) where {T<:AbstractFloat} =
     (d < zero(T) || x > lo) ? d : zero(T)
 
 function project_direction!(dst::DenseArray{T,N},
@@ -195,8 +197,8 @@ function project_direction!(dst::DenseArray{T,N},
                             d::DenseArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(dst) == size(x) == size(d)
     @assert lo ≤ hi # this also check for NaN
-    const bounded_above = (hi < T(+Inf))
-    const bounded_below = (lo > T(-Inf))
+    bounded_above = (hi < T(+Inf))
+    bounded_below = (lo > T(-Inf))
     if bounded_below && bounded_above
         @inbounds @simd for i in eachindex(dst, x, d)
             dst[i] = projdir(x[i], lo, hi, o, d[i])
@@ -327,11 +329,11 @@ function step_limits(x::AbstractArray{T,N},
                      d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(x) == size(d)
     @assert lo ≤ hi # this also check for NaN
-    const ZERO = zero(T)
-    const INFINITY = T(Inf)
-    const s = orientation(T, orient)
-    const bounded_below = lo > -INFINITY
-    const bounded_above = hi < +INFINITY
+    ZERO = zero(T)
+    INFINITY = T(Inf)
+    s = orientation(T, orient)
+    bounded_below = lo > -INFINITY
+    bounded_above = hi < +INFINITY
     smin = INFINITY
     @inbounds begin
         if bounded_below && bounded_above
@@ -393,10 +395,10 @@ function step_limits(x::AbstractArray{T,N},
                      orient,
                      d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(x) == size(lo) == size(d)
-    const ZERO = zero(T)
-    const INFINITY = T(Inf)
-    const s = orientation(T, orient)
-    const bounded_above = hi < +INFINITY
+    ZERO = zero(T)
+    INFINITY = T(Inf)
+    s = orientation(T, orient)
+    bounded_above = hi < +INFINITY
     smin = INFINITY
     smax = ZERO
     @inbounds begin
@@ -439,10 +441,10 @@ function step_limits(x::AbstractArray{T,N},
                      orient,
                      d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(x) == size(hi) == size(d)
-    const ZERO = zero(T)
-    const INFINITY = T(Inf)
-    const s = orientation(T, orient)
-    const bounded_below = lo > -INFINITY
+    ZERO = zero(T)
+    INFINITY = T(Inf)
+    s = orientation(T, orient)
+    bounded_below = lo > -INFINITY
     smin = INFINITY
     smax = ZERO
     @inbounds begin
@@ -485,8 +487,8 @@ function step_limits(x::AbstractArray{T,N},
                      orient,
                      d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(x) == size(lo) == size(hi) == size(d)
-    const ZERO = zero(T)
-    const s = orientation(T, orient)
+    ZERO = zero(T)
+    s = orientation(T, orient)
     smin = T(Inf)
     smax = ZERO
     @inbounds begin
@@ -534,16 +536,16 @@ end
 #------------------------------------------------------------------------------
 # GETTING FREE VARIABLES
 
-@inline may_move(x::T, lo::T, ::Void, ::Forward, d::T) where {T<:AbstractFloat} =
+@inline may_move(x::T, lo::T, ::Nothing, ::Forward, d::T) where {T<:AbstractFloat} =
     d > zero(T) || (d != zero(T) && x > lo)
 
-@inline may_move(x::T, lo::T, ::Void, ::Backward, d::T) where {T<:AbstractFloat} =
+@inline may_move(x::T, lo::T, ::Nothing, ::Backward, d::T) where {T<:AbstractFloat} =
     d < zero(T) || (d != zero(T) && x > lo)
 
-@inline may_move(x::T, ::Void, hi::T, ::Forward, d::T) where {T<:AbstractFloat} =
+@inline may_move(x::T, ::Nothing, hi::T, ::Forward, d::T) where {T<:AbstractFloat} =
     d < zero(T) || (d != zero(T) && x < hi)
 
-@inline may_move(x::T, ::Void, hi::T, ::Backward, d::T) where {T<:AbstractFloat} =
+@inline may_move(x::T, ::Nothing, hi::T, ::Backward, d::T) where {T<:AbstractFloat} =
     d > zero(T) || (d != zero(T) && x < hi)
 
 @inline may_move(x::T, lo::T, hi::T, ::Forward, d::T) where {T<:AbstractFloat} =
@@ -580,8 +582,8 @@ There are in-place versions:
 """
 function get_free_variables!(sel::Vector{Int},
                              gp::DenseArray{T,N}) where {T<:AbstractFloat,N}
-    const ZERO = zero(T)
-    const n = length(gp)
+    ZERO = zero(T)
+    n = length(gp)
     resize!(sel, n)
     j = 0
     @inbounds @simd for i in 1:n
@@ -601,9 +603,9 @@ function get_free_variables!(sel::Vector{Int},
                              d::DenseArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(x) == size(d)
     @assert lo ≤ hi # this also check for NaN
-    const bounded_below = (lo > T(-Inf))
-    const bounded_above = (hi < T(+Inf))
-    const n = length(x)
+    bounded_below = (lo > T(-Inf))
+    bounded_above = (hi < T(+Inf))
+    n = length(x)
     resize!(sel, n)
     j = 0
     if bounded_below && bounded_above
@@ -643,7 +645,7 @@ function get_free_variables!(sel::Vector{Int},
                              o::Orientation,
                              d::DenseArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(x) == size(d) == size(lo)
-    const n = length(x)
+    n = length(x)
     resize!(sel, n)
     j = 0
     if hi < T(+Inf)
@@ -671,7 +673,7 @@ function get_free_variables!(sel::Vector{Int},
                              o::Orientation,
                              d::DenseArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(x) == size(d) == size(hi)
-    const n = length(x)
+    n = length(x)
     resize!(sel, n)
     j = 0
     if lo > T(-Inf)
@@ -699,7 +701,7 @@ function get_free_variables!(sel::Vector{Int},
                              o::Orientation,
                              d::DenseArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(x) == size(d) == size(lo) == size(hi)
-    const n = length(x)
+    n = length(x)
     resize!(sel, n)
     j = 0
     @inbounds @simd for i in 1:n

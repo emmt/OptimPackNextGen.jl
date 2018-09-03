@@ -27,17 +27,18 @@ module MoreSorensen
 
 export gqtpar, gqtpar!
 
-import Base.BLAS
-import Base.BLAS: trsv!, nrm2
-import Base.BLAS: BlasInt, BlasReal, BlasFloat, BlasComplex
-import Base.BLAS: libblas, @blasfunc
+using Compat
+#import Compat.LinearAlgebra.BLAS
+import Compat.LinearAlgebra.BLAS: trsv!, nrm2
+import Compat.LinearAlgebra.BLAS: BlasInt, BlasReal, BlasFloat, BlasComplex
+import Compat.LinearAlgebra.BLAS: libblas, @blasfunc
 
 # We need to apply BLAS TRSV to a submatrix.  BEWARE that no bound check is
 # performed.
 for (fname, elty) in ((:dtrsv_,:Float64),
                       (:strsv_,:Float32),
-                      (:ztrsv_,:Complex128),
-                      (:ctrsv_,:Complex64))
+                      (:ztrsv_,:ComplexF64),
+                      (:ctrsv_,:ComplexF32))
     @eval begin
                 #       SUBROUTINE DTRSV(UPLO,TRANS,DIAG,N,A,LDA,X,INCX)
                 #       .. Scalar Arguments ..
@@ -48,10 +49,10 @@ for (fname, elty) in ((:dtrsv_,:Float64),
         function _trsv!(uplo::Char, trans::Char, diag::Char, n::Integer,
                         A::StridedMatrix{$elty}, lda::Integer,
                         x::StridedVector{$elty}, incx::Integer = stride(x,1))
-            ccall((@blasfunc($fname), libblas), Void,
-                (Ptr{UInt8}, Ptr{UInt8}, Ptr{UInt8}, Ptr{BlasInt},
-                 Ptr{$elty}, Ptr{BlasInt}, Ptr{$elty}, Ptr{BlasInt}),
-                 &uplo, &trans, &diag, &n, A, &lda, x, &incx)
+            ccall((@blasfunc($fname), libblas), Cvoid,
+                (Ref{UInt8}, Ref{UInt8}, Ref{UInt8}, Ref{BlasInt},
+                 Ptr{$elty}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt}),
+                 uplo, trans, diag, n, A, lda, x, incx)
         end
     end
 end
@@ -177,7 +178,7 @@ function gqtpar(A::StridedMatrix{T},
                 delta::Real, rtol::Real, atol::Real,
                 itmax::Integer, par::Real) where {T<:BlasReal}
     return gqtpar!(A, uplo, b, delta, rtol, atol, itmax, par,
-                   Array{T}(lenght(b)))
+                   Array{T}(undef, lenght(b)))
 end
 
 function gqtpar!(A::StridedMatrix{T},
@@ -186,9 +187,9 @@ function gqtpar!(A::StridedMatrix{T},
                  delta::Real, rtol::Real, atol::Real,
                  itmax::Integer, par::Real,
                  x::StridedVector{T},
-                 z::StridedVector{T} = Array{T}(length(b)),
-                 d::StridedVector{T} = Array{T}(length(b)),
-                 w::StridedVector{T} = Array{T}(length(b))) where {T<:BlasReal}
+                 z::StridedVector{T} = Array{T}(undef, length(b)),
+                 d::StridedVector{T} = Array{T}(undef, length(b)),
+                 w::StridedVector{T} = Array{T}(undef, length(b))) where {T<:BlasReal}
     return gqtpar!(A, uplo, b, T(delta), T(rtol), T(atol),
                    Int(itmax), T(par), x, z, d, w)
 end
@@ -210,19 +211,19 @@ function gqtpar!(A::StridedMatrix{T},
 
     @inbounds begin
 
-        const n = length(b)
+        n = length(b)
         @assert size(A) == (n, n)
         @assert length(x) == n
         @assert length(z) == n
         @assert length(d) == n
         @assert length(w) == n
-        const lda = max(1, stride(A, 2))
+        lda = max(1, stride(A, 2))
 
         # Local constants and variables.
-        const ZERO  = convert(T, 0.0)
-        const ONE   = convert(T, 1.0)
-        const HALF  = convert(T, 0.5)
-        const SMALL = convert(T, 0.001)
+        ZERO  = convert(T, 0.0)
+        ONE   = convert(T, 1.0)
+        HALF  = convert(T, 0.5)
+        SMALL = convert(T, 0.001)
         local alpha::T
         local anorm::T
         local bnorm::T
@@ -230,7 +231,6 @@ function gqtpar!(A::StridedMatrix{T},
         local rxnorm::T
         local rznorm::T
         local xnorm::T
-        local par::T
         local parc::T
         local parf::T
         local parl::T
@@ -523,11 +523,11 @@ function estsv!(R::StridedMatrix{T},
                 z::StridedVector{T}) where {T<:BlasReal}
 
     # Local constants and variables.
-    const n = length(z)
+    n = length(z)
     @assert size(R) = (n,n)
-    const ZERO  = convert(T, 0.0)
-    const ONE   = convert(T, 1.0)
-    const SMALL = convert(T, 0.01)
+    ZERO  = convert(T, 0.0)
+    ONE   = convert(T, 1.0)
+    SMALL = convert(T, 0.01)
     local e::T, s::T, sm::T, temp::T, w::T, wm::T, ynorm::T, znorm::T
 
     @inbounds begin

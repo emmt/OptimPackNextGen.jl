@@ -99,7 +99,7 @@ end
 # Default parameter scaling factors.
 function defaultscale(p0::AbstractVector{<:Real})
     n = length(p0)
-    scl = Array{Cdouble}(n)
+    scl = Array{Cdouble}(undef, n)
     sml = sqrt(eps(Cdouble))
     @inbounds for i in 1:n
         scl[i] = max(abs(p0[i]), sml)
@@ -109,7 +109,7 @@ end
 
 # Copy parameters so that they are writable and compatible with NEWUOA.
 copyparameters(p0::AbstractVector{<:Real}) =
-    copy!(Array{Cdouble}(length(p0)), p0)
+    copy!(Array{Cdouble}(undef, length(p0)), p0)
 
 
 # Check NEWUOA status.

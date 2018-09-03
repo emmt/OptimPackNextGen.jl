@@ -539,9 +539,9 @@ function iterate!(ls::MoreThuenteLineSearch{T},
     @assert ls.task == :SEARCH
     @assert stp == ls.stp
 
-    const P66 = T(0.66)
-    const HALF = T(0.5)
-    const ZERO = zero(T)
+    P66 = T(0.66)
+    HALF = T(0.5)
+    ZERO = zero(T)
 
     # If psi(stp) ≤ 0 and f'(stp) ≥ 0 for some step, then the algorithm enters
     # the second stage.
@@ -711,11 +711,11 @@ function cstep(brackt::Bool, stpmin::T, stpmax::T,
                sty::T, fy::T, dy::T,
                stp::T, fp::T, dp::T) where {T<:AbstractFloat}
 
-    const ZERO = zero(T)
-    const ONE = one(T)
-    const TWO = convert(T, 2)
-    const THREE = convert(T, 3)
-    const P66 = convert(T, 0.66)
+    ZERO = zero(T)
+    ONE = one(T)
+    TWO = convert(T, 2)
+    THREE = convert(T, 3)
+    P66 = convert(T, 0.66)
     local theta::T, gamma::T, p::T, q::T, r::T, s::T, t::T
 
     info = 0

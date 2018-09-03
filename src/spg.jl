@@ -28,6 +28,9 @@ export
     spg,
     spg!
 
+using Compat
+using Compat.Printf
+
 using LazyAlgebra
 using ...OptimPackNextGen
 
@@ -109,7 +112,7 @@ The following keywords are available:
   stream and `ws` an instance of `SPG.Info` with information about the current
   iterate.
 
-* `io` specifes the output stream for iteration information.  It is `STDOUT` by
+* `io` specifes the output stream for iteration information.  It is `stdout` by
   default.
 
 The `SPG.Info` type has the following members:
@@ -164,7 +167,7 @@ function spg!(fg!, prj!, x, m::Integer;
               eta::Real=1.0,
               printer::Function=default_printer,
               verb::Bool=false,
-              io::IO=STDOUT)
+              io::IO=stdout)
     _spg!(fg!, prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
           Float(eps1), Float(eps2), Float(eta),
           printer, verb, io)
@@ -179,17 +182,17 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     @assert eps1 ≥ 0.0
     @assert eps2 ≥ 0.0
     @assert eta > 0.0
-    const lmin = Float(1e-30)
-    const lmax = Float(1e+30)
-    const ftol = Float(1e-4)
-    const amin = Float(0.1)
-    const amax = Float(0.9)
+    lmin = Float(1e-30)
+    lmax = Float(1e+30)
+    ftol = Float(1e-4)
+    amin = Float(0.1)
+    amax = Float(0.9)
     local iter::Int = 0
     local fcnt::Int = 0
     local pcnt::Int = 0
     local status::Int = SEARCHING
     if m > 1
-        lastfv = Array{Float}(m)
+        lastfv = Array{Float}(undef, m)
         fill!(lastfv, -Inf)
     end
     local x0::T = vcopy(x)
@@ -368,9 +371,9 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     if verb
         reason = getreason(ws)
         if status < 0
-            print_with_color(:red, STDERR, "# WARNING: ", reason, "\n")
+            printstyled(stderr, "# WARNING: ", reason, "\n"; color=:red)
         else
-            print_with_color(:green, io, "# SUCCESS: ", reason, "\n")
+            printstyled(io, "# SUCCESS: ", reason, "\n"; color=:green)
         end
     end
     return xbest

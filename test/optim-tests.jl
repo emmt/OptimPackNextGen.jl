@@ -4,14 +4,15 @@ end
 
 module OptimTest
 
-using Base.Test
+using Compat
+using Test
 using LazyAlgebra
 using OptimPackNextGen.LineSearches
 using OptimPackNextGen.QuasiNewton
 
 function rosenbrock_init!(x0::Vector{<:Real})
-  x0[1:2:end] = -1.2
-  x0[2:2:end] =  1.0
+  x0[1:2:end] .= -1.2
+  x0[2:2:end] .=  1.0
   return nothing
 end
 
@@ -22,17 +23,17 @@ function rosenbrock_fg!(x::Vector{T}, gx::Vector{T}) where {T<:Real}
   const c200 = T(200)
   x1 = x[1:2:end]
   x2 = x[2:2:end]
-  t1 = c1 - x1
-  t2 = c10*(x2 - x1.*x1)
-  g2 = c200*(x2 - x1.*x1)
-  gx[1:2:end] = -c2*(x1.*g2 + t1)
+  t1 = c1 .- x1
+  t2 = c10*(x2 - x1 .* x1)
+  g2 = c200*(x2 - x1 .* x1)
+  gx[1:2:end] = -c2*(x1 .* g2 + t1)
   gx[2:2:end] = g2
-  return sum(t1.*t1) + sum(t2.*t2)
+  return sum(t1 .* t1) + sum(t2 .* t2)
 end
 
 function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
   T = (single ? Float32 : Float64)
-  x0 = Array{T}(n)
+  x0 = Array{T}(undef, n)
   rosenbrock_init!(x0)
   vmlmb(rosenbrock_fg!, x0, m, verb=true)
 end
@@ -41,7 +42,7 @@ end
 n = 20
 for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
-    x0 = Array{T}(n)
+    x0 = Array{T}(undef, n)
     rosenbrock_init!(x0)
     armijo = ArmijoLineSearch()
     moretoraldo = MoreToraldoLineSearch(gamma=(0.1,0.5))

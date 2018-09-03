@@ -1,7 +1,10 @@
 module OptimPackNextGenTests
 
+using Compat
+using Compat.Test
+using Compat.Printf
+
 using OptimPackNextGen
-using Base.Test
 
 VERBOSE = true
 

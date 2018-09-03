@@ -27,6 +27,9 @@ module Step
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
 
+using Compat
+using Compat.Printf
+
 """
 # Cyclic singly linked list
 """
@@ -59,7 +62,7 @@ mutable struct NodeData
 end
 
 # Default absolute and relative tolerances:
-const TOL = (realmin(Float), sqrt(eps(Float)))
+const TOL = (floatmin(Float), sqrt(eps(Float)))
 
 @inline sqrtdifmin(lvl,val) = sqrt(val - lvl)
 @inline sqrtdifmax(lvl,val) = sqrt(lvl - val)
@@ -73,7 +76,7 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                        tol::NTuple{2,Float}=TOL,
                        alpha::Float=0.0, beta::Float=0.0,
                        verb::Bool=false,
-                       printer::Function=default_printer, output::IO=STDOUT)
+                       printer::Function=default_printer, output::IO=stdout)
 
             maxeval ≥ 2 || error("parameter `maxeval` must be at least 2")
             tol[1] ≥ 0 || error("absolute tolerance `tol[1]` must be nonnegative")
@@ -236,7 +239,7 @@ The following optional keywords can be used:
   value of the function and norm of the gradient at the current point, `stp` is
   the length of the step to the current point.
 
-* `output` specifies the output stream for printing information (`STDOUT` is
+* `output` specifies the output stream for printing information (`stdout` is
   used by default).
 
 """ minimize
@@ -244,7 +247,7 @@ The following optional keywords can be used:
 @doc @doc(minimize) maximize
 
 function default_printer(eval::Int, xm::Float, fm::Float, prec::Float)
-    default_printer(STDOUT, eval, xm, fm, prec)
+    default_printer(stdout, eval, xm, fm, prec)
 end
 
 function default_printer(io::IO, eval::Int, xm::Float, fm::Float, prec::Float)

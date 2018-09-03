@@ -33,7 +33,7 @@ yields default absolute and relative tolerances for Brent's `fzero` method.
 Argument `T` is the floating-point type used for the computations.
 
 """
-fzero_atol(::Type{T}) where {T<:AbstractFloat} = realmin(T)
+fzero_atol(::Type{T}) where {T<:AbstractFloat} = floatmin(T)
 fzero_rtol(::Type{T}) where {T<:AbstractFloat} = T(4)*eps(T)
 
 """
@@ -45,7 +45,7 @@ yields default absolute and relative tolerances for Brent's `fmin` method.
 Argument `T` is the floating-point type used for the computations.
 
 """
-fmin_atol(::Type{T}) where {T<:AbstractFloat} = realmin(T)
+fmin_atol(::Type{T}) where {T<:AbstractFloat} = floatmin(T)
 fmin_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
 
 
@@ -58,7 +58,7 @@ three(::Type{T}) where {T<:AbstractFloat} = convert(T,3)
 """
 # Van Wijngaarden–Dekker–Brent method for finding a zero of a function
 
-    fzero([T=Float64,] f, a, b; atol=realmin(T), rtol=4*eps(T)) -> (x, fx)
+    fzero([T=Float64,] f, a, b; atol=floatmin(T), rtol=4*eps(T)) -> (x, fx)
 
 seeks a local root of the function `f(x)` in the interval `[a,b]`.
 
@@ -89,7 +89,7 @@ given in:
 ## Keywords
 
 * `atol` is the absolute tolerance for the solution.  The default value
-  for `atol` is `realmin(T)`.
+  for `atol` is `floatmin(T)`.
 
 * `rtol` is the relative tolerance for the solution.  The recommended (and
   default) value for `rtol` is `4*eps(T)` where `eps(T)` is the relative
@@ -116,11 +116,11 @@ function fzero(f, a::T, b::T,
                atol::T, rtol::T) :: NTuple{2,T} where {T<:AbstractFloat}
 
     # Some constants.
-    const ZERO::T = zero(T)
-    const ONE::T = one(T)
-    const TWO::T = two(T)
-    const HALF::T = half(T)
-    const THREE::T = three(T)
+    ZERO::T = zero(T)
+    ONE::T = one(T)
+    TWO::T = two(T)
+    HALF::T = half(T)
+    THREE::T = three(T)
 
     # Check tolerance parameters.
     @assert atol > ZERO
@@ -426,11 +426,11 @@ function _fmin(f, a::T, b::T,
                v::T, fv::T,
                atol::T, rtol::T) :: NTuple{4,T} where {T<:AbstractFloat}
     # Constants.
-    const ZERO::T = zero(T)
-    const ONE::T = one(T)
-    const TWO::T = ONE + ONE
-    const HALF::T = ONE/TWO
-    const c::T = goldstep(T)
+    ZERO::T = zero(T)
+    ONE::T = one(T)
+    TWO::T = ONE + ONE
+    HALF::T = ONE/TWO
+    c::T = goldstep(T)
 
     # Check tolerances. (Other arguments are assumed to be checked by the
     # caller.)

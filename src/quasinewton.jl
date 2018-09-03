@@ -21,6 +21,14 @@
 
 module QuasiNewton
 
+export
+    vmlmb,
+    vmlmb!,
+    EMULATE_BLMVM
+
+using Compat
+using Compat.Printf
+
 using LazyAlgebra
 using ...OptimPackNextGen
 using OptimPackNextGen.LineSearches
@@ -28,11 +36,6 @@ using OptimPackNextGen.SimpleBounds
 
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
-
-export
-    vmlmb,
-    vmlmb!,
-    EMULATE_BLMVM
 
 const EMULATE_BLMVM = UInt(1)
 
@@ -124,7 +127,7 @@ The following keywords are available:
   value of the function and norm of the gradient at the current point, `stp` is
   the length of the step to the current point.
 
-* `output` specifies the output stream for printing information (`STDOUT` is
+* `output` specifies the output stream for printing information (`stdout` is
   used by default).
 
 * `lnsrch` specifies the method to use for line searches (the default
@@ -188,8 +191,8 @@ in `x`.
 """
 function vmlmb!(fg!::Function, x::T;
                 mem::Integer = min(5, length(x)),
-                lower = -Inf, # FIXME: lower::Union{Real,T} = -Inf,
-                upper = +Inf, # FIXME: upper::Union{Real,T} = +Inf,
+                lower::Union{Real,T} = -Inf,
+                upper::Union{Real,T} = +Inf,
                 blmvm::Bool = false,
                 fmin::Real = -Inf,
                 maxiter::Integer = typemax(Int),
@@ -199,8 +202,8 @@ function vmlmb!(fg!::Function, x::T;
                 epsilon::Real = 0.0,
                 verb::Bool = false,
                 printer::Function = print_iteration,
-                output::IO = STDOUT,
-                lnsrch::Union{LineSearch{Float},Void} = nothing) where {T}
+                output::IO = stdout,
+                lnsrch::Union{LineSearch{Float},Nothing} = nothing) where {T}
     # Determine which options are used.
     flags::UInt = (blmvm ? EMULATE_BLMVM : 0)
 
@@ -234,7 +237,7 @@ function vmlmb!(fg!::Function, x::T;
     method = (bounds == 0 ? 0 : (flags & EMULATE_BLMVM) != 0 ? 1 : 2)
 
     # Provide a default line search method if needed.
-    if isa(lnsrch, Void)
+    if isa(lnsrch, Nothing)
         if method == 0
             ls = MoreThuenteLineSearch(Float; ftol=1e-3, gtol=0.9, xtol=0.1)
         else
@@ -274,10 +277,10 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
     @assert grtol ≥ 0
     @assert 0 ≤ epsilon < 1
 
-    const STPMIN = Float(1e-20)
-    const STPMAX = Float(1e+20)
+    STPMIN = Float(1e-20)
+    STPMAX = Float(1e+20)
 
-    sel = Array{Int}(0)
+    sel = Array{Int}(undef, 0)
     if bounds != 0
         sizehint!(sel, length(x))
     end
@@ -311,19 +314,19 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
 
     # Allocate memory for the limited memory BFGS approximation of the inverse
     # Hessian.
-    g = vcreate(x)     # gradient
+    g = vcreate(x) # ------------> gradient
     if method > 0
-        p = vcreate(x) # projected gradient
+        p = vcreate(x) # --------> projected gradient
     end
-    d = vcreate(x)     # search direction
-    S = Array{T}(mem)  # memorized steps
-    Y = Array{T}(mem)  # memorized gradient differences
+    d = vcreate(x) # ------------> search direction
+    S = Array{T}(undef, mem) # --> memorized steps
+    Y = Array{T}(undef, mem) # --> memorized gradient differences
     for k in 1:mem
         S[k] = vcreate(x)
         Y[k] = vcreate(x)
     end
-    rho = Array{Float}(mem)
-    alpha = Array{Float}(mem)
+    rho = Array{Float}(undef, mem)
+    alpha = Array{Float}(undef, mem)
 
     # Variable used to control the stage of the algorithm:
     #   * stage = 0 at start or restart;
@@ -542,9 +545,9 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
     if verb
         color = (stage > 3 ? :red : :green)
         prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
-        print_with_color(color, output, "# ", prefix, reason, "\n")
-    #elseif stage > 3
-        #warn(reason)
+        printstyled(output, "# ", prefix, reason, "\n"; color=color)
+        #elseif stage > 3
+        #@warn(reason)
     end
     return x
 end
@@ -572,7 +575,7 @@ sufficient_descent(gd::Real, ε::Real, gnorm::Real, dnorm::Real) =
 
 function print_iteration(iter::Integer, eval::Integer, rejects::Integer,
                          f::Real, gnorm::Real, step::Real)
-    print_iteration(STDOUT, iter, eval, rejects, f, gnorm, step)
+    print_iteration(stdout, iter, eval, rejects, f, gnorm, step)
 end
 
 function print_iteration(io::IO, iter::Integer, eval::Integer, rejects::Integer,

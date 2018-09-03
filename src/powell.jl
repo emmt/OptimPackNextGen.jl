@@ -14,13 +14,6 @@
 
 module Powell
 
-# Locate the dynamic library.
-if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
-    include(joinpath("..","deps","deps.jl"))
-else
-    error("OptimPackNextGen not properly installed.  Please run Pkg.build(\"OptimPackNextGen\")")
-end
-
 export
     iterate,
     restart,
@@ -38,6 +31,15 @@ export
     Bobyqa,
     bobyqa,
     bobyqa!
+
+using Compat
+
+# Locate the dynamic library.
+if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
+    include(joinpath("..","deps","deps.jl"))
+else
+    error("OptimPackNextGen not properly installed.  Please run Pkg.build(\"OptimPackNextGen\")")
+end
 
 import Base: ==
 
@@ -168,12 +170,12 @@ otherwise.
 function getradius end
 
 include("newuoa.jl")
-importall .Newuoa
+import .Newuoa: newuoa, newuoa!
 
 include("cobyla.jl")
-importall .Cobyla
+import .Cobyla: cobyla, cobyla!
 
 include("bobyqa.jl")
-importall .Bobyqa
+import .Bobyqa: bobyqa, bobyqa!
 
 end # module Powell
