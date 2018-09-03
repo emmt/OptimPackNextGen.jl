@@ -22,6 +22,8 @@ matrix:
 script:
   - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
   - julia --check-bounds=yes -e 'if VERSION >= v"0.7.0-DEV.5183"; using Pkg; end; Pkg.clone("https://github.com/emmt/LazyAlgebra.jl.git"); Pkg.clone(pwd()); Pkg.build("OptimPackNextGen"); Pkg.test("OptimPackNextGen"; coverage=true)'
+
+after_success:
   # push coverage results to Coveralls
   - julia -e 'if VERSION >= v"0.7.0-DEV.5183"; using Pkg; end; cd(Pkg.dir("OptimPackNextGen")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
   # push coverage results to Codecov
