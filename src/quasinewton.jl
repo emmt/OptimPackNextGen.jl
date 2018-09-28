@@ -79,9 +79,10 @@ the value and the gradient of the function as follows:
     f = fg!(x, g)
 
 where `x` are the current variables, `f` is the value of the function at `x`
-and `g` is the gradient at `x` (`g` is already allocated as `g = vcreate(x0)`).
-Argument `x0` gives the initial approximation of the variables (its contents is
-left unchanged).  The best solution found so far is returned in `x`.
+and the contents of `g` has to be overwritten with the gradient at `x` (when
+`fg!` is called, `g` is already allocated as `g = vcreate(x0)`).  Argument `x0`
+gives the initial approximation of the variables (its contents is left
+unchanged).  The best solution found so far is returned in `x`.
 
 The following keywords are available:
 
