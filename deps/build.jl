@@ -1,17 +1,17 @@
 using BinDeps
 using Compat
+using Libdl
 
 const version = "3.0.1"
 const unpacked_dir = "optimpack-$version"
 
 @BinDeps.setup
+cobyla = library_dependency("libcobyla")
+bobyqa = library_dependency("libbobyqa")
+newuoa = library_dependency("libnewuoa")
+optimpack = library_dependency("libopk")
 
-libs = [
-    cobyla = library_dependency("libcobyla")
-    bobyqa = library_dependency("libbobyqa")
-    newuoa = library_dependency("libnewuoa")
-    optimpack = library_dependency("libopk")
-]
+libs = [ cobyla ; bobyqa ; newuoa ; optimpack]
 
 provides(Sources,
          URI("https://github.com/emmt/OptimPack/releases/download/v$version/optimpack-$version.tar.gz"),
@@ -24,9 +24,9 @@ libdir = joinpath(prefix, "lib")
 
 function dynlibname(name)
     ext = Libdl.dlext
-    @compat @static if is_unix()
+    @compat @static if Compat.Sys.isunix()
         return "lib$(name).$(ext)"
-    elseif is_windows()
+    elseif Compat.Sys.iswindows()
         return "$(name).$(ext)"
     else
         error("unknown architecture")
