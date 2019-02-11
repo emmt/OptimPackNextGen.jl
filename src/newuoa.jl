@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2018 Éric Thiébaut.
+# Copyright (C) 2015-2019 Éric Thiébaut.
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -185,7 +185,7 @@ attempts to minimize the objective function.
 
 """
 optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
-    optimize!(f, copy!(Array{Cdouble}(undef, length(x0)), x0), args...; kwds...)
+    optimize!(f, copyto!(Array{Cdouble}(undef, length(x0)), x0), args...; kwds...)
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;

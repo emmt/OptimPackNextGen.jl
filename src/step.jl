@@ -29,6 +29,7 @@ import OptimPackNextGen.Float
 
 using Compat
 using Compat.Printf
+using Compat: @debug, @error, @info, @warn
 
 """
 # Cyclic singly linked list
@@ -112,7 +113,7 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                     break
                 end
                 if evaluations ≥ maxeval
-                    warn("too many evaluations")
+                    @warn "too many evaluations"
                     break
                 end
 

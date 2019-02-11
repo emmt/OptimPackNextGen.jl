@@ -201,7 +201,7 @@ attempts to minimize the objective function.
 
 """
 optimize(fc::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
-    optimize!(fc, copy!(Array{Cdouble}(undef, length(x0)), x0),
+    optimize!(fc, copyto!(Array{Cdouble}(undef, length(x0)), x0),
               args...; kwds...)
 
 function optimize!(fc::Function, x::DenseVector{Cdouble},

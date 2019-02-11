@@ -5,16 +5,17 @@
 #
 # ----------------------------------------------------------------------------
 #
-# This file is part of OptimPack.jl which is licensed under the MIT
+# This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2018, Éric Thiébaut.
+# Copyright (C) 2018-2019, Éric Thiébaut.
 #
 # ----------------------------------------------------------------------------
 module NonLinearLeastSquares
 
 export nllsq, nllsq!
 
+using Compat: @debug, @error, @info, @warn
 using ..Powell
 
 """
@@ -109,7 +110,7 @@ end
 
 # Copy parameters so that they are writable and compatible with NEWUOA.
 copyparameters(p0::AbstractVector{<:Real}) =
-    copy!(Array{Cdouble}(undef, length(p0)), p0)
+    copyto!(Array{Cdouble}(undef, length(p0)), p0)
 
 
 # Check NEWUOA status.
@@ -118,7 +119,7 @@ function check(status::Newuoa.Status)
         msg = Newuoa.getreason(status)
         if (status == Newuoa.ROUNDING_ERRORS ||
             status == Newuoa.TOO_MANY_EVALUATIONS)
-            warn(msg)
+            @warn msg
         else
             error(msg)
         end

@@ -340,7 +340,7 @@ function gqtpar!(A::StridedMatrix{T},
                 # Compute an approximate solution x and save the
                 # last value of par with A + par*I positive definite.
                 parf = par
-                copy!(w, b)
+                copyto!(w, b)
                 trsv!('U', 'T', 'N', A, w)
                 rxnorm = nrm2(w)
                 trsv!('U', 'N', 'N', A, w)

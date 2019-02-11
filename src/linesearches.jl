@@ -1,14 +1,14 @@
 #
 # linesearches.jl --
 #
-# Line search methods for OptimPack.
+# Line search methods for OptimPackNextGen.
 #
 # -----------------------------------------------------------------------------
 #
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2018, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut.
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -83,7 +83,7 @@ typical line search is performed as follows:
     task = gettask(ls)
     if task != :CONVERGENCE
         if task == :WARNING
-            warn(getreason(ls))
+            @warn getreason(ls)
         else
             error(getreason(ls))
         end
