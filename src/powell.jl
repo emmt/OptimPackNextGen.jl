@@ -35,11 +35,9 @@ export
 using Compat
 
 # Locate the dynamic library.
-if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
-    include(joinpath("..","deps","deps.jl"))
-else
+isfile(joinpath(@__DIR__,"..","deps","deps.jl")) ||
     error("OptimPackNextGen not properly installed.  Please run Pkg.build(\"OptimPackNextGen\")")
-end
+include(joinpath("..","deps","deps.jl"))
 
 import Base: ==
 
