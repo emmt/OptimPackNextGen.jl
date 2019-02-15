@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2018, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut.
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -276,7 +276,7 @@ end
 
 """
 
-    using OptimPack.Powell
+    using OptimPackNextGen.Powell
     ctx = Cobyla.create(n, m, rhobeg, rhoend; verbose=0, maxeval=500)
 
 creates a new reverse communication workspace for COBYLA algorithm.  A typical

@@ -258,7 +258,7 @@ end
 
 """
 
-    using OptimPack.Powell
+    using OptimPackNextGen.Powell
     ctx = Newuoa.create(n, rhobeg, rhoend; npt=..., verbose=..., maxeval=...)
 
 creates a new reverse communication workspace for NEWUOA algorithm.  A typical
