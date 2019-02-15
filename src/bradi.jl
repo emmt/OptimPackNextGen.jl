@@ -39,7 +39,7 @@ tolerances for the precision (see `Brent.fmin`).
 
 For instance:
 
-    Bradi.minimize(f, linspace(a,b,n))
+    Bradi.minimize(f, range(a,stop=b,length=n))
 
 performs a global search in the closed interval `[a,b]` which is sampled by `n`
 equalspaced points.

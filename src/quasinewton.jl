@@ -1,14 +1,14 @@
 #
 # quasinewton.jl --
 #
-# Limited memory quasi-Newton methods for OptimPack.
+# Limited memory quasi-Newton methods for OptimPackNextGen.
 #
 # -----------------------------------------------------------------------------
 #
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2018, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut.
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 

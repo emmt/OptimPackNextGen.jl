@@ -34,19 +34,19 @@ end
 
 function runtests()
     println("\n# Simple parabola:")
-    (xbest, fbest) = Bradi.minimize(parabola, linspace(-1, 2, 2))
+    (xbest, fbest) = Bradi.minimize(parabola, range(-1, stop=2, length=2))
     println("x = $xbest, f(x) = $fbest")
 
     println("\n# Brent's 5th function:")
-    (xbest, fbest) = Bradi.minimize(brent5, linspace(-10, 10, 5))
+    (xbest, fbest) = Bradi.minimize(brent5, range(-10, stop=10, length=5))
     println("x = $xbest, f(x) = $fbest")
 
     println("\n# Michalewicz's 1st function:")
-    (xbest, fbest) = Bradi.minimize(michalewicz1, linspace(-1, 2, 21))
+    (xbest, fbest) = Bradi.minimize(michalewicz1, range(-1, stop=2, length=21))
     println("x = $xbest, f(x) = $fbest")
 
     println("\n# Michalewicz's 2nd function:")
-    (xbest, fbest) = Bradi.maximize(michalewicz2, linspace(0, pi, 60))
+    (xbest, fbest) = Bradi.maximize(michalewicz2, range(0, stop=pi, length=60))
     println("x = $xbest, f(x) = $fbest")
 end
 

@@ -756,9 +756,9 @@ end
 @doc @doc(get_free_variables!) get_free_variables
 
 function newvariablelengthvector(::Type{T}, n::Integer) where {T}
-    vec = Array{T}(n)
+    vec = Vector{T}(undef, n)
     sizehint!(vec, n)
-    vec
+    return vec
 end
 
 #------------------------------------------------------------------------------
