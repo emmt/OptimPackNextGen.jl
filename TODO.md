@@ -13,9 +13,14 @@
 
 * Add verbose mode for `conjgrad`.
 
-* Write doc. for `bobyqa`.
+* Write doc. for `bobyqa`, `newuoa`, etc.
 
 * Automatically build dependencies.
+
+* Add `work` keyword to Powell's methods to avoid garbage collection.
+
+* Hierarchy of types should be more consistent (`Status`?) and exported methods
+  (`getreason`, `iterate`, etc.) should be shared.
 
 * Reorganize things:
   - OptimPack.jl -> OptimPackLib.jl = Julia wrapper to use OptimPack library;
