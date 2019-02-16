@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2018, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut.
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -21,8 +21,13 @@ export
 using Compat
 using Compat.Printf
 
-import ..AbstractStatus, ..AbstractContext,
-    ..getreason, ..getstatus, ..iterate, ..restart,
+import
+    ..AbstractContext,
+    ..AbstractStatus,
+    ..getreason,
+    ..getstatus,
+    ..iterate,
+    ..restart,
     .._libbobyqa
 
 # The dynamic library implementing the method.
@@ -52,9 +57,25 @@ function getreason(status::Status)
     unsafe_string(ptr)
 end
 
-# Yield the number of elements in BOBYQA workspace.
-_wslen(n::Integer, npt::Integer) =
-    (npt + 5)*(npt + n) + div(3*n*(n + 5),2)
+# `_wrklen(...)` yields the number of elements in BOBYQA workspace.
+_wrklen(n::Integer, npt::Integer) = _wrklen(Int(n), Int(npt))
+_wrklen(n::Int, npt::Int) = (npt + 5)*(npt + n) + div(3*n*(n + 5),2)
+_wrklen(x::AbstractVector{<:AbstractFloat}, npt::Integer) =
+    _wrklen(length(x), npt)
+function _wrklen(x::AbstractVector{<:AbstractFloat},
+                 scl::AbstractVector{<:AbstractFloat},
+                 npt::Integer)
+    return _wrklen(x, npt) + 3*length(scl)
+end
+
+# `_work(...)` yields a large enough workspace for NEWUOA.
+_work(x::AbstractVector{<:AbstractFloat}, npt::Integer) =
+    Vector{Cdouble}(undef, _wrklen(x, npt))
+function _work(x::AbstractVector{<:AbstractFloat},
+               scl::AbstractVector{<:AbstractFloat},
+               npt::Integer)
+    return Vector{Cdouble}(undef, _wrklen(x, scl, npt))
+end
 
 # Wrapper for the objective function in BOBYQA, the actual objective function
 # is provided by the client data as a `jl_value_t*` pointer.
@@ -76,25 +97,27 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
                    xl::DenseVector{Cdouble}, xu::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;
                    scale::DenseVector{Cdouble}=Array{Cdouble}(undef, 0),
-                   maximize::Bool=false,
-                   npt::Integer=2*length(x) + 1,
-                   check::Bool=false,
-                   verbose::Integer=0,
-                   maxeval::Integer=30*length(x))
+                   maximize::Bool = false,
+                   npt::Integer = 2*length(x) + 1,
+                   check::Bool = false,
+                   verbose::Integer = 0,
+                   maxeval::Integer = 30*length(x),
+                   work::Vector{Cdouble} = _work(x, scale, npt))
     n = length(x)
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
-    nw = _wslen(n, npt)
     nscl = length(scale)
     if nscl == 0
         sclptr = convert(Ptr{Cdouble}, C_NULL)
     elseif nscl == n
         sclptr = pointer(scale)
-        nw += 3*n
     else
         error("bad number of scaling factors")
     end
-    work = Array{Cdouble}(undef, nw)
+    nwrk = _wrklen(x, scale, npt)
+    if length(work) < nwrk
+        resize!(work, nwrk)
+    end
     status = Status(ccall((:bobyqa_optimize, _LIB), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble},
@@ -110,7 +133,8 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
 end
 
 optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
-    optimize!(f, copyto!(Array{Cdouble}(undef, length(x0)), x0), args...; kwds...)
+    optimize!(f, copyto!(Array{Cdouble}(undef, length(x0)), x0),
+              args...; kwds...)
 
 minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)
 maximize!(args...; kwds...) = optimize!(args...; maximize=true, kwds...)
@@ -124,11 +148,15 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
                  npt::Integer = 2*length(x) + 1,
                  verbose::Integer = 0,
                  maxeval::Integer = 30*length(x),
-                 check::Bool = true)
+                 check::Bool = true,
+                 work::Vector{Cdouble} = _work(x, npt))
     n = length(x)
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
-    work = Array{Cdouble}(undef, _wslen(n, npt))
+    nwrk = _wrklen(x, npt)
+    if length(work) < nwrk
+        resize!(work, nwrk)
+    end
     status = Status(ccall((:bobyqa, _LIB), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
