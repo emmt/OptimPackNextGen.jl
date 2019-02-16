@@ -79,10 +79,10 @@ end
 
 # Wrapper for the objective function in BOBYQA, the actual objective function
 # is provided by the client data as a `jl_value_t*` pointer.
-function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})
+function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     x = unsafe_wrap(Array, xptr, n)
     f = unsafe_pointer_to_objref(fptr)
-    convert(Cdouble, f(x))::Cdouble
+    return Cdouble(f(x))
 end
 
 # With precompilation, `__init__()` carries on initializations that must occur
@@ -108,7 +108,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     length(xu) == n || error("bad length for superior bound")
     nscl = length(scale)
     if nscl == 0
-        sclptr = convert(Ptr{Cdouble}, C_NULL)
+        sclptr = Ptr{Cdouble}(0)
     elseif nscl == n
         sclptr = pointer(scale)
     else

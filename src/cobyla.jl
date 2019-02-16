@@ -184,10 +184,10 @@ _work(::Type{T}, len::Integer) where {T} = Vector{T}(undef, len)
 # Wrapper for the objective function in COBYLA, the actual objective
 # function is provided by the client data as a `jl_value_t*` pointer.
 function _objfun(n::Cptrdiff_t, m::Cptrdiff_t, xptr::Ptr{Cdouble},
-                 _c::Ptr{Cdouble}, fptr::Ptr{Cvoid})
+                 _c::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     x = unsafe_wrap(Array, xptr, n)
     f = unsafe_pointer_to_objref(fptr)
-    convert(Cdouble, (m > 0 ? f(x, unsafe_wrap(Array, _c, m)) : f(x)))::Cdouble
+    return (m > 0 ? Cdouble(f(x, unsafe_wrap(Array, _c, m))) : Cdouble(f(x)))
 end
 
 # With precompilation, `__init__()` carries on initializations that must occur
@@ -227,7 +227,7 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
     n = length(x)
     nscl = length(scale)
     if nscl == 0
-        sclptr = convert(Ptr{Cdouble}, C_NULL)
+        sclptr = Ptr{Cdouble}(0)
     elseif nscl == n
         sclptr = pointer(scale)
     else
