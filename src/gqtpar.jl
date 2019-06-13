@@ -135,7 +135,7 @@ For `gqtpar!`:
 * `x` is a 1D floating-point array of length `n` to store the approximate
   solution.
 
-* `z`, `d` and `w` are optional work arrays of lenght `n`.
+* `z`, `d` and `w` are optional work arrays of length `n`.
 
 The returned values are:
 
@@ -178,7 +178,7 @@ function gqtpar(A::StridedMatrix{T},
                 delta::Real, rtol::Real, atol::Real,
                 itmax::Integer, par::Real) where {T<:BlasReal}
     return gqtpar!(A, uplo, b, delta, rtol, atol, itmax, par,
-                   Array{T}(undef, lenght(b)))
+                   Array{T}(undef, length(b)))
 end
 
 function gqtpar!(A::StridedMatrix{T},

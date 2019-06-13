@@ -73,7 +73,7 @@ typical line search is performed as follows:
     stpmax = ...        # upper bound for the step (usually a large number)
     task = start!(ls, f0, dtg0, stp; stpmin = stpmin, stpmax = stpmax)
     while task == :SEARCH
-        stp = getstep(ls) # get step lenght to try
+        stp = getstep(ls) # get step length to try
         x = x0 + stp*d    # compute trial point
         f = func(x)       # function value at x
         g = grad(x)       # gradient at x
