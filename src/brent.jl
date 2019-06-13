@@ -19,10 +19,17 @@
 
 module Brent
 
+export
+    fzero,
+    fmin,
+    fmin1,
+    fmin2,
+    fmin3,
+    fminbrkt
+
 # Use the same floating point type for scalars as in OptimPack.
 import OptimPackNextGen.Float
-
-export fzero, fmin, fmin1, fmin2, fmin3, fminbrkt
+import Base.MathConstants: φ
 
 """
 
@@ -50,21 +57,32 @@ fmin_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
 
 
 # goldstep = 1/φ^2 = 2 - φ ≈ 0.3812
-goldstep(::Type{T}) where {T<:AbstractFloat} = convert(T, (3 - sqrt(big(5)))/2)
-half(::Type{T}) where {T<:AbstractFloat} = convert(T,1//2)
-two(::Type{T}) where {T<:AbstractFloat} = convert(T,2)
-three(::Type{T}) where {T<:AbstractFloat} = convert(T,3)
+goldstep(::Type{T}) where {T<:AbstractFloat} = T(2) - T(φ)
+half(::Type{T}) where {T<:AbstractFloat} = T(1)/T(2)
+two(::Type{T}) where {T<:AbstractFloat} = T(2)
+three(::Type{T}) where {T<:AbstractFloat} = T(3)
 
 """
 # Van Wijngaarden–Dekker–Brent method for finding a zero of a function
 
-    fzero([T=Float64,] f, a, b; atol=floatmin(T), rtol=4*eps(T)) -> (x, fx)
+```julia
+fzero([T=Float64,] f, a, b; atol=floatmin(T), rtol=4*eps(T)) -> (x, fx)
+```
 
 seeks a local root of the function `f(x)` in the interval `[a,b]`.
 
 It is assumed that `f(a)` and `f(b)` have opposite signs (an error is raised if
 this does not hold).  `fzero` returns a zero `x` in the given interval `[a,b]`
 to within a tolerance: `rtol*abs(x) + atol`.
+
+If the function value at the endpoints `a` and `b` of the search interval are
+known, the method can be called as:
+
+```julia
+fzero([T=Float64,] f, a, fa, b, fb; atol=floatmin(T), rtol=4*eps(T))
+```
+
+to save some computations.
 
 This function has been derived from Richard Brent's F77 code ZEROIN which
 itself is a slightly modified translation of the Algol 60 procedure ZERO
@@ -84,6 +102,9 @@ given in:
   `f(x)` to evaluate the function at any `x` in the interval `[a,b]`.
 
 * `a`, `b` - The endpoints of the initial search interval.
+
+* `fa`, `fb` - The function values at the endpoints of the initial search
+  interval.
 
 
 ## Keywords
@@ -106,14 +127,55 @@ f(x)` is the function value at `x`.
 """
 fzero(f, a::Real, b::Real; kwds...) = fzero(Float, f, a, b; kwds...)
 
+fzero(f, a::Real, fa::Real, b::Real, fb::Real; kwds...) =
+    fzero(Float, f, a, fa, b, fb; kwds...)
+
 function fzero(::Type{T}, f, a::Real, b::Real;
                atol::Real = fzero_atol(T),
                rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
     fzero(f, T(a), T(b), T(atol), T(rtol))
 end
 
+function fzero(::Type{T}, f, a::Real, fa::Real, b::Real, fb::Real;
+               atol::Real = fzero_atol(T),
+               rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
+    fzero(f, T(a), T(fa), T(b), F(fb), T(atol), T(rtol))
+end
+
 function fzero(f, a::T, b::T,
                atol::T, rtol::T) :: NTuple{2,T} where {T<:AbstractFloat}
+    # Compute the function value at the endpoints.  Return as early as
+    # possible.
+    fa = T(f(a))
+    fa == 0 && return (a, fa)
+    fb = T(f(b))
+    fb == 0 && return (b, fb)
+
+    # Iterate to reduce the interval.
+    return _fzero(f, a, fa, b, fb, atol, rtol)
+end
+
+function fzero(f, a::T, fa::T, b::T, fb::T,
+               atol::T, rtol::T) :: NTuple{2,T} where {T<:AbstractFloat}
+    # Return immediately if possible.
+    fa == 0 && return (a, fa)
+    fb == 0 && return (b, fb)
+
+    # Iterate to reduce the interval.
+    return _fzero(f, a, fa, b, fb, atol, rtol)
+end
+
+function _fzero(f, a::T, fa::T, b::T, fb::T,
+                atol::T, rtol::T) :: NTuple{2,T} where {T<:AbstractFloat}
+
+    # Check the assumptions and the tolerance parameters.
+    (fa > 0) == (fb > 0) && error("f(a) and f(b) must have different signs")
+    @assert atol > 0
+    @assert 0 < rtol < 1
+
+    # Explicitly declare types of variables to prevent accidental changes of
+    # type during the execution of the code.
+    local fc::T, δ::T, c::T, d::T, e::T, m::T
 
     # Some constants.
     ZERO::T = zero(T)
@@ -122,22 +184,7 @@ function fzero(f, a::T, b::T,
     HALF::T = half(T)
     THREE::T = three(T)
 
-    # Check tolerance parameters.
-    @assert atol > ZERO
-    @assert ZERO < rtol < ONE
-
-    # Explicitly declare types of variables to prevent accidental changes of
-    # type during the execution of the code.
-    local fa::T, fb::T, fc::T, δ::T, c::T, d::T, e::T, m::T
-
-    # Compute the function value at the endpoints and check the assumptions.
-    fa = f(a)
-    fa == ZERO && return (a, fa)
-    fb = f(b)
-    fb == ZERO && return (b, fb)
-    if (fa > ZERO) == (fb > ZERO)
-        error("f(a) and f(b) must have different signs")
-    end
+    # Loop to improve the interval bracketing the root.
     fc = fb # to trigger bound update below
     while true
         if (fb > ZERO) == (fc > ZERO)
@@ -215,7 +262,7 @@ function fzero(f, a::T, b::T,
         else
             b -= δ
         end
-        fb = f(b)
+        fb = T(f(b))
         if fb == ZERO
             break
         end
@@ -361,7 +408,7 @@ This method is called to start Brent's algorithm with three given points `x`,
 `w` and `v` (not necessarily distinct) inside the search interval `[a,b]` and
 with known function values `fx = f(x)`, `fw = f(w)` and `fv = f(v)`.
 
-    """
+"""
 function fmin3(f, a::T, b::T,
                x::T, fx::T,
                w::T, fw::T,
@@ -531,6 +578,7 @@ runs Brent's algorithm to minimize function `f` with a bracket of the minimum
 defined by 3 points (`x`, `w` and `v`) with known function values (`fx`, `fw`
 and `fv`) and such that the least function value is at `x` which is inside the
 interval `[v,w]`.
+
 """
 function fminbrkt(f, x::T, fx::T, w::T, fw::T,
                   v::T, fv::T, atol::T, rtol::T) where {T<:AbstractFloat}
