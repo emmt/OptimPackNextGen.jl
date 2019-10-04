@@ -39,7 +39,7 @@ isfile(joinpath(@__DIR__,"..","deps","deps.jl")) ||
     error("OptimPackNextGen not properly installed.  Please run Pkg.build(\"OptimPackNextGen\")")
 include(joinpath("..","deps","deps.jl"))
 
-import Base: ==
+import Base: ==, iterate
 
 abstract type AbstractStatus end
 
