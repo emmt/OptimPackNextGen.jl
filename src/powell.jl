@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2018, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -34,18 +34,17 @@ export
 
 using Compat
 
+import Base: ==, iterate
+
 # Locate the dynamic library.
 isfile(joinpath(@__DIR__,"..","deps","deps.jl")) ||
     error("OptimPackNextGen not properly installed.  Please run Pkg.build(\"OptimPackNextGen\")")
 include(joinpath("..","deps","deps.jl"))
 
-import Base: ==, iterate
-
+abstract type AbstractContext end
 abstract type AbstractStatus end
 
-abstract type AbstractContext end
-
-==(a::T, b::T) where {T<:AbstractStatus} = a._code == b._code
+==(a::T, b::T) where {T<:AbstractStatus} = (a._code == b._code)
 ==(a::AbstractStatus, b::AbstractStatus) = false
 
 """
@@ -173,8 +172,8 @@ function getradius end
 grow!(x, n) -> x
 ```
 
-grows `x` to have at least `n` elements, does nothing if `x` is large enough.
-Argument `x` is returned.
+grows vector `x` so that it has at least `n` elements, does nothing if `x` is
+large enough.  Argument `x` is returned.
 
 See also [`resize!`](@ref).
 
