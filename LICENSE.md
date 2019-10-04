@@ -1,4 +1,4 @@
-The OptimPack.jl package is licensed under the MIT "Expat" License:
+The OptimPackNextGen.jl package is licensed under the MIT "Expat" License:
 
 > Copyright (c) 2015-2017: Éric Thiébaut.
 >

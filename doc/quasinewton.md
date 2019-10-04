@@ -1,6 +1,6 @@
 # Limited memory quasi-Newton methods
 
-OptimPack provides some limited-memory quasi-Newton methods to minimize
+OptimPackNextGen provides some limited-memory quasi-Newton methods to minimize
 differentiable objective functions of many variables.  Optionally, bounds on
 the variables can be specified.
 
@@ -93,9 +93,9 @@ solution in `x`.
 
 ### History
 
-The VMLMB algorithm in OptimPack.jl provides a pure Julia implementation of the
-original method (Thiébaut, 2002) with some improvements and the capability to
-emulate L-BFGS and BLMVM methods.
+The VMLMB algorithm in OptimPackNextGen.jl provides a pure Julia implementation
+of the original method (Thiébaut, 2002) with some improvements and the
+capability to emulate L-BFGS and BLMVM methods.
 
 The limited memory BFGS method (L-BFGS) was first described by Nocedal (1980)
 who dubbed it SQN.  The method is implemented in MINPACK-2 (1995) by the
@@ -124,4 +124,3 @@ by Byrd at al. (1995) which has more overheads.
 
 * É. Thiébaut, "*Optimization issues in blind deconvolution algorithms*" in
   Astronomical Data Analysis II, Proc. SPIE 4847, pp. 174-183 (2002).
-

@@ -27,7 +27,7 @@ export
     fmin3,
     fminbrkt
 
-# Use the same floating point type for scalars as in OptimPack.
+# Use the same floating point type for scalars as in OptimPackNextGen.
 import OptimPackNextGen.Float
 import Base.MathConstants: φ
 

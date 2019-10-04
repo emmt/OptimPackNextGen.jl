@@ -34,7 +34,7 @@ using ...OptimPackNextGen
 using OptimPackNextGen.LineSearches
 using OptimPackNextGen.SimpleBounds
 
-# Use the same floating point type for scalars as in OptimPack.
+# Use the same floating point type for scalars as in OptimPackNextGen.
 import OptimPackNextGen.Float
 
 const EMULATE_BLMVM = UInt(1)

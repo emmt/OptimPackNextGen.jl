@@ -24,7 +24,7 @@
 
 module Step
 
-# Use the same floating point type for scalars as in OptimPack.
+# Use the same floating point type for scalars as in OptimPackNextGen.
 import OptimPackNextGen.Float
 
 using Compat

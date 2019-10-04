@@ -1,23 +1,23 @@
 # Algebra
 
-To solve large scale optimization problems in a unified way, OptimPack
+To solve large scale optimization problems in a unified way, OptimPackNextGen
 manipulates the unknowns of the problems, the so-called "variables", at an
 abstract level requiring that a few methods be implemented to manipulate the
 variables of interest.  Other values can be scalar reals of type
-`OptimPack.Float` (an alias to `Cdouble` which is itself an alias to `Float64`)
-or integers of type `Int` (the default integer type of Julia which is suitable
-for indexing arays).
+`OptimPackNextGen.Float` (an alias to `Cdouble` which is itself an alias to
+`Float64`) or integers of type `Int` (the default integer type of Julia which
+is suitable for indexing arays).
 
 
 ## Variables and Vector Spaces
 
 The "variables" are the unknowns of the considered inverse problem.  Variables
-in OptimPack belong to so-called "vector spaces" which can be anything needed to
-store the variable values.  A variable instance is typically used as a template
-to represent any variable of the same vector space.  The type of a variable is
-not sufficient (for instance a Julia array type is only specified by the type
-of its elements and its number of dimensions, whereas all dimensions must be
-specified to build a similar array).
+in OptimPackNextGen belong to so-called "vector spaces" which can be anything
+needed to store the variable values.  A variable instance is typically used as
+a template to represent any variable of the same vector space.  The type of a
+variable is not sufficient (for instance a Julia array type is only specified
+by the type of its elements and its number of dimensions, whereas all
+dimensions must be specified to build a similar array).
 
 The values of a variables may have any type (or may even have each different
 types).  Vector spaces implement the following methods:
@@ -68,10 +68,10 @@ The following methods may optionally be implemented:
   end
   ```
 
-OptimPack provides reasonably optimized implementations of these methods for
-Julia `Array` types.  So OptimPack can be used out-of-the box if your unknowns
-are stored in the form of Julia arrays.  Otherwise, you'll have to implement
-the above methods.
+OptimPackNextGen provides reasonably optimized implementations of these methods
+for Julia `Array` types.  So OptimPackNextGen can be used out-of-the box if
+your unknowns are stored in the form of Julia arrays.  Otherwise, you'll have
+to implement the above methods.
 
 Note that `length`, `vcreate`, `vcopy!`, `vscale!` and `vfill!` are identical
 or similar to methods already provided by Julia for its arrays but the
