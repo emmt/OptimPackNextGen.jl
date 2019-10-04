@@ -279,9 +279,38 @@ end
 cobyla(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
     cobyla!(f, copy(x0), args...; kwds...)
 
+"""
+
+```julia
+using OptimPackNextGen.Powell
+ctx = Cobyla.Context(n, m, rhobeg, rhoend; verbose=0, maxeval=500)
+```
+
+creates a new reverse communication workspace for COBYLA algorithm.  A typical
+usage is:
+
+
+```julia
+x = Array{Cdouble}(undef, n)
+c = Array{Cdouble}(undef, m)
+x[...] = ... # initial solution
+ctx = Cobyla.Context(n, m, rhobeg, rhoend, verbose=1, maxeval=500)
+status = getstatus(ctx)
+while status == Cobyla.ITERATE
+    fx = ...       # compute function value at X
+    c[...] = ...   # compute constraints at X
+    status = iterate(ctx, fx, x, c)
+end
+if status != Cobyla.SUCCESS
+    println("Something wrong occured in COBYLA: ", getreason(status))
+end
+```
+
+""" Context
+
 # Context for reverse communication variant of COBYLA.
 # Must be mutable to be finalized.
-mutable struct CobylaContext <: AbstractContext
+mutable struct Context <: AbstractContext
     ptr::Ptr{Cvoid}
     n::Int
     m::Int
@@ -289,57 +318,29 @@ mutable struct CobylaContext <: AbstractContext
     rhoend::Cdouble
     verbose::Int
     maxeval::Int
+    function Context(n::Integer, m::Integer,
+                     rhobeg::Real, rhoend::Real;
+                     verbose::Integer=0, maxeval::Integer=500)
+        n ≥ 2 || throw(ArgumentError("bad number of variables"))
+        m ≥ 0 || throw(ArgumentError("bad number of constraints"))
+        0 ≤ rhoend ≤ rhobeg ||
+            throw(ArgumentError("bad trust region radius parameters"))
+        ptr = ccall((:cobyla_create, DLL), Ptr{Cvoid},
+                    (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
+                     Cptrdiff_t, Cptrdiff_t),
+                    n, m, rhobeg, rhoend, verbose, maxeval)
+        ptr != C_NULL || error(errno() == Base.Errno.ENOMEM
+                               ? "insufficient memory"
+                               : "unexpected error")
+        return finalizer(ctx -> ccall((:cobyla_delete, DLL), Cvoid,
+                                      (Ptr{Cvoid},), ctx.ptr),
+                         new(ptr, n, m, rhobeg, rhoend, verbose, maxeval))
+    end
 end
 
-"""
+@deprecate create(args...; kwds...) Context(args...; kwds...)
 
-    using OptimPackNextGen.Powell
-    ctx = Cobyla.create(n, m, rhobeg, rhoend; verbose=0, maxeval=500)
-
-creates a new reverse communication workspace for COBYLA algorithm.  A typical
-usage is:
-
-    x = Array{Cdouble}(undef, n)
-    c = Array{Cdouble}(undef, m)
-    x[...] = ... # initial solution
-    ctx = Cobyla.create(n, m, rhobeg, rhoend, verbose=1, maxeval=500)
-    status = getstatus(ctx)
-    while status == Cobyla.ITERATE
-        fx = ...       # compute function value at X
-        c[...] = ...   # compute constraints at X
-        status = iterate(ctx, fx, x, c)
-    end
-    if status != Cobyla.SUCCESS
-        println("Something wrong occured in COBYLA: ", getreason(status))
-    end
-
-"""
-function create(n::Integer, m::Integer,
-                       rhobeg::Real, rhoend::Real;
-                       verbose::Integer=0, maxeval::Integer=500)
-    if n < 2
-        throw(ArgumentError("bad number of variables"))
-    elseif m < 0
-        throw(ArgumentError("bad number of constraints"))
-    elseif rhoend < 0 || rhoend > rhobeg
-        throw(ArgumentError("bad trust region radius parameters"))
-    end
-    ptr = ccall((:cobyla_create, DLL), Ptr{Cvoid},
-                (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
-                 Cptrdiff_t, Cptrdiff_t),
-                n, m, rhobeg, rhoend, verbose, maxeval)
-    if ptr == C_NULL
-        reason = (errno() == Base.Errno.ENOMEM
-                  ? "insufficient memory"
-                  : "unexpected error")
-        error(reason)
-    end
-    return finalizer(ctx -> ccall((:cobyla_delete, DLL), Cvoid,
-                                  (Ptr{Cvoid},), ctx.ptr),
-                     CobylaContext(ptr, n, m, rhobeg, rhoend, verbose, maxeval))
-end
-
-function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble},
+function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble},
                  c::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     length(c) == ctx.m || error("bad number of constraints")
@@ -348,7 +349,7 @@ function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble},
                  ctx.ptr, f, x, c))
 end
 
-function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble})
+function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     ctx.m == 0 || error("bad number of constraints")
     Status(ccall((:cobyla_iterate, DLL), Cint,
@@ -356,21 +357,21 @@ function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble})
                  ctx.ptr, f, x, C_NULL))
 end
 
-restart(ctx::CobylaContext) =
+restart(ctx::Context) =
     Status(ccall((:cobyla_restart, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
 
-getstatus(ctx::CobylaContext) =
+getstatus(ctx::Context) =
     Status(ccall((:cobyla_get_status, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
 
 # Get the current number of function evaluations.  Result is -1 if
 # something is wrong (e.g. CTX is NULL), nonnegative otherwise.
-getncalls(ctx::CobylaContext) =
+getncalls(ctx::Context) =
     Int(ccall((:cobyla_get_nevals, DLL), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
 
-getradius(ctx::CobylaContext) =
+getradius(ctx::Context) =
     ccall((:cobyla_get_rho, DLL), Cdouble, (Ptr{Cvoid},), ctx.ptr)
 
-getlastf(ctx::CobylaContext) =
+getlastf(ctx::Context) =
     ccall((:cobyla_get_last_f, DLL), Cdouble, (Ptr{Cvoid},), ctx.ptr)
 
 end # module Cobyla

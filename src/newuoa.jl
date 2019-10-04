@@ -278,6 +278,32 @@ end
 newuoa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
     newuoa!(f, copy(x0), args...; kwds...)
 
+"""
+
+```julia
+using OptimPackNextGen.Powell
+ctx = Newuoa.create(n, rhobeg, rhoend; npt=..., verbose=..., maxeval=...)
+```
+
+creates a new reverse communication workspace for NEWUOA algorithm.  A typical
+usage is:
+
+```julia
+x = Array{Cdouble}(undef, n)
+x[...] = ... # initial solution
+ctx = Newuoa.Context(n, rhobeg, rhoend; verbose=1, maxeval=500)
+status = getstatus(ctx)
+while status == Newuoa.ITERATE
+    fx = ...       # compute function value at X
+    status = iterate(ctx, fx, x)
+end
+if status != Newuoa.SUCCESS
+    println("Something wrong occured in NEWUOA: ", getreason(status))
+end
+```
+
+""" Context
+
 # Context for reverse communication variant of NEWUOA.
 # Must be mutable to be finalized.
 mutable struct Context <: AbstractContext
@@ -288,47 +314,24 @@ mutable struct Context <: AbstractContext
     rhoend::Cdouble
     verbose::Int
     maxeval::Int
+    function Context(n::Integer, rhobeg::Real, rhoend::Real;
+                     npt::Integer = 2*length(x) + 1,
+                     verbose::Integer = 0,
+                     maxeval::Integer = 30*length(x))
+        ptr = ccall((:newuoa_create, DLL), Ptr{Cvoid},
+                    (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
+                     Cptrdiff_t, Cptrdiff_t),
+                    n, npt, rhobeg, rhoend, verbose, maxeval)
+        ptr != C_NULL || error(errno() == Base.Errno.ENOMEM
+                               ? "insufficient memory"
+                               : "invalid argument(s)")
+        return finalizer(ctx -> ccall((:newuoa_delete, DLL), Cvoid,
+                                      (Ptr{Cvoid},), ctx.ptr),
+                         new(ptr, n, npt, rhobeg, rhoend, verbose, maxeval))
+    end
 end
 
-"""
-
-    using OptimPackNextGen.Powell
-    ctx = Newuoa.create(n, rhobeg, rhoend; npt=..., verbose=..., maxeval=...)
-
-creates a new reverse communication workspace for NEWUOA algorithm.  A typical
-usage is:
-
-    x = Array{Cdouble}(undef, n)
-    x[...] = ... # initial solution
-    ctx = Newuoa.create(n, rhobeg, rhoend; verbose=1, maxeval=500)
-    status = getstatus(ctx)
-    while status == Newuoa.ITERATE
-        fx = ...       # compute function value at X
-        status = iterate(ctx, fx, x)
-    end
-    if status != Newuoa.SUCCESS
-        println("Something wrong occured in NEWUOA: ", getreason(status))
-    end
-
-"""
-function create(n::Integer, rhobeg::Real, rhoend::Real;
-                npt::Integer = 2*length(x) + 1,
-                verbose::Integer = 0,
-                maxeval::Integer = 30*length(x))
-    ptr = ccall((:newuoa_create, DLL), Ptr{Cvoid},
-                (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
-                 Cptrdiff_t, Cptrdiff_t),
-                n, npt, rhobeg, rhoend, verbose, maxeval)
-    if ptr == C_NULL
-        reason = (errno() == Base.Errno.ENOMEM
-                  ? "insufficient memory"
-                  : "invalid argument")
-        error(reason)
-    end
-    return finalizer(ctx -> ccall((:newuoa_delete, DLL), Cvoid,
-                                  (Ptr{Cvoid},), ctx.ptr),
-                     Context(ptr, n, npt, rhobeg, rhoend, verbose, maxeval))
-end
+@deprecate create(args...; kwds...) Context(args...; kwds...)
 
 function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")

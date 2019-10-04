@@ -1,7 +1,7 @@
 module CobylaTests
 
 using Compat.Printf
-using OptimPack.Powell
+using OptimPackNextGen.Powell
 
 function runtests(;revcom::Bool = false, scale::Real = 1.0)
     # Beware that order of operations may affect the result (whithin
@@ -261,8 +261,8 @@ function runtests(;revcom::Bool = false, scale::Real = 1.0)
             if revcom
                 # Test the reverse communication variant.
                 c = Array{Cdouble}(undef, max(m, 0))
-                ctx = Cobyla.create(n, m, rhobeg, rhoend;
-                                    verbose = 1, maxeval = 2000)
+                ctx = Cobyla.Context(n, m, rhobeg, rhoend;
+                                     verbose = 1, maxeval = 2000)
                 status = getstatus(ctx)
                 while status == Cobyla.ITERATE
                     if m > 0

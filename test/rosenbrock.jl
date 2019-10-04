@@ -33,7 +33,7 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     rosenbrock_init!(x0)
 
     #@printf("\nTesting NLCG in %s precision\n", prec)
-    #x1 = OptimPack.nlcg(rosenbrock_fg!, x0, verb=VERBOSE)
+    #x1 = OptimPackNextGen.nlcg(rosenbrock_fg!, x0, verb=VERBOSE)
     #@test_approx_eq_eps x1 ones(T,20) 1e-3
 
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
@@ -49,8 +49,8 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     @test x4 ≈ ones(T,20) atol=1e-3
 
     #@printf("\nTesting VMLM in %s precision with Barzilai & Borwein scaling\n", prec)
-    #x3 = OptimPack.vmlmb(rosenbrock_fg!, x0, verb=VERBOSE,
-    #                     scaling=OptimPack.SCALING_BARZILAI_BORWEIN)
+    #x3 = OptimPackNextGen.vmlmb(rosenbrock_fg!, x0, verb=VERBOSE,
+    #                            scaling=OptimPackNextGen.SCALING_BARZILAI_BORWEIN)
     #@test x3  ≈ ones(T,20) atol=1e-3
 
     @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)

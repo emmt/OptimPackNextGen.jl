@@ -1,7 +1,7 @@
 module NewuoaTests
 
 using Compat.Printf
-using OptimPack.Powell
+using OptimPackNextGen.Powell
 
 function runtests(;revcom::Bool=false, scale::Real=1)
     # The Chebyquad test problem (Fletcher, 1965) for N = 2,4,6 and 8, with
@@ -48,8 +48,8 @@ function runtests(;revcom::Bool=false, scale::Real=1)
         @printf("\n\n    Results with N =%2d and NPT =%3d\n", n, npt)
         if revcom
             # Test the reverse communication variant.
-            ctx = Newuoa.create(n, rhobeg, rhoend;
-                                npt = npt, verbose = 2, maxeval = 5000)
+            ctx = Newuoa.Context(n, rhobeg, rhoend;
+                                 npt = npt, verbose = 2, maxeval = 5000)
             status = getstatus(ctx)
             while status == Newuoa.ITERATE
                 fx = ftest(x)
