@@ -167,6 +167,23 @@ otherwise.
 """
 function getradius end
 
+"""
+
+```julia
+grow!(x, n) -> x
+```
+
+grows `x` to have at least `n` elements, does nothing if `x` is large enough.
+Argument `x` is returned.
+
+See also [`resize!`](@ref).
+
+"""
+grow!(x::Vector, n::Integer) = begin
+    length(x) < n && resize!(x, n)
+    return x
+end
+
 include("newuoa.jl")
 import .Newuoa: newuoa, newuoa!
 

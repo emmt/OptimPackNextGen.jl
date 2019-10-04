@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2019, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -28,12 +28,13 @@ import
     ..getradius,
     ..getreason,
     ..getstatus,
+    ..grow!,
     ..iterate,
-    ..restart,
-    .._libcobyla
+    ..restart
 
 # The dynamic library implementing the method.
-const _LIB = _libcobyla
+import .._libcobyla
+const DLL = _libcobyla
 
 # Status returned by most functions of the library.
 struct Status <: AbstractStatus
@@ -55,7 +56,7 @@ const CORRUPTED            = Status(-8)
 
 # Get a textual explanation of the status returned by COBYLA.
 function getreason(status::Status)
-    ptr = ccall((:cobyla_reason, _LIB), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:cobyla_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown COBYLA status: ", status._code)
     end
@@ -174,7 +175,7 @@ maximize(args...; kwds...) = optimize(args...; maximize=true, kwds...)
 maximize!(args...; kwds...) = optimize!(args...; maximize=true, kwds...)
 @doc @doc(maximize) maximize!
 
-# `_wrklen(...)` m the number of elements in COBYLA workspace.
+# `_wrklen(...)` yields the number of elements in COBYLA workspace.
 _wrklen(n::Integer, m::Integer) = _wrklen(Int(n), Int(m))
 _wrklen(n::Int, m::Int) = n*(3*n + 2*m + 11) + 4*m + 6
 
@@ -233,14 +234,9 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
     else
         error("bad number of scaling factors")
     end
-    nwrk = _wrklen(n, m)
-    if length(work) < nwrk
-        resize!(work, nwrk)
-    end
-    if length(iact) < m + 1
-        resize!(iact, m + 1)
-    end
-    status = Status(ccall((:cobyla_optimize, _LIB), Cint,
+    grow!(work, _wrklen(n, m))
+    grow!(iact, m + 1)
+    status = Status(ccall((:cobyla_optimize, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
                            Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
@@ -266,14 +262,9 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
                  work::Vector{Cdouble} = _work(Cdouble, _wrklen(length(x), m)),
                  iact::Vector{Cptrdiff_t} = _work(Cptrdiff_t, m + 1))
     n = length(x)
-    nwrk = _wrklen(n, m)
-    if length(work) < nwrk
-        resize!(work, nwrk)
-    end
-    if length(iact) < m + 1
-        resize!(iact, m + 1)
-    end
-    status = Status(ccall((:cobyla, _LIB), Cint,
+    grow!(work, _wrklen(n, m))
+    grow!(iact, m + 1)
+    status = Status(ccall((:cobyla, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
                            Cptrdiff_t, Ptr{Cdouble}, Ptr{Cptrdiff_t}),
@@ -289,6 +280,7 @@ cobyla(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
     cobyla!(f, copy(x0), args...; kwds...)
 
 # Context for reverse communication variant of COBYLA.
+# Must be mutable to be finalized.
 mutable struct CobylaContext <: AbstractContext
     ptr::Ptr{Cvoid}
     n::Int
@@ -332,7 +324,7 @@ function create(n::Integer, m::Integer,
     elseif rhoend < 0 || rhoend > rhobeg
         throw(ArgumentError("bad trust region radius parameters"))
     end
-    ptr = ccall((:cobyla_create, _LIB), Ptr{Cvoid},
+    ptr = ccall((:cobyla_create, DLL), Ptr{Cvoid},
                 (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                  Cptrdiff_t, Cptrdiff_t),
                 n, m, rhobeg, rhoend, verbose, maxeval)
@@ -342,17 +334,16 @@ function create(n::Integer, m::Integer,
                   : "unexpected error")
         error(reason)
     end
-    ctx = CobylaContext(ptr, n, m, rhobeg, rhoend, verbose, maxeval)
-    finalizer(ctx, ctx -> ccall((:cobyla_delete, _LIB), Cvoid,
-                                (Ptr{Cvoid},), ctx.ptr))
-    return ctx
+    return finalizer(ctx -> ccall((:cobyla_delete, DLL), Cvoid,
+                                  (Ptr{Cvoid},), ctx.ptr),
+                     CobylaContext(ptr, n, m, rhobeg, rhoend, verbose, maxeval))
 end
 
 function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble},
                  c::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     length(c) == ctx.m || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, _LIB), Cint,
+    Status(ccall((:cobyla_iterate, DLL), Cint,
                  (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}),
                  ctx.ptr, f, x, c))
 end
@@ -360,27 +351,27 @@ end
 function iterate(ctx::CobylaContext, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     ctx.m == 0 || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, _LIB), Cint,
+    Status(ccall((:cobyla_iterate, DLL), Cint,
                  (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}, Ptr{Cvoid}),
                  ctx.ptr, f, x, C_NULL))
 end
 
 restart(ctx::CobylaContext) =
-    Status(ccall((:cobyla_restart, _LIB), Cint, (Ptr{Cvoid},), ctx.ptr))
+    Status(ccall((:cobyla_restart, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
 
 getstatus(ctx::CobylaContext) =
-    Status(ccall((:cobyla_get_status, _LIB), Cint, (Ptr{Cvoid},), ctx.ptr))
+    Status(ccall((:cobyla_get_status, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
 
 # Get the current number of function evaluations.  Result is -1 if
 # something is wrong (e.g. CTX is NULL), nonnegative otherwise.
 getncalls(ctx::CobylaContext) =
-    Int(ccall((:cobyla_get_nevals, _LIB), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
+    Int(ccall((:cobyla_get_nevals, DLL), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
 
 getradius(ctx::CobylaContext) =
-    ccall((:cobyla_get_rho, _LIB), Cdouble, (Ptr{Cvoid},), ctx.ptr)
+    ccall((:cobyla_get_rho, DLL), Cdouble, (Ptr{Cvoid},), ctx.ptr)
 
 getlastf(ctx::CobylaContext) =
-    ccall((:cobyla_get_last_f, _LIB), Cdouble, (Ptr{Cvoid},), ctx.ptr)
+    ccall((:cobyla_get_last_f, DLL), Cdouble, (Ptr{Cvoid},), ctx.ptr)
 
 function runtests(;revcom::Bool = false, scale::Real = 1.0)
     # Beware that order of operations may affect the result (whithin

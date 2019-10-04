@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2019, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -26,12 +26,13 @@ import
     ..AbstractStatus,
     ..getreason,
     ..getstatus,
+    ..grow!,
     ..iterate,
-    ..restart,
-    .._libbobyqa
+    ..restart
 
 # The dynamic library implementing the method.
-const _LIB = _libbobyqa
+import .._libbobyqa
+const DLL = _libbobyqa
 
 # Status returned by most functions of the library.
 struct Status <: AbstractStatus
@@ -50,7 +51,7 @@ const STEP_FAILED          = Status(-8)
 
 # Get a textual explanation of the status returned by BOBYQA.
 function getreason(status::Status)
-    ptr = ccall((:bobyqa_reason, _LIB), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:bobyqa_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown BOBYQA status: ", status._code)
     end
@@ -114,11 +115,8 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     else
         error("bad number of scaling factors")
     end
-    nwrk = _wrklen(x, scale, npt)
-    if length(work) < nwrk
-        resize!(work, nwrk)
-    end
-    status = Status(ccall((:bobyqa_optimize, _LIB), Cint,
+    grow!(work, _wrklen(x, scale, npt))
+    status = Status(ccall((:bobyqa_optimize, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble},
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
@@ -153,11 +151,8 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
     n = length(x)
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
-    nwrk = _wrklen(x, npt)
-    if length(work) < nwrk
-        resize!(work, nwrk)
-    end
-    status = Status(ccall((:bobyqa, _LIB), Cint,
+    grow!(work, _wrklen(x, npt))
+    status = Status(ccall((:bobyqa, DLL), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
