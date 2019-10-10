@@ -72,10 +72,10 @@ solve the problem:
 
     min f(x)
 
-where `x` is a vector of variables that has `n ≥ 2` components, and `f(x)` is
+where `x` is a vector of variables that has `n ≥ 2` components and `f(x)` is
 an objective function.  The algorithm employs quadratic approximations to the
-objective which interpolate the objective function at `m` points, the value `m
-= 2n + 1` being recommended.  The parameter `rho` controls the size of the
+objective which interpolates the objective function at `m` points, the value
+`m = 2n + 1` being recommended.  The parameter `rho` controls the size of the
 trust region and it is reduced automatically from `rhobeg` to `rhoend` (such
 that `0 < rhoend ≤ rhobeg`).
 
@@ -125,8 +125,8 @@ The following keywords are available:
 
 * `verbose` (`0` by default) set the amount of printing.
 
-* `maxeval` set the maximum number of calls to the objective function.  The
-  default setting is `maxeval = 30n` with `n = length(x)` the number of
+* `maxeval` specifies the maximum number of calls to the objective function.
+  The default setting is `maxeval = 30n` with `n = length(x)` the number of
   variables.
 
 * `npt` specifies the number of points to use for the quadratic approximation
@@ -155,11 +155,11 @@ minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)
 
 """
 
-    Newuoa.maximize(f, x0, m, rhobeg, rhoend) -> (status, x, fx)
-    Newuoa.maximize!(f, x, m, rhobeg, rhoend) -> (status, x, fx)
+    Newuoa.maximize(f, x0, rhobeg, rhoend) -> (status, x, fx)
+    Newuoa.maximize!(f, x, rhobeg, rhoend) -> (status, x, fx)
 
 are similar to `Newuoa.minimize` and `Newuoa.minimize!` respectively but
-solve the uncontrained maximization problem:
+solve the unconstrained maximization problem:
 
     max f(x)
 
@@ -254,6 +254,9 @@ end
 @doc @doc(optimize) optimize!
 
 # Basic version similar to the FORTRAN version.
+newuoa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
+    newuoa!(f, copy(x0), args...; kwds...)
+
 function newuoa!(f::Function, x::DenseVector{Cdouble},
                  rhobeg::Real, rhoend::Real;
                  npt::Integer = 2*length(x) + 1,
@@ -274,9 +277,6 @@ function newuoa!(f::Function, x::DenseVector{Cdouble},
     end
     return (status, x, work[1])
 end
-
-newuoa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
-    newuoa!(f, copy(x0), args...; kwds...)
 
 """
 
