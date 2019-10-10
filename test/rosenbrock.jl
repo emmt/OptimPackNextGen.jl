@@ -14,9 +14,9 @@ function rosenbrock_fg!(x::Array{T,1}, gx::Array{T,1}) where {T<:Real}
   t1 = c1 .- x1
   t2 = c10*(x2 - x1.*x1)
   g2 = c200*(x2 - x1.*x1)
-  gx[1:2:end] = -c2 * (x1 .* g2 + t1)
+  gx[1:2:end] = -c2*(x1 .* g2 + t1)
   gx[2:2:end] = g2
-  return sum(t1 .* t1) + sum(t2 .* t2)
+  return sum(t1.*t1) + sum(t2.*t2)
 end
 
 function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
@@ -29,31 +29,44 @@ end
 # Run tests in double and single precisions.
 for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
-    x0 = Array{T}(undef, 20)
+    n = 20
+    x0 = Array{T}(undef, n)
+    xsol = ones(T,n)
+    atol = 1e-3
     rosenbrock_init!(x0)
 
     #@printf("\nTesting NLCG in %s precision\n", prec)
-    #x1 = OptimPackNextGen.nlcg(rosenbrock_fg!, x0, verb=VERBOSE)
-    #@test_approx_eq_eps x1 ones(T,20) 1e-3
+    #x1 = nlcg(rosenbrock_fg!, x0, verb=VERBOSE)
+    #err = maximum(abs.(x1 .- xsol))
+    #@printf("Maximum absolute error: %.3e\n", err)
+    #@test err < atol
 
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
-    x2 = vmlmb(rosenbrock_fg!, x0; verb=VERBOSE);
-    @test x2 ≈ ones(T,20) atol=1e-3
+    x2 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE)
+    err = maximum(abs.(x2 .- xsol))
+    @printf("Maximum absolute error: %.3e\n", err)
+    @test err < atol
 
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
     x3 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE, mem=15)
-    @test x3 ≈ ones(T,20) atol=1e-3
+    err = maximum(abs.(x3 .- xsol))
+    @printf("Maximum absolute error: %.3e\n", err)
+    @test err < atol
 
     @printf("\nTesting VMLMB in %s precision with nonnegativity\n", prec)
     x4 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE, lower=0)
-    @test x4 ≈ ones(T,20) atol=1e-3
+    err = maximum(abs.(x4 .- xsol))
+    @printf("Maximum absolute error: %.3e\n", err)
+    @test err < atol
 
     #@printf("\nTesting VMLM in %s precision with Barzilai & Borwein scaling\n", prec)
-    #x3 = OptimPackNextGen.vmlmb(rosenbrock_fg!, x0, verb=VERBOSE,
-    #                            scaling=OptimPackNextGen.SCALING_BARZILAI_BORWEIN)
-    #@test x3  ≈ ones(T,20) atol=1e-3
+    #x5 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE,
+    #           scaling=OptimPackNextGen.SCALING_BARZILAI_BORWEIN)
+    #err = maximum(abs.(x5 .- xsol))
+    #@printf("Maximum absolute error: %.3e\n", err)
+    #@test err < atol
 
     @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)
-    x4 = spg(rosenbrock_fg!, (dst, src) -> dst .= max.(src, zero(eltype(src))),
+    x6 = spg(rosenbrock_fg!, (dst, src) -> dst .= max.(src, zero(eltype(src))),
              x0, 10; verb=VERBOSE)
 end
