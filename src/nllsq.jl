@@ -17,6 +17,7 @@ export nllsq, nllsq!
 
 using Compat: @debug, @error, @info, @warn
 using ..Powell
+using ArrayTools
 
 """
 ```julia
@@ -134,10 +135,8 @@ function _nllsq(y::AbstractArray{<:Real,N},
                 p::AbstractVector{<:Real},
                 x) where {N}
     m = f(p, x)
-    @assert indices(m) == indices(y)
-    local err::Cdouble
-    err = 0.0
-    @inbounds @simd for i in eachindex(m, y)
+    local err::Cdouble = 0
+    @inbounds @simd for i in safeindices(m, y)
         mi, yi = m[i], y[i]
         err += (yi - mi)^2
     end
@@ -150,10 +149,8 @@ function _nllsq(w::AbstractArray{<:Real,N},
                 p::AbstractVector{<:Real},
                 x) where {N}
     m = f(p, x)
-    @assert indices(m) == indices(y) == indices(w)
-    local err::Cdouble
-    err = 0.0
-    @inbounds @simd for i in eachindex(m, w, y)
+    local err::Cdouble = 0
+    @inbounds @simd for i in safeindices(m, w, y)
         mi, wi, yi = m[i], w[i], y[i]
         err += wi*(yi - mi)^2
     end
