@@ -18,7 +18,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2018, Éric Thiébaut.
+# Copyright (C) 2015-2019, Éric Thiébaut.
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -34,7 +34,7 @@ using Compat.Printf
 using LazyAlgebra
 using ...OptimPackNextGen
 
-import OptimPackNextGen: Float, getreason
+import OptimPackNextGen: getreason
 
 const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
@@ -43,15 +43,16 @@ const TOO_MANY_ITERATIONS  = -1
 const TOO_MANY_EVALUATIONS = -2
 
 mutable struct Info
-    f::Float      # The final/current function value.
-    fbest::Float  # The best function value so far.
-    pginfn::Float # ||projected grad||_inf at the final/current iteration.
-    pgtwon::Float # ||projected grad||_2 at the final/current iteration.
-    iter::Int     # The number of iterations.
-    fcnt::Int     # The number of function (and gradient) evaluations.
-    pcnt::Int     # The number of projections.
-    status::Int   # Termination parameter.
+    f::Float64      # The final/current function value.
+    fbest::Float64  # The best function value so far.
+    pginfn::Float64 # ||projected grad||_inf at the final/current iteration.
+    pgtwon::Float64 # ||projected grad||_2 at the final/current iteration.
+    iter::Int       # The number of iterations.
+    fcnt::Int       # The number of function (and gradient) evaluations.
+    pcnt::Int       # The number of projections.
+    status::Int     # Termination parameter.
 end
+
 Info() = Info(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 
 """
@@ -62,21 +63,25 @@ The `spg` method implements the Spectral Projected Gradient Method (Version 2:
 given function with convex constraints, described in the references below.  A
 typical use is:
 
-    x = spg(fg!, prj!, x0, m)
+```julia
+spg(fg!, prj!, x0, m) -> x
+```
 
 The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
 region.  These functions must be defined as:
 
-     function fg!(x::T, g::T) where {T}
-        g[:] = gradient_at(x)
-        return function_value_at(x)
-     end
+```julia
+function fg!(x::T, g::T) where {T}
+   g[:] = gradient_at(x)
+   return function_value_at(x)
+end
 
-     function prj!(dst::T, src::T) where {T}
-         dst[:] = projection_of(src)
-         return dst
-     end
+function prj!(dst::T, src::T) where {T}
+    dst[:] = projection_of(src)
+    return dst
+end
+```
 
 Argument `x0` is the initial solution and argument `m` is the number of
 previous function values to be considered in the nonmonotone line search.  If
@@ -159,70 +164,64 @@ REASON = Dict{Int,String}(
 getreason(ws::Info) = get(REASON, ws.status, "unknown status")
 
 function spg!(fg!, prj!, x, m::Integer;
-              ws::Info=Info(),
-              maxit::Integer=typemax(Int),
-              maxfc::Integer=typemax(Int),
-              eps1::Real=1e-6,
-              eps2::Real=1e-6,
-              eta::Real=1.0,
-              printer::Function=default_printer,
-              verb::Bool=false,
-              io::IO=stdout)
+              ws::Info = Info(),
+              maxit::Integer = typemax(Int),
+              maxfc::Integer = typemax(Int),
+              eps1::Real = 1e-6,
+              eps2::Real = 1e-6,
+              eta::Real = 1.0,
+              printer::Function = default_printer,
+              verb::Bool = false,
+              io::IO = stdout)
     _spg!(fg!, prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
-          Float(eps1), Float(eps2), Float(eta),
+          Float64(eps1), Float64(eps2), Float64(eta),
           printer, verb, io)
 end
 
 function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
                maxit::Int, maxfc::Int,
-               eps1::Float, eps2::Float, eta::Float,
+               eps1::Float64, eps2::Float64, eta::Float64,
                printer::Function, verb::Bool, io::IO) where {T}
     # Initialization.
     @assert m ≥ 1
-    @assert eps1 ≥ 0.0
-    @assert eps2 ≥ 0.0
-    @assert eta > 0.0
-    lmin = Float(1e-30)
-    lmax = Float(1e+30)
-    ftol = Float(1e-4)
-    amin = Float(0.1)
-    amax = Float(0.9)
-    local iter::Int = 0
-    local fcnt::Int = 0
-    local pcnt::Int = 0
-    local status::Int = SEARCHING
-    if m > 1
-        lastfv = Array{Float}(undef, m)
-        fill!(lastfv, -Inf)
-    end
-    local x0::T = vcopy(x)
-    local g::T = vcreate(x)
-    local d::T = vcreate(x)
-    local s::T = vcreate(x)
-    local y::T = vcreate(x)
-    local g0::T = vcreate(x)
-    local pg::T = vcreate(x)
-    local xbest::T = vcreate(x)
-    local f::Float = 0.0
-    local f0::Float = 0.0
-    local fbest::Float = 0.0
-    local fmax::Float = 0.0
-    local pgtwon::Float = 0.0
-    local pginfn::Float = 0.0
-    local sty::Float = 0.0
-    local sts::Float = 0.0
-    local lambda::Float = 0.0
-    local delta::Float = 0.0
-    local stp::Float = 0.0
-    local q::Float = 0.0
-    local r::Float = 0.0
+    @assert eps1 ≥ 0
+    @assert eps2 ≥ 0
+    @assert eta > 0
+    lmin = Float64(1e-30)
+    lmax = Float64(1e+30)
+    ftol = Float64(1e-4)
+    amin = Float64(0.1)
+    amax = Float64(0.9)
+    iter = 0
+    fcnt = 0
+    pcnt = 0
+    status = SEARCHING
+    pgtwon = Float64(Inf)
+    pginfn = Float64(Inf)
+
+    # Allocate workspaces making a few aliases to save memory.
+    #
+    # 1. `x0` and `g0` are updated right after computing `s = x - x0` and
+    #    `y = g - g0` the variable and gradient changes, we can use `x0`
+    #    and `g0` as scratch workspaces to temporarily store `s` and `y`.
+    #
+    # 2. The projected gradient `pg` and the search direction can share the
+    #    same workspace.
+    #
+    lastfv = fill!(Array{Float64}(undef, m), -Inf)
+    g = vcreate(x)
+    d = pg = vcreate(x)
+    s = x0 = vcreate(x)
+    y = g0 = vcreate(x)
+    xbest = vcreate(x)
 
     # Project initial guess.
     prj!(x, x)
+    vcopy!(x0, x) # FIXME: not necessary (idem for g0)
     pcnt += 1
 
     # Evaluate function and gradient.
-    f = fg!(x, g)
+    f = Float64(fg!(x, g))
     fcnt += 1
 
     # Initialize best solution and best function value.
@@ -285,13 +284,13 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
 
         # Compute spectral steplength.
         if iter == 0
-            # Initial steplength.
-            lambda = min(lmax, max(lmin, 1.0/pginfn))
+            # Initial steplength. (FIXME: check type stability)
+            lambda = min(lmax, max(lmin, 1/pginfn))
         else
-            vcombine!(s, 1, x, -1, x0) # s = x - x0
-            vcombine!(y, 1, g, -1, g0) # y = g - g0
+            vcombine!(s, 1, x, -1, x0)
+            vcombine!(y, 1, g, -1, g0)
             sty = vdot(s, y)
-            if sty > 0.0
+            if sty > 0
                 # Safeguarded Barzilai & Borwein spectral steplength.
                 sts = vdot(s, s)
                 lambda = min(lmax, max(lmin, sts/sty))
@@ -315,7 +314,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
         stp = 1.0 # Step length for first trial.
         while true
             # Evaluate function and gradient at trial point.
-            f = fg!(x, g)
+            f = Float64(fg!(x, g))
             fcnt += 1
 
             # Compare the new function value against the best function value
@@ -339,11 +338,11 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
 
             # Safeguarded quadratic interpolation.
             q = -delta*(stp*stp)
-            r = (f - f0 - stp*delta)*2.0
-            if r > 0.0 && amin*r ≤ q ≤ amax*stp*r
+            r = (f - f0 - stp*delta)*2
+            if r > 0 && amin*r ≤ q ≤ amax*stp*r
                 stp = q/r
             else
-                stp *= 0.5
+                stp /= 2
             end
 
             # Compute trial point.
@@ -360,7 +359,9 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
         iter += 1
 
     end
-    ws.f = f
+
+    # Store information and report final status.
+    ws.f = fbest
     ws.fbest = fbest
     ws.pgtwon = pgtwon
     ws.pginfn = pginfn
@@ -376,7 +377,10 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
             printstyled(io, "# SUCCESS: ", reason, "\n"; color=:green)
         end
     end
-    return xbest
+
+    # Make sure to return the best solution so far.
+    fbest < f && vcopy!(x, xbest)
+    return x
 end
 
 function default_printer(io::IO, nfo::Info)
