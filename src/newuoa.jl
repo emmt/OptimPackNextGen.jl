@@ -32,8 +32,7 @@ import
     ..restart
 
 # The dynamic library implementing the method.
-import .._libnewuoa
-const DLL = _libnewuoa
+import ..libnewuoa
 
 # Status returned by most functions of the library.
 struct Status <: AbstractStatus
@@ -56,7 +55,7 @@ const CORRUPTED            = Status(-9)
 
 # Get a textual explanation of the status returned by NEWUOA.
 function getreason(status::Status)
-    ptr = ccall((:newuoa_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:newuoa_reason, libnewuoa), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown NEWUOA status: ", status._code)
     end
@@ -238,7 +237,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
         error("bad number of scaling factors")
     end
     grow!(work, _wrklen(x, scale, npt))
-    status = Status(ccall((:newuoa_optimize, DLL), Cint,
+    status = Status(ccall((:newuoa_optimize, libnewuoa), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
                            Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble}),
@@ -265,7 +264,7 @@ function newuoa!(f::Function, x::DenseVector{Cdouble},
                  work::Vector{Cdouble} = _work(x, npt))
     n = length(x)
     grow!(work, _wrklen(x, npt))
-    status = Status(ccall((:newuoa, DLL), Cint,
+    status = Status(ccall((:newuoa, libnewuoa), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
                            Cptrdiff_t, Ptr{Cdouble}),
@@ -317,14 +316,14 @@ mutable struct Context <: AbstractContext
                      npt::Integer = 2*length(x) + 1,
                      verbose::Integer = 0,
                      maxeval::Integer = 30*length(x))
-        ptr = ccall((:newuoa_create, DLL), Ptr{Cvoid},
+        ptr = ccall((:newuoa_create, libnewuoa), Ptr{Cvoid},
                     (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                      Cptrdiff_t, Cptrdiff_t),
                     n, npt, rhobeg, rhoend, verbose, maxeval)
         ptr != C_NULL || error(errno() == Base.Errno.ENOMEM
                                ? "insufficient memory"
                                : "invalid argument(s)")
-        return finalizer(ctx -> ccall((:newuoa_delete, DLL), Cvoid,
+        return finalizer(ctx -> ccall((:newuoa_delete, libnewuoa), Cvoid,
                                       (Ptr{Cvoid},), ctx.ptr),
                          new(ptr, n, npt, rhobeg, rhoend, verbose, maxeval))
     end
@@ -334,21 +333,21 @@ end
 
 function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
-    Status(ccall((:newuoa_iterate, DLL), Cint,
+    Status(ccall((:newuoa_iterate, libnewuoa), Cint,
                        (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}),
                        ctx.ptr, f, x))
 end
 
 restart(ctx::Context) =
-    Status(ccall((:newuoa_restart, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
+    Status(ccall((:newuoa_restart, libnewuoa), Cint, (Ptr{Cvoid},), ctx.ptr))
 
 getstatus(ctx::Context) =
-    Status(ccall((:newuoa_get_status, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
+    Status(ccall((:newuoa_get_status, libnewuoa), Cint, (Ptr{Cvoid},), ctx.ptr))
 
 getncalls(ctx::Context) =
-    Int(ccall((:newuoa_get_nevals, DLL), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
+    Int(ccall((:newuoa_get_nevals, libnewuoa), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
 
 getradius(ctx::Context) =
-    ccall((:newuoa_get_rho, DLL), Cdouble, (Ptr{Cvoid},), ctx.ptr)
+    ccall((:newuoa_get_rho, libnewuoa), Cdouble, (Ptr{Cvoid},), ctx.ptr)
 
 end # module Newuoa

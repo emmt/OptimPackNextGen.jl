@@ -30,8 +30,7 @@ import
     ..restart
 
 # The dynamic library implementing the method.
-import .._libbobyqa
-const DLL = _libbobyqa
+import ..libbobyqa
 
 # Status returned by most functions of the library.
 struct Status <: AbstractStatus
@@ -50,7 +49,7 @@ const STEP_FAILED          = Status(-8)
 
 # Get a textual explanation of the status returned by BOBYQA.
 function getreason(status::Status)
-    ptr = ccall((:bobyqa_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:bobyqa_reason, libbobyqa), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown BOBYQA status: ", status._code)
     end
@@ -244,7 +243,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
         error("bad number of scaling factors")
     end
     grow!(work, _wrklen(x, scale, npt))
-    status = Status(ccall((:bobyqa_optimize, DLL), Cint,
+    status = Status(ccall((:bobyqa_optimize, libbobyqa), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble},
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
@@ -276,7 +275,7 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
     grow!(work, _wrklen(x, npt))
-    status = Status(ccall((:bobyqa, DLL), Cint,
+    status = Status(ccall((:bobyqa, libbobyqa), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
                            Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,

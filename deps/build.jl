@@ -52,7 +52,7 @@ provides(SimpleBuild,
          end),
          libs)
 
-@BinDeps.install Dict(:libopk => :_libopk,
-                      :libcobyla => :_libcobyla,
-                      :libbobyqa => :_libbobyqa,
-                      :libnewuoa => :_libnewuoa)
+@BinDeps.install Dict(:libopk    => :libopk,
+                      :libcobyla => :libcobyla,
+                      :libbobyqa => :libbobyqa,
+                      :libnewuoa => :libnewuoa)

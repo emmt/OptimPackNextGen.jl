@@ -32,8 +32,7 @@ import
     ..restart
 
 # The dynamic library implementing the method.
-import .._libcobyla
-const DLL = _libcobyla
+import ..libcobyla
 
 # Status returned by most functions of the library.
 struct Status <: AbstractStatus
@@ -55,7 +54,7 @@ const CORRUPTED            = Status(-8)
 
 # Get a textual explanation of the status returned by COBYLA.
 function getreason(status::Status)
-    ptr = ccall((:cobyla_reason, DLL), Ptr{UInt8}, (Cint,), status._code)
+    ptr = ccall((:cobyla_reason, libcobyla), Ptr{UInt8}, (Cint,), status._code)
     if ptr == C_NULL
         error("unknown COBYLA status: ", status._code)
     end
@@ -235,7 +234,7 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
     end
     grow!(work, _wrklen(n, m))
     grow!(iact, m + 1)
-    status = Status(ccall((:cobyla_optimize, DLL), Cint,
+    status = Status(ccall((:cobyla_optimize, libcobyla), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
                            Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
@@ -263,7 +262,7 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
     n = length(x)
     grow!(work, _wrklen(n, m))
     grow!(iact, m + 1)
-    status = Status(ccall((:cobyla, DLL), Cint,
+    status = Status(ccall((:cobyla, libcobyla), Cint,
                           (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
                            Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
                            Cptrdiff_t, Ptr{Cdouble}, Ptr{Cptrdiff_t}),
@@ -324,14 +323,14 @@ mutable struct Context <: AbstractContext
         m ≥ 0 || throw(ArgumentError("bad number of constraints"))
         0 ≤ rhoend ≤ rhobeg ||
             throw(ArgumentError("bad trust region radius parameters"))
-        ptr = ccall((:cobyla_create, DLL), Ptr{Cvoid},
+        ptr = ccall((:cobyla_create, libcobyla), Ptr{Cvoid},
                     (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
                      Cptrdiff_t, Cptrdiff_t),
                     n, m, rhobeg, rhoend, verbose, maxeval)
         ptr != C_NULL || error(errno() == Base.Errno.ENOMEM
                                ? "insufficient memory"
                                : "unexpected error")
-        return finalizer(ctx -> ccall((:cobyla_delete, DLL), Cvoid,
+        return finalizer(ctx -> ccall((:cobyla_delete, libcobyla), Cvoid,
                                       (Ptr{Cvoid},), ctx.ptr),
                          new(ptr, n, m, rhobeg, rhoend, verbose, maxeval))
     end
@@ -343,7 +342,7 @@ function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble},
                  c::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     length(c) == ctx.m || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, DLL), Cint,
+    Status(ccall((:cobyla_iterate, libcobyla), Cint,
                  (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}),
                  ctx.ptr, f, x, c))
 end
@@ -351,26 +350,26 @@ end
 function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     ctx.m == 0 || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, DLL), Cint,
+    Status(ccall((:cobyla_iterate, libcobyla), Cint,
                  (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}, Ptr{Cvoid}),
                  ctx.ptr, f, x, C_NULL))
 end
 
 restart(ctx::Context) =
-    Status(ccall((:cobyla_restart, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
+    Status(ccall((:cobyla_restart, libcobyla), Cint, (Ptr{Cvoid},), ctx.ptr))
 
 getstatus(ctx::Context) =
-    Status(ccall((:cobyla_get_status, DLL), Cint, (Ptr{Cvoid},), ctx.ptr))
+    Status(ccall((:cobyla_get_status, libcobyla), Cint, (Ptr{Cvoid},), ctx.ptr))
 
 # Get the current number of function evaluations.  Result is -1 if
 # something is wrong (e.g. CTX is NULL), nonnegative otherwise.
 getncalls(ctx::Context) =
-    Int(ccall((:cobyla_get_nevals, DLL), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
+    Int(ccall((:cobyla_get_nevals, libcobyla), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
 
 getradius(ctx::Context) =
-    ccall((:cobyla_get_rho, DLL), Cdouble, (Ptr{Cvoid},), ctx.ptr)
+    ccall((:cobyla_get_rho, libcobyla), Cdouble, (Ptr{Cvoid},), ctx.ptr)
 
 getlastf(ctx::Context) =
-    ccall((:cobyla_get_last_f, DLL), Cdouble, (Ptr{Cvoid},), ctx.ptr)
+    ccall((:cobyla_get_last_f, libcobyla), Cdouble, (Ptr{Cvoid},), ctx.ptr)
 
 end # module Cobyla
