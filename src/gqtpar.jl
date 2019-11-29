@@ -25,13 +25,12 @@
 
 module MoreSorensen
 
-export gqtpar, gqtpar!
+export
+    gqtpar,
+    gqtpar!
 
-using Compat
-#import Compat.LinearAlgebra.BLAS
-import Compat.LinearAlgebra.BLAS: trsv!, nrm2
-import Compat.LinearAlgebra.BLAS: BlasInt, BlasReal, BlasFloat, BlasComplex
-import Compat.LinearAlgebra.BLAS: libblas, @blasfunc
+import LinearAlgebra.BLAS: libblas, @blasfunc, trsv!, nrm2,
+    BlasInt, BlasReal, BlasFloat, BlasComplex
 
 # We need to apply BLAS TRSV to a submatrix.  BEWARE that no bound check is
 # performed.

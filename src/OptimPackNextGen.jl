@@ -17,19 +17,19 @@ isdefined(Base, :__precompile__) && __precompile__(true)
 module OptimPackNextGen
 
 export
+    conjgrad!,
+    conjgrad,
     fmin,
     fzero,
-    gqtpar,
+    getreason,
     gqtpar!,
-    nllsq,
+    gqtpar,
     nllsq!,
-    conjgrad,
-    conjgrad!,
-    vmlmb,
-    vmlmb!,
-    spg,
+    nllsq,
     spg!,
-    getreason
+    spg,
+    vmlmb!,
+    vmlmb
 
 using LazyAlgebra
 import LazyAlgebra: conjgrad, conjgrad!

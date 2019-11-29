@@ -27,9 +27,7 @@ module Step
 # Use the same floating point type for scalars as in OptimPackNextGen.
 import OptimPackNextGen.Float
 
-using Compat
-using Compat.Printf
-using Compat: @debug, @error, @info, @warn
+using Printf
 
 """
 # Cyclic singly linked list

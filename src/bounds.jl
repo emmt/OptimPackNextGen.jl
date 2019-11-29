@@ -22,8 +22,6 @@ export
     project_variables!,
     step_limits
 
-using Compat
-
 """
 ```julia
 clip(x, lo, hi)

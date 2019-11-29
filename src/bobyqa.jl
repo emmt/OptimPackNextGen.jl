@@ -18,8 +18,7 @@ export
     bobyqa,
     bobyqa!
 
-using Compat
-using Compat.Printf
+using Printf
 
 import
     ..AbstractContext,

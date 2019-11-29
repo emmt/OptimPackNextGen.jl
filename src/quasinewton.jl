@@ -26,8 +26,7 @@ export
     vmlmb!,
     EMULATE_BLMVM
 
-using Compat
-using Compat.Printf
+using Printf
 
 using LazyAlgebra
 using ...OptimPackNextGen

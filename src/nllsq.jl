@@ -13,11 +13,13 @@
 # ----------------------------------------------------------------------------
 module NonLinearLeastSquares
 
-export nllsq, nllsq!
+export
+    nllsq,
+    nllsq!
 
-using Compat: @debug, @error, @info, @warn
-using ..Powell
 using ArrayTools
+using Printf
+using ..Powell
 
 """
 ```julia

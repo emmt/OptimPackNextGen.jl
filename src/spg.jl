@@ -28,8 +28,7 @@ export
     spg,
     spg!
 
-using Compat
-using Compat.Printf
+using Printf
 
 using LazyAlgebra
 using ...OptimPackNextGen

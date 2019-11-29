@@ -32,8 +32,6 @@ export
     bobyqa,
     bobyqa!
 
-using Compat
-
 import Base: ==, iterate
 
 # Locate the dynamic library.

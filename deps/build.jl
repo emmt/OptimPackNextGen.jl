@@ -1,5 +1,4 @@
 using BinDeps
-using Compat
 using Libdl
 
 const version = "3.0.1"
@@ -24,9 +23,9 @@ libdir = joinpath(prefix, "lib")
 
 function dynlibname(name)
     ext = Libdl.dlext
-    @compat @static if Compat.Sys.isunix()
+    @static if Sys.isunix()
         return "lib$(name).$(ext)"
-    elseif Compat.Sys.iswindows()
+    elseif Sys.iswindows()
         return "$(name).$(ext)"
     else
         error("unknown architecture")
@@ -53,7 +52,7 @@ provides(SimpleBuild,
          end),
          libs)
 
-@BinDeps.install @compat Dict(:libopk => :_libopk,
-                              :libcobyla => :_libcobyla,
-                              :libbobyqa => :_libbobyqa,
-                              :libnewuoa => :_libnewuoa)
+@BinDeps.install Dict(:libopk => :_libopk,
+                      :libcobyla => :_libcobyla,
+                      :libbobyqa => :_libbobyqa,
+                      :libnewuoa => :_libnewuoa)

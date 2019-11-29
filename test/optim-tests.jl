@@ -4,7 +4,6 @@ end
 
 module OptimTest
 
-using Compat
 using Test
 using LazyAlgebra
 using OptimPackNextGen.LineSearches

@@ -1,6 +1,6 @@
 module NewuoaTests
 
-using Compat.Printf
+using Printf
 using OptimPackNextGen.Powell
 
 function runtests(;revcom::Bool=false, scale::Real=1)
