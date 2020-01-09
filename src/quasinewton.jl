@@ -63,6 +63,7 @@ function vdot(w::Union{AbstractArray{<:Real,N},AbstractVector{Int}},
     return Float(LazyAlgebra.vdot(w, x, y))
 end
 
+# FIXME: clean this!
 vnorm2(x::AbstractArray{Float,N}) where {N} = LazyAlgebra.vnorm2(x)
 vnorm2(x::AbstractArray{<:Real,N}) where {N} = Float(LazyAlgebra.vnorm2(x))
 
@@ -86,6 +87,12 @@ unchanged).  The best solution found so far is returned in `x`.
 The following keywords are available:
 
 * `mem` specifies the amount of storage.
+
+* `xtol` is a tuple of two nonnegative reals specifying respectively the
+  absolute and relative tolerances for deciding convergence on the variables.
+  Convergence occurs if the Euclidean norm of the the difference between
+  successive iterates is less or equal `max(xtol[1], xtol[2]*vnorm2(x))`.  By
+  default, `xtol = (0.0,1e-7)`.
 
 * `ftol` is a tuple of two nonnegative reals specifying respectively the
   absolute and relative errors desired in the function.  Convergence occurs if
@@ -197,6 +204,7 @@ function vmlmb!(fg!::Function, x::T;
                 fmin::Real = -Inf,
                 maxiter::Integer = typemax(Int),
                 maxeval::Integer = typemax(Int),
+                xtol::NTuple{2,Real} = (0.0, 1e-7),
                 ftol::NTuple{2,Real} = (0.0, 1e-8),
                 gtol::NTuple{2,Real} = (0.0, 1e-6),
                 epsilon::Real = 0.0,
@@ -250,6 +258,7 @@ function vmlmb!(fg!::Function, x::T;
     # Call the real method.
     _vmlmb!(fg!, x, Int(mem), flags, lo, hi, bounds, method,
             Float(fmin), Int(maxiter), Int(maxeval),
+            Float(xtol[1]), Float(xtol[2]),
             Float(ftol[1]), Float(ftol[2]),
             Float(gtol[1]), Float(gtol[2]),
             Float(epsilon), verb, printer, output, ls)
@@ -262,6 +271,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
                  bounds::UInt,
                  method::Int,
                  fmin::Float, maxiter::Int, maxeval::Int,
+                 xatol::Float, xrtol::Float,
                  fatol::Float, frtol::Float,
                  gatol::Float, grtol::Float,
                  epsilon::Float,
@@ -271,6 +281,8 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
     @assert mem ≥ 1
     @assert maxiter ≥ 0
     @assert maxeval ≥ 1
+    @assert xatol ≥ 0
+    @assert xrtol ≥ 0
     @assert fatol ≥ 0
     @assert frtol ≥ 0
     @assert gatol ≥ 0
@@ -321,6 +333,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
     d = vcreate(x) # ------------> search direction
     S = Array{T}(undef, mem) # --> memorized steps
     Y = Array{T}(undef, mem) # --> memorized gradient differences
+    s = vcreate(x) # -----------> for effective step
     for k in 1:mem
         S[k] = vcreate(x)
         Y[k] = vcreate(x)
@@ -354,7 +367,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
             bestf = f
             bestgnorm = gnorm
             if eval == 1
-                gtest = hypot(gatol, grtol*gnorm)
+                gtest = max(gatol, grtol*gnorm)
             end
             if gnorm ≤ gtest
                 stage = 3
@@ -366,7 +379,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
                     reason = "gradient sufficiently small"
                 end
                 if eval > 1
-                    iter += 1
+                    iter += 1 # FIXME: do this here???
                 end
             end
         end
@@ -376,10 +389,13 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
         end
 
         if stage == 1
+            # Compute effective step.
+            vcombine!(s, 1, x, -1, S[mark])
+
             # Line search is in progress.
             if usederivatives(lnsrch)
                 if method > 0
-                    gd = (vdot(g, x) - vdot(g, S[mark]))/stp
+                    gd = vdot(g, s)/stp
                 else
                     gd = -vdot(g, d)
                 end
@@ -389,23 +405,32 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
                 stp = getstep(lnsrch)
             elseif task == :CONVERGENCE
                 # Line search has converged.  Increment iteration counter
-                # and check for stopping condition.
+                # and check for stopping conditions.
                 iter += 1
-                delta = max(abs(f - f0), stp*abs(gd0))
-                if delta ≤ fatol
+                xtest = max(xatol, zero(Float))
+                if xrtol > 0
+                    xtest = max(xtest, xrtol*vnorm2(x))
+                end
+                if vnorm2(s) ≤ xtest
                     stage = 3
-                    reason = "fatol test satisfied"
-                elseif delta ≤ frtol*abs(f0)
-                    stage = 3
-                    reason = "frtol test satisfied"
-                elseif iter ≥ maxiter
-                    stage = 4
-                    reason = "too many iterations"
-                elseif eval ≥ maxeval
-                    stage = 4
-                    reason = "too many evaluations"
+                    reason = "X test satisfied"
                 else
-                    stage = 2
+                    delta = max(abs(f - f0), stp*abs(gd0))
+                    if delta ≤ fatol
+                        stage = 3
+                        reason = "fatol test satisfied"
+                    elseif delta ≤ frtol*abs(f0)
+                        stage = 3
+                        reason = "frtol test satisfied"
+                    elseif iter ≥ maxiter
+                        stage = 4
+                        reason = "too many iterations"
+                    elseif eval ≥ maxeval
+                        stage = 4
+                        reason = "too many evaluations"
+                    else
+                        stage = 2
+                    end
                 end
             else
                 # Line seach terminated with a warningor an error.
@@ -450,7 +475,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
             if stage == 2
                 # Update limited memory BFGS approximation of the inverse
                 # Hessian with the effective step and gradient change.
-                vupdate!(S[mark], -1, x)
+                vupdate!(S[mark], -1, x) # FIXME: vcopy!(S[mark], s)?
                 vupdate!(Y[mark], -1, (method == 1 ? p : g))
                 if method < 2
                     rho[mark] = vdot(Y[mark], S[mark])
