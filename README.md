@@ -90,9 +90,12 @@ library which implements the C version of the algorithms and the
 [`OptimPack.jl`](https://github.com/emmt/OptimPack.jl) Julia package which is a
 wrapper of this library for Julia.  Compared to `OptimPack.jl`, the new
 `OptimPackNextGen.jl` implements in pure Julia the algorithms dedicated to
-large scale problems but still relies on the C library for a few algorithms
-(notably the Powell methods).  The rationale is to facilitate the integration
-of exotic types of variables for optimization problems in Julia.  Eventually,
+large scale problems but still relies on the C libraries for a few algorithms
+(notably the Powell methods).  Precompiled versions of these libraries are
+provided by
+[OptimPack_jll](https://github.com/JuliaBinaryWrappers/OptimPack_jll.jl)
+package.  The rationale is to facilitate the integration of exotic types of
+variables for optimization problems in Julia.  Eventually,
 `OptimPackNextGen.jl` will become the next version of `OptimPack.jl` but, until
 then, it is more flexible to have two separate modules and avoid coping with
 compatibility and design issues.

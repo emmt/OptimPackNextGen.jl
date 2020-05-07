@@ -34,10 +34,10 @@ export
 
 import Base: ==, iterate
 
-# Locate the dynamic library.
-isfile(joinpath(@__DIR__,"..","deps","deps.jl")) ||
-    error("OptimPackNextGen not properly installed.  Please run Pkg.build(\"OptimPackNextGen\")")
-include(joinpath("..","deps","deps.jl"))
+import OptimPack_jll
+const libcobyla = OptimPack_jll.libcobyla_path
+const libbobyqa = OptimPack_jll.libbobyqa_path
+const libnewuoa = OptimPack_jll.libnewuoa_path
 
 abstract type AbstractContext end
 abstract type AbstractStatus end
