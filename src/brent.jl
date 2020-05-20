@@ -22,8 +22,6 @@ export
     fzero,
     fmin
 
-import Base.MathConstants: φ
-
 """
     fzero_atol(T)
     fzero_rtol(T)
@@ -47,10 +45,8 @@ fmin_atol(::Type{T}) where {T<:AbstractFloat} = floatmin(T)
 fmin_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
 
 # goldstep = 1/φ^2 = 2 - φ ≈ 0.3812
+import Base.MathConstants: φ
 goldstep(::Type{T}) where {T<:AbstractFloat} = T(2 - φ)
-half(::Type{T}) where {T<:AbstractFloat} = one(T)/2
-two(::Type{T}) where {T<:AbstractFloat} = T(2)
-three(::Type{T}) where {T<:AbstractFloat} = T(3)
 
 """
 # Van Wijngaarden–Dekker–Brent method for finding a zero of a function
@@ -498,7 +494,6 @@ function _fmin(f, a::T, b::T,
         take_golden_step = true
         if abs(e) > tol
             # Fit a parabola (make sure final Q ≥ 0).
-            local p::T, q::T, r::T
             r = (x - w)*(fx - fv)
             q = (x - v)*(fx - fw)
             if q > r
