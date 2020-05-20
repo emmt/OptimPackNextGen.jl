@@ -3,14 +3,10 @@
 # Tests for BRADI algorithm.
 #
 
-if ! isdefined(:OptimPackNextGen)
-    include("../src/OptimPackNextGen.jl")
-end
+module BraDiTests
 
-module BradiTests
-
-using Base.Test
-import OptimPackNextGen: Bradi
+using Test
+import OptimPackNextGen: BraDi
 
 # Simple parabola.  To be minimized over [-1,2].
 parabola(x) = x*x
@@ -34,22 +30,22 @@ end
 
 function runtests()
     println("\n# Simple parabola:")
-    (xbest, fbest) = Bradi.minimize(parabola, range(-1, stop=2, length=2))
+    (xbest, fbest) = BraDi.minimize(parabola, range(-1, stop=2, length=2))
     println("x = $xbest, f(x) = $fbest")
 
     println("\n# Brent's 5th function:")
-    (xbest, fbest) = Bradi.minimize(brent5, range(-10, stop=10, length=5))
+    (xbest, fbest) = BraDi.minimize(brent5, range(-10, stop=10, length=5))
     println("x = $xbest, f(x) = $fbest")
 
     println("\n# Michalewicz's 1st function:")
-    (xbest, fbest) = Bradi.minimize(michalewicz1, range(-1, stop=2, length=21))
+    (xbest, fbest) = BraDi.minimize(michalewicz1, range(-1, stop=2, length=21))
     println("x = $xbest, f(x) = $fbest")
 
     println("\n# Michalewicz's 2nd function:")
-    (xbest, fbest) = Bradi.maximize(michalewicz2, range(0, stop=pi, length=60))
+    (xbest, fbest) = BraDi.maximize(michalewicz2, range(0, stop=pi, length=60))
     println("x = $xbest, f(x) = $fbest")
 end
-
+runtests()
 #verb = true
 #@testset "Brent fzero" begin
 #    for (T, prec) in ((Float16, 3e-2),
