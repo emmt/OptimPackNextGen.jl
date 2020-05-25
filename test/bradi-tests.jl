@@ -28,37 +28,30 @@ function michalewicz2(x)
     return s
 end
 
-function runtests()
-    println("\n# Simple parabola:")
-    (xbest, fbest) = BraDi.minimize(parabola, range(-1, stop=2, length=2))
-    println("x = $xbest, f(x) = $fbest")
+function runtests(; quiet::Bool=false)
+    tol = sqrt(eps(Float64))
+    @testset "BraDi algorithm" begin
+        quiet || println("\n# Simple parabola:")
+        (xbest, fbest) = BraDi.minimize(parabola, range(-1, stop=2, length=2))
+        println("x = $xbest, f(x) = $fbest")
+        @test xbest ≈ 0.0 atol=tol
 
-    println("\n# Brent's 5th function:")
-    (xbest, fbest) = BraDi.minimize(brent5, range(-10, stop=10, length=5))
-    println("x = $xbest, f(x) = $fbest")
+        quiet || println("\n# Brent's 5th function:")
+        (xbest, fbest) = BraDi.minimize(brent5, range(-10, stop=10, length=5))
+        quiet || println("x = $xbest, f(x) = $fbest")
+        @test xbest ≈ -1.1951366418407416 rtol=tol
 
-    println("\n# Michalewicz's 1st function:")
-    (xbest, fbest) = BraDi.minimize(michalewicz1, range(-1, stop=2, length=21))
-    println("x = $xbest, f(x) = $fbest")
+        quiet || println("\n# Michalewicz's 1st function:")
+        (xbest, fbest) = BraDi.minimize(michalewicz1, range(-1, stop=2, length=21))
+        quiet || println("x = $xbest, f(x) = $fbest")
+        @test xbest ≈ 1.7336377815999973 rtol=tol
 
-    println("\n# Michalewicz's 2nd function:")
-    (xbest, fbest) = BraDi.maximize(michalewicz2, range(0, stop=pi, length=60))
-    println("x = $xbest, f(x) = $fbest")
+        quiet || println("\n# Michalewicz's 2nd function:")
+        (xbest, fbest) = BraDi.maximize(michalewicz2, range(0, stop=pi, length=60))
+        quiet || println("x = $xbest, f(x) = $fbest")
+        @test xbest ≈ 2.2208651539586493 rtol=tol
+    end
 end
 runtests()
-#verb = true
-#@testset "Brent fzero" begin
-#    for (T, prec) in ((Float16, 3e-2),
-#                      (Float32, 3e-6),
-#                      (Float64, 6e-15))
-#        n = 0
-#        f(x) = (n += 1; T(1)/(x - T(3)) - T(6))
-#        (x, fx) = Brent.fzero(T, f, 3, 4)
-#        if verb
-#            @printf("n = %d, x = %.15f, f(x) = %.15f\n", n, x, fx)
-#        end
-#        @test abs(fx) ≤ prec
-#    end
-#end
 
 end # module
