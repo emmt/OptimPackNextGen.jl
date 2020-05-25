@@ -138,7 +138,7 @@ function _nllsq(y::AbstractArray{<:Real,N},
                 x) where {N}
     m = f(p, x)
     local err::Cdouble = 0
-    @inbounds @simd for i in safe_indices(m, y)
+    @inbounds @simd for i in all_indices(m, y)
         mi, yi = m[i], y[i]
         err += (yi - mi)^2
     end
@@ -152,7 +152,7 @@ function _nllsq(w::AbstractArray{<:Real,N},
                 x) where {N}
     m = f(p, x)
     local err::Cdouble = 0
-    @inbounds @simd for i in safe_indices(m, w, y)
+    @inbounds @simd for i in all_indices(m, w, y)
         mi, wi, yi = m[i], w[i], y[i]
         err += wi*(yi - mi)^2
     end
