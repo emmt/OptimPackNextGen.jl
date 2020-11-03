@@ -1,7 +1,7 @@
 # OptimPackNextGen.jl
 
 [![License](http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat)](LICENSE.md)
-[![Build Status](https://travis-ci.org/emmt/OptimPackNextGen.jl.svg?branch=master)](https://travis-ci.org/emmt/OptimPackNextGen.jl)
+[![Build Status](https://travis-ci.com/emmt/OptimPackNextGen.jl.svg?branch=master)](https://travis-ci.com/emmt/OptimPackNextGen.jl)
 [![codecov.io](http://codecov.io/github/emmt/OptimPackNextGen.jl/coverage.svg?branch=master)](http://codecov.io/github/emmt/OptimPackNextGen.jl?branch=master)
 
 **OptimPackNextGen** is a [Julia](http://julialang.org/) package for numerical
