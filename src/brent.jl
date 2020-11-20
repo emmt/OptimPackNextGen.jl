@@ -152,13 +152,13 @@ end
 function fzero(::Type{T}, f, a::Real, fa::Real, b::Real, fb::Real;
                atol::Real = fzero_atol(T),
                rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
-    _fzero1(f, T(a), T(fa), T(b), F(fb), T(atol), T(rtol))
+    _fzero1(f, T(a), T(fa), T(b), T(fb), T(atol), T(rtol))
 end
 
 # 2 helpers are used by fzero: _fzero1 for early return and _fzero2 to refine
-# the interval bt Brent's method.  In these 2 functions, the type of the
-# floting-point variables should be stable and equal to `T`.  Type stability is
-# one of the reasons for this splitting of the code.
+# the interval by Brent's method.  In these 2 functions, the type of the
+# floating-point variables should be stable and equal to `T`.  Type stability
+# is one of the reasons for this splitting of the code.
 
 function _fzero1(f, a::T, b::T,
                  atol::T, rtol::T) where {T<:AbstractFloat}
