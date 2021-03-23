@@ -12,8 +12,6 @@
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
-isdefined(Base, :__precompile__) && __precompile__(true)
-
 module OptimPackNextGen
 
 export
