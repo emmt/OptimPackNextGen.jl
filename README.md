@@ -65,21 +65,17 @@ The following methods are provided for univariate functions:
 
 ## Installation
 
-[LazyAlgebra](https://github.com/emmt/LazyAlgebra.jl) is a prerequisite for
-`OptimPackNextGen`.  To install `LazyAlgebra`, simply do:
+`OptimPackNextGen` can be installed from Julia package manager by the command:
 
 ```julia
-Pkg.clone("https://github.com/emmt/LazyAlgebra.jl.git")
+add https://github.com/emmt/OptimPackNextGen.jl
 ```
 
-**OptimPackNextGen** is not yet an
-[official Julia package](https://pkg.julialang.org/) so you have to clone the
-repository and build the associated
-[`OptimPack`](https://github.com/emmt/OptimPack) library:
+or from Julia by:
 
 ```julia
-Pkg.clone("https://github.com/emmt/OptimPackNextGen.jl.git")
-Pkg.build("OptimPackNextGen")
+using Pkg
+Pkg.add(PackageSpec(url="https://github.com/emmt/OptimPackNextGen.jl.git"))
 ```
 
 
