@@ -30,7 +30,7 @@ export
 
 using Printf
 
-using LazyAlgebra
+using LazyAlgebra, Zygote
 using ...OptimPackNextGen
 
 import OptimPackNextGen: getreason
@@ -220,7 +220,8 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     pcnt += 1
 
     # Evaluate function and gradient.
-    f = Float64(fg!(x, g))
+    # if fg! takes a single argument (x), its derivative are automatically computed using Zygotes.jl
+    applicable(fg!, x,g) ?  f = Float64(fg!(x, g)) : (f,g)=(Float64(fg!(x)),gradient(fg!,x)[1]);
     fcnt += 1
 
     # Initialize best solution and best function value.
@@ -313,7 +314,8 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
         stp = 1.0 # Step length for first trial.
         while true
             # Evaluate function and gradient at trial point.
-            f = Float64(fg!(x, g))
+            # if fg! takes a single argument (x), its derivative are automatically computed using Zygotes.jl
+            applicable(fg!, x,g) ?  f = Float64(fg!(x, g)) : (f,g)=(Float64(fg!(x)),gradient(fg!,x)[1]);
             fcnt += 1
 
             # Compare the new function value against the best function value

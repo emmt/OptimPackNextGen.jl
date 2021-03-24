@@ -28,7 +28,7 @@ export
 
 using Printf
 
-using LazyAlgebra
+using LazyAlgebra, Zygote
 using ...OptimPackNextGen
 using OptimPackNextGen.LineSearches
 using OptimPackNextGen.SimpleBounds
@@ -356,10 +356,11 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
         if method > 0
             project_variables!(x, x, lo, hi)
         end
-        f = fg!(x, g)
+        # if fg! takes a single argument (x), its derivative are automatically computed using Zygotes.jl
+        applicable(fg!, x,g) ?  f = fg!(x, g) : (f,g)=(fg!(x),gradient(fg!,x)[1]);
         eval += 1
         if method > 0
-            project_direction!(p, x, lo, hi, -1, g)
+            project_direction!(p, x, lo, hi, -1, g)   
         end
         if eval == 1 || f < bestf
             gnorm = vnorm2((method > 0 ? p : g))
