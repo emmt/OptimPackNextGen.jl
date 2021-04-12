@@ -137,7 +137,7 @@ The following keywords are available:
 * `maxeval` specifies the maximum number of calls to `fg!`.
 
 * `verb` specifies whether to print iteration information (`verb = false`, by
-  default).
+  default). If `integer`print the information every `verb`iterations.
 
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
@@ -226,7 +226,7 @@ function vmlmb!(fg!::Function, x::T;
                 ftol::NTuple{2,Real} = (0.0, 1e-8),
                 gtol::NTuple{2,Real} = (0.0, 1e-6),
                 epsilon::Real = 0.0,
-                verb::Bool = false,
+                verb::Union{Int, Bool} = false,
                 printer::Function = print_iteration,
                 output::IO = stdout,
                 lnsrch::Union{LineSearch{Float},Nothing} = nothing) where {T}
@@ -294,7 +294,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
                  fatol::Float, frtol::Float,
                  gatol::Float, grtol::Float,
                  epsilon::Float,
-                 verb::Bool, printer::Function, output::IO,
+                 verb::Union{Int, Bool}, printer::Function, output::IO,
                  lnsrch::LineSearch{Float}) where {T}
 
     @assert mem ≥ 1
@@ -489,7 +489,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
 
             # Print some information if requested and terminate algorithm if
             # stage ≥ 3.
-            if verb
+            if verbose(verb,iter)
                 printer(output, iter, eval, rejects, f, gnorm, stp)
             end
             if stage ≥ 3
@@ -592,7 +592,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
     end
 
     # Algorithm finished.
-    if verb
+    if verbose(verb,iter)
         color = (stage > 3 ? :red : :green)
         prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
         printstyled(output, "# ", prefix, reason, "\n"; color=color)
@@ -621,6 +621,12 @@ sufficient_descent(gd::Real, ε::Real, gnorm::Real, d) =
 
 sufficient_descent(gd::Real, ε::Real, gnorm::Real, dnorm::Real) =
     ε > 0 ? (gd ≤ -ε*dnorm*gnorm) : gd < 0
+
+verbose(verb::Bool,iter::Int) = verb
+
+verbose(verb::Int,iter::Int) = 
+    verb == 0 ? false : (iter%verb)==0
+
 
 
 function print_iteration(iter::Integer, eval::Integer, rejects::Integer,
