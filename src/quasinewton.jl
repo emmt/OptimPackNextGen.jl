@@ -26,7 +26,7 @@ export
     vmlmb!,
     EMULATE_BLMVM
 
-using Printf
+using Printf, Requires
 
 using LazyAlgebra, Zygote
 using ...OptimPackNextGen
@@ -357,10 +357,16 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
             project_variables!(x, x, lo, hi)
         end
         # if fg! takes a single argument (x), its derivative are automatically computed using Zygotes.jl
-        applicable(fg!, x,g) ?  f = fg!(x, g) : (f,g)=(fg!(x),gradient(fg!,x)[1]);
+        if applicable(fg!, x,g)
+             f = fg!(x, g)
+        else
+            #(f,g)=(fg!(x),gradient(fg!,x)[1]);
+            f = auto_differentiate!(fg!,x,g)
+        end
+
         eval += 1
         if method > 0
-            project_direction!(p, x, lo, hi, -1, g)   
+            project_direction!(p, x, lo, hi, -1, g)
         end
         if eval == 1 || f < bestf
             gnorm = vnorm2((method > 0 ? p : g))
@@ -736,5 +742,13 @@ function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
     return (gamma != 0)
 end
 
+auto_differentiate!(arg...;kwds...) = error("Zygote package must be loaded first")
+
+function __init__()
+    @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"   auto_differentiate!(fg!,x,g) = begin
+        vcopy!(g,gradient(fg!,x)[1]);
+        return fg!(x)
+    end
+end
 #------------------------------------------------------------------------------
 end # module
