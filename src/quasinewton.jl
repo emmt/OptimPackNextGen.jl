@@ -76,13 +76,24 @@ computes a local minimizer of a function of several variables by a limited
 memory variable metric method.  The caller provides a function `fg!` to compute
 the value and the gradient of the function as follows:
 
-    f = fg!(x, g)
+    fx = fg!(x, gx)
 
-where `x` are the current variables, `f` is the value of the function at `x`
-and the contents of `g` has to be overwritten with the gradient at `x` (when
-`fg!` is called, `g` is already allocated as `g = vcreate(x0)`).  Argument `x0`
+where `x` are the current variables, `fx` is the value of the function at `x`
+and the contents of `gx` has to be overwritten with the gradient at `x` (when
+`fg!` is called, `gx` is already allocated as `gx = vcreate(x0)`).  Argument `x0`
 gives the initial approximation of the variables (its contents is left
 unchanged).  The best solution found so far is returned in `x`.
+
+If `Zygote` package has been loaded, the gradient of the function may be
+automatically computed and the first argument to `vmlmb` can be a simpler
+function, say `f`, that takes the variables `x` as a single argument and returns
+the function value:
+
+    fx = f(x)
+
+It is also possible to extend the method
+[`OptimPackNextGen.QuasiNewton.auto_differentiate!](@ref) to compute the gradient
+for a specific function `f`.
 
 The following keywords are available:
 
@@ -357,10 +368,9 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
             project_variables!(x, x, lo, hi)
         end
         # if fg! takes a single argument (x), its derivative are automatically computed using Zygotes.jl
-        if applicable(fg!, x,g)
+        if applicable(fg!, x, g)
              f = fg!(x, g)
         else
-            #(f,g)=(fg!(x),gradient(fg!,x)[1]);
             f = auto_differentiate!(fg!,x,g)
         end
 
@@ -742,13 +752,24 @@ function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
     return (gamma != 0)
 end
 
-auto_differentiate!(arg...;kwds...) = error("Zygote package must be loaded first")
+"""
+    OmptimPackNextGen.QuasiNewton.auto_differentiate!(f, x, g) -> fx
+
+yields `fx = f(x)` for a given function `f` and variables `x` and overwrites the
+contents of `g` with the gradient of the function at `x`.
+
+This method may be extended to compute the gradient and function value for specific
+`typeof(f)` or to automatically compute the gradient as can be done by the `Zygote`
+package if it is loaded.
+
+"""
+auto_differentiate!(arg...; kwds...) = error("Zygote package must be loaded first")
 
 function __init__()
-    @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"   auto_differentiate!(fg!,x,g) = begin
-        vcopy!(g,gradient(fg!,x)[1]);
-        return fg!(x)
+    @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" auto_differentiate!(f, x, g) = begin
+        vcopy!(g, gradient(f, x)[1]);
+        return f(x)
     end
 end
-#------------------------------------------------------------------------------
+
 end # module
