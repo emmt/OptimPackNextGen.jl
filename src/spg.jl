@@ -30,10 +30,11 @@ export
 
 using Printf
 
-using LazyAlgebra, Zygote
+using LazyAlgebra
 using ...OptimPackNextGen
 
 import OptimPackNextGen: getreason
+using OptimPackNextGen.QuasiNewton: auto_differentiation!
 
 const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
@@ -220,8 +221,12 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     pcnt += 1
 
     # Evaluate function and gradient.
-    # if fg! takes a single argument (x), its derivative are automatically computed using Zygotes.jl
-    applicable(fg!, x,g) ?  f = Float64(fg!(x, g)) : (f,g)=(Float64(fg!(x)),gradient(fg!,x)[1]);
+    f::Float64
+    if applicable(fg!, x, g)
+        f = fg!(x, g)
+    else
+        f = auto_differentiate!(fg!, x, g)
+    end
     fcnt += 1
 
     # Initialize best solution and best function value.
@@ -314,8 +319,11 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
         stp = 1.0 # Step length for first trial.
         while true
             # Evaluate function and gradient at trial point.
-            # if fg! takes a single argument (x), its derivative are automatically computed using Zygotes.jl
-            applicable(fg!, x,g) ?  f = Float64(fg!(x, g)) : (f,g)=(Float64(fg!(x)),gradient(fg!,x)[1]);
+            if applicable(fg!, x, g)
+                f = fg!(x, g)
+            else
+                f = auto_differentiate!(fg!, x, g)
+            end
             fcnt += 1
 
             # Compare the new function value against the best function value
