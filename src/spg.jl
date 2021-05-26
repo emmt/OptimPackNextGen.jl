@@ -221,11 +221,9 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     pcnt += 1
 
     # Evaluate function and gradient.
-    f = if applicable(fg!, x, g)
-        fg!(x, g)
-    else
-        auto_differentiate!(fg!, x, g)
-    end
+    autodiff = !applicable(fg!, x, g)
+    local f::Float64
+    f = (autodiff ? auto_differentiate!(fg!, x, g) : fg!(x, g))
     fcnt += 1
 
     # Initialize best solution and best function value.
@@ -318,11 +316,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
         stp = 1.0 # Step length for first trial.
         while true
             # Evaluate function and gradient at trial point.
-            if applicable(fg!, x, g)
-                f = fg!(x, g)
-            else
-                f = auto_differentiate!(fg!, x, g)
-            end
+            f = (autodiff ? auto_differentiate!(fg!, x, g) : fg!(x, g))
             fcnt += 1
 
             # Compare the new function value against the best function value
