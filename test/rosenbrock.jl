@@ -71,7 +71,7 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     #err = maximum(abs.(x1 .- xsol))
     #@printf("Maximum absolute error: %.3e\n", err)
     #@test err < atol
-
+    VERBOSE = 10 # test verbose != Bool  
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
     x2 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE)
     err = maximum(abs.(x2 .- xsol))
@@ -83,7 +83,8 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     err = maximum(abs.(x2 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
-
+  
+    VERBOSE = true
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
     x3 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE, mem=15)
     err = maximum(abs.(x3 .- xsol))
