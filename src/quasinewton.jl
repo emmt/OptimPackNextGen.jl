@@ -594,7 +594,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
     end
 
     # Algorithm finished.
-    if verbose(verb, iter)
+    if verbose(verb, 0) #always print last line if verb>0
         color = (stage > 3 ? :red : :green)
         prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
         printstyled(output, "# ", prefix, reason, "\n"; color=color)
