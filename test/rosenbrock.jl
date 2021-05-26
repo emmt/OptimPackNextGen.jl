@@ -1,3 +1,11 @@
+module RosenbrokTests
+
+using OptimPackNextGen
+using Test
+using Printf
+using Zygote
+
+VERBOSE = true
 
 function rosenbrock_init!(x0::Array{T,1}) where {T<:Real}
   x0[1:2:end] .= -1.2
@@ -20,7 +28,7 @@ function rosenbrock_fg!(x::Array{T,1}, gx::Array{T,1}) where {T<:Real}
   return sum(t1.*t1) + sum(t2.*t2)
 end
 
-function rosenbrock_fgAD!(x::Array{T,1}) where {T<:Real}
+function rosenbrock_f(x::Array{T,1}) where {T<:Real}
   local c1::T = 1
   local c2::T = 2
   local c10::T = 10
@@ -37,6 +45,16 @@ function rosenbrock_test(n::Integer=20, m::Integer=3; single::Bool=false)
   x0 = Array{T}(undef, n)
   rosenbrock_init!(x0)
   lbfgs(rosenbrock_fg!, x0, m, verb=VERBOSE)
+end
+
+function nonnegative!(dst::AbstractArray{T,N},
+                      src::AbstractArray{T,N}) where {T,N}
+    vmin = zero(T)
+    @inbounds @simd for i in eachindex(dst, src)
+        val = src[i]
+        dst[i] = (val < vmin ? vmin : val)
+    end
+    return dst
 end
 
 # Run tests in double and single precisions.
@@ -59,9 +77,9 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     err = maximum(abs.(x2 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
-  
+
     @printf("\nTesting VMLMB with AD in %s precision with Oren & Spedicato scaling\n", prec)
-    x2a = vmlmb(rosenbrock_fgAD!, x0, verb=VERBOSE)
+    x2a = vmlmb(rosenbrock_f, x0, verb=VERBOSE)
     err = maximum(abs.(x2 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
@@ -71,9 +89,9 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     err = maximum(abs.(x3 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
-  
+
     @printf("\nTesting VMLMB with AD in %s precision with Oren & Spedicato scaling\n", prec)
-    x3a = vmlmb(rosenbrock_fgAD!, x0, verb=VERBOSE, mem=15)
+    x3a = vmlmb(rosenbrock_f, x0, verb=VERBOSE, mem=15)
     err = maximum(abs.(x3 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
@@ -83,9 +101,9 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     err = maximum(abs.(x4 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
-  
+
     @printf("\nTesting VMLMB with AD in %s precision with nonnegativity\n", prec)
-    x4a = vmlmb(rosenbrock_fgAD!, x0, verb=VERBOSE, lower=0)
+    x4a = vmlmb(rosenbrock_f, x0, verb=VERBOSE, lower=0)
     err = maximum(abs.(x4 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
@@ -98,9 +116,11 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     #@test err < atol
 
     @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)
-    x6 = spg(rosenbrock_fg!, (dst, src) -> dst .= max.(src, zero(eltype(src))),
-             x0, 10; verb=VERBOSE)
-    @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)
-    x6a = spg(rosenbrock_fgAD!, (dst, src) -> dst .= max.(src, zero(eltype(src))),
-             x0, 10; verb=VERBOSE)
+    x6 = spg(rosenbrock_fg!, nonnegative!, x0, 10; verb=VERBOSE)
+    @printf("\nTesting SPG in %s precision with AD and nonnegativity\n", prec)
+    x7 = spg(rosenbrock_f, nonnegative!, x0, 10; verb=VERBOSE)
 end
+
+end # module
+
+nothing

@@ -18,7 +18,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2019, Éric Thiébaut.
+# Copyright (C) 2015-2021, Éric Thiébaut.
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -90,6 +90,12 @@ previous function values to be considered in the nonmonotone line search.  If
 be used.
 
 The following keywords are available:
+
+* `autodiff` is a boolean specifying whether to rely on
+  automatic-differentiation by `Zygote` to compute the gradient of the
+  objective function.  If not specified, the decision is based on whether a
+  call like `fg!(x,g)` to compute the objective function and its gradient is
+  applicable.
 
 * `eps1` specifies the stopping criterion `‖pg‖_∞ ≤ eps1` with `pg` the
   projected gradient.  By default, `eps1 = 1e-6`.
@@ -166,6 +172,7 @@ REASON = Dict{Int,String}(
 getreason(ws::Info) = get(REASON, ws.status, "unknown status")
 
 function spg!(fg!, prj!, x, m::Integer;
+              autodiff::Bool = !applicable(fg!, x, x),
               ws::Info = Info(),
               maxit::Integer = typemax(Int),
               maxfc::Integer = typemax(Int),
@@ -175,12 +182,12 @@ function spg!(fg!, prj!, x, m::Integer;
               printer::Function = default_printer,
               verb::Bool = false,
               io::IO = stdout)
-    _spg!(fg!, prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
+    _spg!(fg!, prj!, x, Int(m), autodiff, ws, Int(maxit), Int(maxfc),
           Float64(eps1), Float64(eps2), Float64(eta),
           printer, verb, io)
 end
 
-function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
+function _spg!(fg!, prj!, x::T, m::Int, autodiff::Bool, ws::Info,
                maxit::Int, maxfc::Int,
                eps1::Float64, eps2::Float64, eta::Float64,
                printer::Function, verb::Bool, io::IO) where {T}
@@ -223,7 +230,6 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     pcnt += 1
 
     # Evaluate function and gradient.
-    autodiff = !applicable(fg!, x, g)
     local f::Float64
     f = (autodiff ? auto_differentiate!(fg!, x, g) : fg!(x, g))
     fcnt += 1
@@ -233,19 +239,21 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     vcopy!(xbest, x)
 
     # Main loop.
+    fconst = false
     while true
 
-        # Store function value for the nonmonotone line search and find maximum
-        # function value since m last calls.
+        # Store function value for the nonmonotone line search and find minimum
+        # and maximum function values since m last calls.
         if m > 1
             lastfv[(iter%m) + 1] = f
-            fmax = maximum(lastfv)
+            fmin, fmax = extrema(lastfv)
+            fconst = !(fmin < fmax)
         else
-            fmax = f
+            fmin = fmax = f
         end
 
-        # Compute continuous projected gradient (and its norms)
-        # as: `pg = (x - prj(x - eta*g))/eta`.
+        # Compute continuous projected gradient (and its norms) as:
+        # `pg = (x - prj(x - eta*g))/eta` and using `pg` as a workspace.
         vcombine!(pg, 1/eta, x, -1/eta, prj!(pg, vcombine!(pg, 1, x, -eta, g)))
         pcnt += 1
         pgtwon = vnorm2(pg)
@@ -275,7 +283,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
             status = TWONORM_CONVERGENCE
             break
         end
-        if m > 1 && !isless(extrema(lastfv)...)
+        if fconst
             # Function does not change in the last `m` iterations.
             status = FUNCTION_CONVERGENCE
             break
@@ -293,16 +301,16 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
 
         # Compute spectral steplength.
         if iter == 0
-            # Initial steplength. (FIXME: check type stability)
-            lambda = min(lmax, max(lmin, 1/pginfn))
+            # Initial steplength.
+            lambda = clamp(1/pginfn, lmin, lmax)
         else
             vcombine!(s, 1, x, -1, x0)
             vcombine!(y, 1, g, -1, g0)
-            sty = vdot(s, y)
+            sty = vdot_dbl(s, y)
             if sty > 0
                 # Safeguarded Barzilai & Borwein spectral steplength.
-                sts = vdot(s, s)
-                lambda = min(lmax, max(lmin, sts/sty))
+                sts = vdot_dbl(s, s)
+                lambda = clamp(sts/sty, lmin, lmax)
             else
                 lambda = lmax
             end
@@ -317,7 +325,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
         prj!(x, vcombine!(x, 1, x0, -lambda, g0)) # x = prj(x0 - lambda*g0)
         pcnt += 1
         vcombine!(d, 1, x, -1, x0) # d = x - x0
-        delta = vdot(g0, d)
+        delta = vdot_dbl(g0, d)
 
         # Nonmonotone line search.
         stp = 1.0 # Step length for first trial.
@@ -402,5 +410,7 @@ function default_printer(io::IO, nfo::Info)
             nfo.iter, nfo.fcnt, nfo.pcnt, (nfo.f ≤ nfo.fbest ? "(*)" : "   "),
             nfo.f, nfo.pgtwon, nfo.pginfn)
 end
+
+vdot_dbl(x, y) = convert(Float64, vdot(x, y)) :: Float64
 
 end # module
