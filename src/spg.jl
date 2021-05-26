@@ -159,6 +159,7 @@ REASON = Dict{Int,String}(
     SEARCHING => "Work in progress",
     INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
     TWONORM_CONVERGENCE => "Convergence with projected gradient 2-norm",
+    FUNCTION_CONVERGENCE => "Function does not change in the last `m` iterations",
     TOO_MANY_ITERATIONS => "Too many iterations",
     TOO_MANY_EVALUATIONS => "Too many function evaluations")
 
@@ -234,6 +235,15 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     # Main loop.
     while true
 
+        # Store function value for the nonmonotone line search and find maximum
+        # function value since m last calls.
+        if m > 1
+            lastfv[(iter%m) + 1] = f
+            fmax = maximum(lastfv)
+        else
+            fmax = f
+        end
+
         # Compute continuous projected gradient (and its norms)
         # as: `pg = (x - prj(x - eta*g))/eta`.
         vcombine!(pg, 1/eta, x, -1/eta, prj!(pg, vcombine!(pg, 1, x, -eta, g)))
@@ -265,7 +275,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
             status = TWONORM_CONVERGENCE
             break
         end
-        if !any(x -> x < fbest, lastfv)
+        if m > 1 && !isless(extrema(lastfv)...)
             # Function does not change in the last `m` iterations.
             status = FUNCTION_CONVERGENCE
             break
@@ -279,15 +289,6 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
             # Maximum number of function evaluations exceeded, stop.
             status = TOO_MANY_EVALUATIONS
             break
-        end
-
-        # Store function value for the nonmonotone line search and find maximum
-        # function value since m last calls.
-        if m > 1
-            lastfv[(iter%m) + 1] = f
-            fmax = maximum(lastfv)
-        else
-            fmax = f
         end
 
         # Compute spectral steplength.
