@@ -60,7 +60,8 @@ Info() = Info(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 # Spectral Projected Gradient Method
 
 The `spg` method implements the Spectral Projected Gradient Method (Version 2:
-"continuous projected gradient direction") to find the local minimizers of a
+"continuous projected gradient direction") to find the local minimizers of
+ a
 given function with convex constraints, described in the references below.  A
 typical use is:
 
@@ -117,8 +118,10 @@ The following keywords are available:
 * `ws` is an instance of `SPG.Info` to store information about the final
   iterate.
 
-  * `verb` specifies whether to print iteration information (`verb = false`, by
-  default). If `integer` print the information every `verb`iterations.
+* `verb` specifies the verbosity level. It can be a boolean to specify
+  whether to print information at every iteration or an integer to print
+  information every `verb` iteration(s).  No information is printed if
+  `verb` is less or equal zero. The default is `verb = false`.
 
 * `printer` specifies a subroutine to print some information at each iteration.
   This subroutine will be called as `printer(io, ws)` with `io` the output
@@ -181,17 +184,17 @@ function spg!(fg!, prj!, x, m::Integer;
               eps2::Real = 1e-6,
               eta::Real = 1.0,
               printer::Function = default_printer,
-              verb::Union{Int, Bool} = false,
+              verb::Integer = false,
               io::IO = stdout)
     _spg!(fg!, prj!, x, Int(m), autodiff, ws, Int(maxit), Int(maxfc),
           Float64(eps1), Float64(eps2), Float64(eta),
-          printer, verb, io)
+          printer, Int(verb), io)
 end
 
 function _spg!(fg!, prj!, x::T, m::Int, autodiff::Bool, ws::Info,
                maxit::Int, maxfc::Int,
                eps1::Float64, eps2::Float64, eta::Float64,
-               printer::Function, verb::Union{Int, Bool}, io::IO) where {T}
+               printer::Function, verb::Int, io::IO) where {T}
     # Initialization.
     @assert m ≥ 1
     @assert eps1 ≥ 0
@@ -261,7 +264,7 @@ function _spg!(fg!, prj!, x::T, m::Int, autodiff::Bool, ws::Info,
         pginfn = vnorminf(pg)
 
         # Print iteration information.
-        if verbose(verb,iter)
+        if verbose(verb, iter)
             ws.f = f
             ws.fbest = fbest
             ws.pgtwon = pgtwon
@@ -387,7 +390,7 @@ function _spg!(fg!, prj!, x::T, m::Int, autodiff::Bool, ws::Info,
     ws.fcnt = fcnt
     ws.pcnt = pcnt
     ws.status = status
-    if verbose(verb,iter)
+    if verbose(verb, iter)
         reason = getreason(ws)
         if status < 0
             printstyled(stderr, "# WARNING: ", reason, "\n"; color=:red)
