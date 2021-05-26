@@ -137,7 +137,7 @@ The following keywords are available:
 * `maxeval` specifies the maximum number of calls to `fg!`.
 
 * `verb` specifies whether to print iteration information (`verb = false`, by
-  default). If `integer`print the information every `verb`iterations.
+  default). If `integer` print the information every `verb`iterations.
 
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
@@ -624,7 +624,7 @@ sufficient_descent(gd::Real, ε::Real, gnorm::Real, dnorm::Real) =
 
 verbose(verb::Bool,iter::Int) = verb
 
-verbose(verb::Int,iter::Int) = 
+verbose(verb::Int,iter::Int) =
     verb == 0 ? false : (iter%verb)==0
 
 
