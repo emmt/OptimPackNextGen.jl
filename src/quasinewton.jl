@@ -28,7 +28,7 @@ export
 
 using Printf, Requires
 
-using LazyAlgebra, Zygote
+using LazyAlgebra
 using ...OptimPackNextGen
 using OptimPackNextGen.LineSearches
 using OptimPackNextGen.SimpleBounds
