@@ -221,11 +221,10 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     pcnt += 1
 
     # Evaluate function and gradient.
-    f::Float64
-    if applicable(fg!, x, g)
-        f = fg!(x, g)
+    f = if applicable(fg!, x, g)
+        fg!(x, g)
     else
-        f = auto_differentiate!(fg!, x, g)
+        auto_differentiate!(fg!, x, g)
     end
     fcnt += 1
 
