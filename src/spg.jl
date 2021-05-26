@@ -39,6 +39,7 @@ using OptimPackNextGen.QuasiNewton: auto_differentiate!
 const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
 const TWONORM_CONVERGENCE  =  2
+const FUNCTION_CONVERGENCE =  3
 const TOO_MANY_ITERATIONS  = -1
 const TOO_MANY_EVALUATIONS = -2
 
@@ -132,12 +133,12 @@ The `SPG.Info` type has the following members:
 * `status` indicates the type of termination:
 
     Status                        Reason
-    -------------------------------------------------------------------------
-    SPG.SEARCHING (0)             Work in progress
-    SPG.INFNORM_CONVERGENCE (1)   Convergence with projected gradient
-                                  infinite-norm
-    SPG.TWONORM_CONVERGENCE (2)   Convergence with projected gradient 2-norm
-    SPG.TOO_MANY_ITERATIONS (-1)  Too many iterations
+    ----------------------------------------------------------------------------------
+    SPG.SEARCHING             (0) Work in progress
+    SPG.INFNORM_CONVERGENCE   (1) Convergence with projected gradient infinite-norm
+    SPG.TWONORM_CONVERGENCE   (2) Convergence with projected gradient 2-norm
+    SPG.FUNCTION_CONVERGENCE  (3) Function does not change in the last `m` iterations
+    SPG.TOO_MANY_ITERATIONS  (-1) Too many iterations
     SPG.TOO_MANY_EVALUATIONS (-2) Too many function evaluations
 
 
@@ -262,6 +263,11 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
         if pgtwon ≤ eps2
             # Gradient 2-norm stopping criterion satisfied, stop.
             status = TWONORM_CONVERGENCE
+            break
+        end
+        if !any(x -> x < fbest, lastfv)
+            # Function does not change in the last `m` iterations.
+            status = FUNCTION_CONVERGENCE
             break
         end
         if iter ≥ maxit
