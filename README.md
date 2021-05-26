@@ -14,6 +14,17 @@ optimization with particular focus on large scale problems.
   large scale optimization problems. Optionally, bounds on the variables can be
   taken into account.  The objective function must be differentiable and the
   caller must provide means to compute the objective function and its gradient.
+  If the [`Zygote`](https://github.com/FluxML/Zygote.jl) is loaded, the
+  gradient of the objective function amy be computed by means of
+  automatic-differentiation.
+
+* *Spectral Projected Gradient* (SPG) method is provided for large-scale
+  optimization problems with a differentiable objective function and convex
+  constraints.  The caller of `spg` (or `spg!`) shall provide a couple of
+  functions to compute the objective function and its gradient and to project
+  the variables on the feasible set.  If the
+  [`Zygote`](https://github.com/FluxML/Zygote.jl) is loaded, the gradient of
+  the objective function amy be computed by means of automatic-differentiation.
 
 * [Line searches methods](doc/linesearches.md) are used to approximately
   minimize the objective function along a given search direction.
