@@ -1,3 +1,4 @@
+
 function rosenbrock_init!(x0::Array{T,1}) where {T<:Real}
   x0[1:2:end] .= -1.2
   x0[2:2:end] .=  1.0
@@ -16,6 +17,18 @@ function rosenbrock_fg!(x::Array{T,1}, gx::Array{T,1}) where {T<:Real}
   g2 = c200*(x2 - x1.*x1)
   gx[1:2:end] = -c2*(x1 .* g2 + t1)
   gx[2:2:end] = g2
+  return sum(t1.*t1) + sum(t2.*t2)
+end
+
+function rosenbrock_fgAD!(x::Array{T,1}) where {T<:Real}
+  local c1::T = 1
+  local c2::T = 2
+  local c10::T = 10
+  local c200::T = 200
+  x1 = x[1:2:end]
+  x2 = x[2:2:end]
+  t1 = c1 .- x1
+  t2 = c10*(x2 - x1.*x1)
   return sum(t1.*t1) + sum(t2.*t2)
 end
 
@@ -46,15 +59,33 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     err = maximum(abs.(x2 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
+  
+    @printf("\nTesting VMLMB with AD in %s precision with Oren & Spedicato scaling\n", prec)
+    x2a = vmlmb(rosenbrock_fgAD!, x0, verb=VERBOSE)
+    err = maximum(abs.(x2 .- xsol))
+    @printf("Maximum absolute error: %.3e\n", err)
+    @test err < atol
 
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
     x3 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE, mem=15)
     err = maximum(abs.(x3 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
+  
+    @printf("\nTesting VMLMB with AD in %s precision with Oren & Spedicato scaling\n", prec)
+    x3a = vmlmb(rosenbrock_fgAD!, x0, verb=VERBOSE, mem=15)
+    err = maximum(abs.(x3 .- xsol))
+    @printf("Maximum absolute error: %.3e\n", err)
+    @test err < atol
 
     @printf("\nTesting VMLMB in %s precision with nonnegativity\n", prec)
     x4 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE, lower=0)
+    err = maximum(abs.(x4 .- xsol))
+    @printf("Maximum absolute error: %.3e\n", err)
+    @test err < atol
+  
+    @printf("\nTesting VMLMB with AD in %s precision with nonnegativity\n", prec)
+    x4a = vmlmb(rosenbrock_fgAD!, x0, verb=VERBOSE, lower=0)
     err = maximum(abs.(x4 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
@@ -68,5 +99,8 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
     @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)
     x6 = spg(rosenbrock_fg!, (dst, src) -> dst .= max.(src, zero(eltype(src))),
+             x0, 10; verb=VERBOSE)
+    @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)
+    x6a = spg(rosenbrock_fgAD!, (dst, src) -> dst .= max.(src, zero(eltype(src))),
              x0, 10; verb=VERBOSE)
 end

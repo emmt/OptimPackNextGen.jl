@@ -34,10 +34,12 @@ using LazyAlgebra
 using ...OptimPackNextGen
 
 import OptimPackNextGen: getreason
+using OptimPackNextGen.QuasiNewton: auto_differentiate!
 
 const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
 const TWONORM_CONVERGENCE  =  2
+const FUNCTION_CONVERGENCE =  3
 const TOO_MANY_ITERATIONS  = -1
 const TOO_MANY_EVALUATIONS = -2
 
@@ -131,12 +133,12 @@ The `SPG.Info` type has the following members:
 * `status` indicates the type of termination:
 
     Status                        Reason
-    -------------------------------------------------------------------------
-    SPG.SEARCHING (0)             Work in progress
-    SPG.INFNORM_CONVERGENCE (1)   Convergence with projected gradient
-                                  infinite-norm
-    SPG.TWONORM_CONVERGENCE (2)   Convergence with projected gradient 2-norm
-    SPG.TOO_MANY_ITERATIONS (-1)  Too many iterations
+    ----------------------------------------------------------------------------------
+    SPG.SEARCHING             (0) Work in progress
+    SPG.INFNORM_CONVERGENCE   (1) Convergence with projected gradient infinite-norm
+    SPG.TWONORM_CONVERGENCE   (2) Convergence with projected gradient 2-norm
+    SPG.FUNCTION_CONVERGENCE  (3) Function does not change in the last `m` iterations
+    SPG.TOO_MANY_ITERATIONS  (-1) Too many iterations
     SPG.TOO_MANY_EVALUATIONS (-2) Too many function evaluations
 
 
@@ -157,6 +159,7 @@ REASON = Dict{Int,String}(
     SEARCHING => "Work in progress",
     INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
     TWONORM_CONVERGENCE => "Convergence with projected gradient 2-norm",
+    FUNCTION_CONVERGENCE => "Function does not change in the last `m` iterations",
     TOO_MANY_ITERATIONS => "Too many iterations",
     TOO_MANY_EVALUATIONS => "Too many function evaluations")
 
@@ -220,7 +223,9 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
     pcnt += 1
 
     # Evaluate function and gradient.
-    f = Float64(fg!(x, g))
+    autodiff = !applicable(fg!, x, g)
+    local f::Float64
+    f = (autodiff ? auto_differentiate!(fg!, x, g) : fg!(x, g))
     fcnt += 1
 
     # Initialize best solution and best function value.
@@ -229,6 +234,15 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
 
     # Main loop.
     while true
+
+        # Store function value for the nonmonotone line search and find maximum
+        # function value since m last calls.
+        if m > 1
+            lastfv[(iter%m) + 1] = f
+            fmax = maximum(lastfv)
+        else
+            fmax = f
+        end
 
         # Compute continuous projected gradient (and its norms)
         # as: `pg = (x - prj(x - eta*g))/eta`.
@@ -261,6 +275,11 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
             status = TWONORM_CONVERGENCE
             break
         end
+        if m > 1 && !isless(extrema(lastfv)...)
+            # Function does not change in the last `m` iterations.
+            status = FUNCTION_CONVERGENCE
+            break
+        end
         if iter ≥ maxit
             # Maximum number of iterations exceeded, stop.
             status = TOO_MANY_ITERATIONS
@@ -270,15 +289,6 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
             # Maximum number of function evaluations exceeded, stop.
             status = TOO_MANY_EVALUATIONS
             break
-        end
-
-        # Store function value for the nonmonotone line search and find maximum
-        # function value since m last calls.
-        if m > 1
-            lastfv[(iter%m) + 1] = f
-            fmax = maximum(lastfv)
-        else
-            fmax = f
         end
 
         # Compute spectral steplength.
@@ -313,7 +323,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info,
         stp = 1.0 # Step length for first trial.
         while true
             # Evaluate function and gradient at trial point.
-            f = Float64(fg!(x, g))
+            f = (autodiff ? auto_differentiate!(fg!, x, g) : fg!(x, g))
             fcnt += 1
 
             # Compare the new function value against the best function value
