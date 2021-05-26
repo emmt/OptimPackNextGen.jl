@@ -390,7 +390,7 @@ function _spg!(fg!, prj!, x::T, m::Int, autodiff::Bool, ws::Info,
     ws.fcnt = fcnt
     ws.pcnt = pcnt
     ws.status = status
-    if verbose(verb, iter)
+    if verbose(verb, 0) #always print last line if verb>0
         reason = getreason(ws)
         if status < 0
             printstyled(stderr, "# WARNING: ", reason, "\n"; color=:red)
