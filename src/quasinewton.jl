@@ -767,7 +767,7 @@ auto_differentiate!(arg...; kwds...) = error("Zygote package must be loaded firs
 
 function __init__()
     @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" auto_differentiate!(f, x, g) = begin
-        vcopy!(g, gradient(f, x)[1]);
+        vcopy!(g, Zygote.gradient(f, x)[1]);
         return f(x)
     end
 end
