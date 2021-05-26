@@ -4,7 +4,7 @@
 [![Build Status](https://travis-ci.org/emmt/OptimPackNextGen.jl.svg?branch=master)](https://travis-ci.org/emmt/OptimPackNextGen.jl)
 [![codecov.io](http://codecov.io/github/emmt/OptimPackNextGen.jl/coverage.svg?branch=master)](http://codecov.io/github/emmt/OptimPackNextGen.jl?branch=master)
 
-**OptimPackNextGen** is a [Julia](http://julialang.org/) package for numerical
+`OptimPackNextGen` is a [Julia](http://julialang.org/) package for numerical
 optimization with particular focus on large scale problems.
 
 
@@ -15,7 +15,7 @@ optimization with particular focus on large scale problems.
   taken into account.  The objective function must be differentiable and the
   caller must provide means to compute the objective function and its gradient.
   If the [`Zygote`](https://github.com/FluxML/Zygote.jl) is loaded, the
-  gradient of the objective function amy be computed by means of
+  gradient of the objective function may be computed by means of
   automatic-differentiation.
 
 * *Spectral Projected Gradient* (SPG) method is provided for large-scale
@@ -24,7 +24,7 @@ optimization with particular focus on large scale problems.
   functions to compute the objective function and its gradient and to project
   the variables on the feasible set.  If the
   [`Zygote`](https://github.com/FluxML/Zygote.jl) is loaded, the gradient of
-  the objective function amy be computed by means of automatic-differentiation.
+  the objective function may be computed by means of automatic-differentiation.
 
 * [Line searches methods](doc/linesearches.md) are used to approximately
   minimize the objective function along a given search direction.
@@ -35,13 +35,13 @@ optimization with particular focus on large scale problems.
 
 ## Small to moderate size problems
 
-For problems of small to moderate size, **OptimPackNextGen** provides:
+For problems of small to moderate size, `OptimPackNextGen` provides:
 
-* Mike Powell's **COBYLA** (Powell, 1994), **NEWUOA** (Powell, 2006), and
-  **BOBYQA** (Powell, 2009) algorithms for minimizing a function of many
+* Mike Powell's `COBYLA` (Powell, 1994), `NEWUOA` (Powell, 2006), and
+  `BOBYQA` (Powell, 2009) algorithms for minimizing a function of many
   variables.  These methods are *derivatives free* (only the function values
-  are needed).  **NEWUOA** is for unconstrained optimization.  **COBYLA**
-  accounts for general inequality constraints.  **BOBYQA** accounts for bound
+  are needed).  `NEWUOA` is for unconstrained optimization.  `COBYLA`
+  accounts for general inequality constraints.  `BOBYQA` accounts for bound
   constraints on the variables.
 
 * `nllsq` implements non-linear (weighted) least squares fit. Powell's NEWUOA

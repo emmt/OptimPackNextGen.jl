@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2019, Éric Thiébaut.
+# Copyright (C) 2015-2021, Éric Thiébaut.
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -98,6 +98,12 @@ for a specific function `f`.
 The following keywords are available:
 
 * `mem` specifies the amount of storage.
+
+* `autodiff` is a boolean specifying whether to rely on
+  automatic-differentiation by `Zygote` to compute the gradient of the
+  objective function.  If not specified, the decision is based on whether a
+  call like `fg!(x,g)` to compute the objective function and its gradient is
+  applicable.
 
 * `xtol` is a tuple of two nonnegative reals specifying respectively the
   absolute and relative tolerances for deciding convergence on the variables.
@@ -211,6 +217,7 @@ function vmlmb!(fg!::Function, x::T;
                 mem::Integer = min(5, length(x)),
                 lower::Union{Real,T} = -Inf,
                 upper::Union{Real,T} = +Inf,
+                autodiff::Bool = !applicable(fg!, x, x),
                 blmvm::Bool = false,
                 fmin::Real = -Inf,
                 maxiter::Integer = typemax(Int),
@@ -267,7 +274,7 @@ function vmlmb!(fg!::Function, x::T;
     end
 
     # Call the real method.
-    _vmlmb!(fg!, x, Int(mem), flags, lo, hi, bounds, method,
+    _vmlmb!(fg!, x, Int(mem), flags, lo, hi, bounds, autodiff, method,
             Float(fmin), Int(maxiter), Int(maxeval),
             Float(xtol[1]), Float(xtol[2]),
             Float(ftol[1]), Float(ftol[2]),
@@ -280,6 +287,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
                  lo::Union{Float, T},
                  hi::Union{Float, T},
                  bounds::UInt,
+                 autodiff::Bool,
                  method::Int,
                  fmin::Float, maxiter::Int, maxeval::Int,
                  xatol::Float, xrtol::Float,
@@ -344,7 +352,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
     d = vcreate(x) # ------------> search direction
     S = Array{T}(undef, mem) # --> memorized steps
     Y = Array{T}(undef, mem) # --> memorized gradient differences
-    s = vcreate(x) # -----------> for effective step
+    s = vcreate(x) # ------------> for effective step
     for k in 1:mem
         S[k] = vcreate(x)
         Y[k] = vcreate(x)
@@ -368,10 +376,10 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
             project_variables!(x, x, lo, hi)
         end
         # if fg! takes a single argument (x), its derivative are automatically computed using Zygotes.jl
-        if applicable(fg!, x, g)
-             f = fg!(x, g)
+        if autodiff
+            f = auto_differentiate!(fg!, x, g)
         else
-            f = auto_differentiate!(fg!,x,g)
+            f = fg!(x, g)
         end
 
         eval += 1
