@@ -34,7 +34,7 @@ using LazyAlgebra
 using ...OptimPackNextGen
 
 import OptimPackNextGen: getreason
-using OptimPackNextGen.QuasiNewton: auto_differentiation!
+using OptimPackNextGen.QuasiNewton: auto_differentiate!
 
 const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
