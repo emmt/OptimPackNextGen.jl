@@ -1,7 +1,7 @@
 name = "OptimPackNextGen"
 uuid = "080ffe24-4a27-4ab0-ad71-7b624e73ef8d"
 authors = ["Éric Thiébaut <https://github.com/emmt>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 ArrayTools = "1dc0ca97-c5ce-4e77-ac6d-c576ac9d7f27"
