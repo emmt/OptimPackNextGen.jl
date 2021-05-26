@@ -136,8 +136,10 @@ The following keywords are available:
 
 * `maxeval` specifies the maximum number of calls to `fg!`.
 
-* `verb` specifies whether to print iteration information (`verb = false`, by
-  default). If `integer` print the information every `verb`iterations.
+* `verb` specifies the verbosity level. It can be a boolean to specify
+  whether to print information at every iteration or an integer to print
+  information every `verb` iteration(s).  No information is printed if
+  `verb` is less or equal zero. The default is `verb = false`.
 
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
@@ -226,7 +228,7 @@ function vmlmb!(fg!::Function, x::T;
                 ftol::NTuple{2,Real} = (0.0, 1e-8),
                 gtol::NTuple{2,Real} = (0.0, 1e-6),
                 epsilon::Real = 0.0,
-                verb::Union{Int, Bool} = false,
+                verb::Integer = false,
                 printer::Function = print_iteration,
                 output::IO = stdout,
                 lnsrch::Union{LineSearch{Float},Nothing} = nothing) where {T}
@@ -279,7 +281,7 @@ function vmlmb!(fg!::Function, x::T;
             Float(xtol[1]), Float(xtol[2]),
             Float(ftol[1]), Float(ftol[2]),
             Float(gtol[1]), Float(gtol[2]),
-            Float(epsilon), verb, printer, output, ls)
+            Float(epsilon), Int(verb), printer, output, ls)
 end
 
 # The real worker.
@@ -294,7 +296,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
                  fatol::Float, frtol::Float,
                  gatol::Float, grtol::Float,
                  epsilon::Float,
-                 verb::Union{Int, Bool}, printer::Function, output::IO,
+                 verb::Int, printer::Function, output::IO,
                  lnsrch::LineSearch{Float}) where {T}
 
     @assert mem ≥ 1
@@ -489,7 +491,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
 
             # Print some information if requested and terminate algorithm if
             # stage ≥ 3.
-            if verbose(verb,iter)
+            if verbose(verb, iter)
                 printer(output, iter, eval, rejects, f, gnorm, stp)
             end
             if stage ≥ 3
@@ -592,7 +594,7 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
     end
 
     # Algorithm finished.
-    if verbose(verb,iter)
+    if verbose(verb, iter)
         color = (stage > 3 ? :red : :green)
         prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
         printstyled(output, "# ", prefix, reason, "\n"; color=color)
@@ -622,12 +624,14 @@ sufficient_descent(gd::Real, ε::Real, gnorm::Real, d) =
 sufficient_descent(gd::Real, ε::Real, gnorm::Real, dnorm::Real) =
     ε > 0 ? (gd ≤ -ε*dnorm*gnorm) : gd < 0
 
-verbose(verb::Bool,iter::Int) = verb
+"""
+    verbose(verb, iter)
 
-verbose(verb::Int,iter::Int) =
-    verb == 0 ? false : (iter%verb)==0
+yields whether to print information at iteration `iter` with verbose level `verb`.
 
-
+"""
+verbose(verb::Integer,iter::Integer) =
+    (verb > 0 && iter%verb == 0)
 
 function print_iteration(iter::Integer, eval::Integer, rejects::Integer,
                          f::Real, gnorm::Real, step::Real)
