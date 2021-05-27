@@ -1,8 +1,11 @@
 # OptimPackNextGen.jl
 
-[![License](http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat)](LICENSE.md)
-[![Build Status](https://travis-ci.org/emmt/OptimPackNextGen.jl.svg?branch=master)](https://travis-ci.org/emmt/OptimPackNextGen.jl)
-[![codecov.io](http://codecov.io/github/emmt/OptimPackNextGen.jl/coverage.svg?branch=master)](http://codecov.io/github/emmt/OptimPackNextGen.jl?branch=master)
+[![License][license-img]][license-url]
+[![Build Status][travis-img]][travis-url]
+[![Appveyor][appveyor-img]][appveyor-url]
+[![Coveralls][coveralls-img]][coveralls-url]
+[![Codecov.io][codecov-img]][codecov-url]
+
 
 `OptimPackNextGen` is a [Julia](http://julialang.org/) package for numerical
 optimization with particular focus on large scale problems.
@@ -171,3 +174,24 @@ compatibility and design issues.
 
 * É. Thiébaut, "*Optimization issues in blind deconvolution algorithms*," in
   Astronomical Data Analysis II, SPIE Proc. **4847**, 174-183 (2002).
+
+[doc-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[doc-stable-url]: https://emmt.github.io/OptimPackNextGen.jl/stable
+
+[doc-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[doc-dev-url]: https://emmt.github.io/OptimPackNextGen.jl/dev
+
+[license-url]: ./LICENSE.md
+[license-img]: http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat
+
+[travis-img]: https://travis-ci.org/emmt/OptimPackNextGen.jl.svg?branch=master
+[travis-url]: https://travis-ci.org/emmt/OptimPackNextGen.jl
+
+[appveyor-img]: https://ci.appveyor.com/api/projects/status/github/emmt/OptimPackNextGen.jl?branch=master
+[appveyor-url]: https://ci.appveyor.com/project/emmt/OptimPackNextGen-jl/branch/master
+
+[coveralls-img]: https://coveralls.io/repos/emmt/OptimPackNextGen.jl/badge.svg?branch=master&service=github
+[coveralls-url]: https://coveralls.io/github/emmt/OptimPackNextGen.jl?branch=master
+
+[codecov-img]: http://codecov.io/github/emmt/OptimPackNextGen.jl/coverage.svg?branch=master
+[codecov-url]: http://codecov.io/github/emmt/OptimPackNextGen.jl?branch=master
