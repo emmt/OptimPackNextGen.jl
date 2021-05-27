@@ -13,13 +13,13 @@ julia:
   - 1.6
   - nightly
 
-matrix:
-  allow_failures:
-  - julia: nightly
-
 notifications:
   email: false
 
-#codecov: true
+codecov: true
 
-#coveralls: true
+coveralls: true
+
+jobs:
+  allow_failures:
+  - julia: nightly
