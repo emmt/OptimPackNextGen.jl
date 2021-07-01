@@ -399,18 +399,18 @@ function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
             if gnorm ≤ gtest
                 stage = 3
                 if gnorm == 0
-                    reason = "a stationary point has been found!"
+                    reason = "a stationary point has been found"
                 elseif method > 0
-                    reason = "projected gradient sufficiently small"
+                    reason = "projected gradient norm sufficiently small"
                 else
-                    reason = "gradient sufficiently small"
+                    reason = "gradient norm sufficiently small"
                 end
                 if eval > 1
                     iter += 1 # FIXME: do this here???
                 end
             end
         end
-        if fminset && f < fmin
+        if fminset && f < fmin # FIXME: do not do that
             stage = 4
             reason = "f < fmin"
         end
@@ -627,7 +627,8 @@ sufficient_descent(gd::Real, ε::Real, gnorm::Real, dnorm::Real) =
 """
     verbose(verb, iter)
 
-yields whether to print information at iteration `iter` with verbose level `verb`.
+yields whether to print information at iteration `iter` with verbose level
+`verb`.
 
 """
 verbose(verb::Integer,iter::Integer) =
@@ -776,12 +777,13 @@ end
 yields `fx = f(x)` for a given function `f` and variables `x` and overwrites the
 contents of `g` with the gradient of the function at `x`.
 
-This method may be extended to compute the gradient and function value for specific
-`typeof(f)` or to automatically compute the gradient as can be done by the `Zygote`
-package if it is loaded.
+This method may be extended to compute the gradient and function value for
+specific `typeof(f)` or to automatically compute the gradient as can be done by
+the `Zygote` package if it is loaded.
 
 """
-auto_differentiate!(arg...; kwds...) = error("Zygote package must be loaded first")
+auto_differentiate!(arg...; kwds...) =
+    error("`Zygote` package must be loaded first")
 
 function __init__()
     @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" auto_differentiate!(f, x, g) = begin
