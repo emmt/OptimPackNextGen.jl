@@ -15,43 +15,86 @@
 module SimpleBounds
 
 export
-    clip,
+    fastclamp,
+    fastmax,
+    fastmin,
     get_free_variables!,
     get_free_variables,
     project_direction!,
     project_variables!,
     step_limits
 
-"""
-```julia
-clip(x, lo, hi)
-```
-
-yields `x` subject to simple bound constraints.  That is, returns `x` if `lo ≤
-x ≤ hi`, `lo` if 'x < lo' and `hi` if `x > hi`.  This method is similar to
-`clamp` except that bounds may be `nothing` to indicate that there is no limit
-for the corresponding bound.
-
-See also [`clamp`](@ref).
+using Base: @propagate_inbounds
 
 """
-@inline clip(x::T, lo::T,  hi::T) where {T<:Real} = max(lo, min(x, hi))
-@inline clip(x::T, ::Nothing, hi::T) where {T<:Real} = min(x, hi)
-@inline clip(x::T, lo::T, ::Nothing) where {T<:Real} = max(lo, x)
+    fastmin(x, y)
+
+yields the least of `x` and `y` if neither `x` nor `y` are NaNs, or `x`
+otherwise.
+
+Calling `fastmin(x,y)` is faster than `min(x,y)` but the latter propagates
+NaNs (i.e., `min(x,y)` yields NaN if any of `x` or `y` is a NaN).
+
+"""
+fastmin(x::T, y::T) where {T<:Real} = (x > y ? y : x)
+
+"""
+    fastmax(x, y)
+
+yields the greatest of `x` and `y` if neither `x` nor `y` are NaNs, or `x`
+otherwise.
+
+Calling `fastmax(x,y)` is faster than `max(x,y)` but the latter propagates
+NaNs (i.e., `max(x,y)` yields NaN if any of `x` or `y` is a NaN).
+
+"""
+fastmax(x::T, y::T) where {T<:Real} = (x < y ? y : x)
+
+"""
+    fastclamp(x, lo, hi)
+
+yields `x` subject to simple bound constraints.  That is, returns `x` if
+`lo ≤ x ≤ hi`, `lo` if 'x < lo' and `hi` if `x > hi`.  This method is
+similar to `clamp` except that bounds may be `nothing` to indicate that
+there is no limit for the corresponding bound and that NaNs are not
+treated specially.
+
+    fastclamp(x, lo, hi, i)
+
+yields `i`-th variable `x[i]` subject to simple bound constraints as
+specified by `lo` and `hi`.
+
+"""
+fastclamp(x::T, lo::T, hi::T) where {T<:Real} = fastmax(fastmin(x, hi), lo)
+fastclamp(x::T, ::Nothing, hi::T) where {T<:Real} = fastmin(x, hi)
+fastclamp(x::T, lo::T, ::Nothing) where {T<:Real} = fastmax(x, lo)
+
+@inline @propagate_inbounds fastclamp(x::AbstractArray, lo, hi, i) =
+    fastclamp(x[i], boundvalue(lo, i), boundvalue(hi, i))
+
+"""
+    boundvalue(b, i)
+
+yields the bound value at index `i` for bounds `b`.
+
+"""
+boundvalue(b::Nothing, i) = b
+boundvalue(b::Real, i) = b
+@inline @propagate_inbounds boundvalue(b::AbstractArray, i) = b[i]
 
 #-------------------------------------------------------------------------------
 # PROJECTING VARIABLES
 
+const Bound{T<:Real,N} = Union{AbstractArray{T,N},T,Nothing}
+
 """
-```julia
-project_variables!(dst, src, lo, hi) -> dst
-```
+    project_variables!(dst, src, lo, hi) -> dst
 
 overwrites destination `dst` the projection of the source variables `src` in the
 box whose lower bound is `lo` and upper bound is `hi`.  The destination `dst`
 is returned.
 
-This is the same as `dst = clip(src, lo, hi)` except that the result is
+This is the same as `dst = clamp.(src, lo, hi)` except that the result is
 preallocated and that the operation is *much* faster (by a factor of 2-3).
 
 """
@@ -72,17 +115,17 @@ function project_variables!(dst::DenseArray{T,N},
     bounded_above = (hi < T(+Inf))
     if bounded_below && bounded_above
         @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = clip(src[i], lo, hi)
+            dst[i] = fastclamp(src[i], lo, hi)
         end
     elseif bounded_below
         @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = clip(src[i], lo, nothing)
+            dst[i] = fastclamp(src[i], lo, nothing)
         end
     elseif bounded_above
         @inbounds @simd for i in eachindex(dst, src)
-            dst[i] = clip(src[i], nothing, hi)
+            dst[i] = fastclamp(src[i], nothing, hi)
         end
-    elseif !is(dst, src)
+    elseif dst !== src
         vcopy!(dst, src)
     end
     return dst
@@ -102,11 +145,11 @@ function project_variables!(dst::DenseArray{T,N},
     @assert size(dst) == size(src) == size(lo)
     if hi < T(+Inf)
         @inbounds @simd for i in eachindex(dst, src, lo)
-            dst[i] = clip(src[i], lo[i], hi)
+            dst[i] = fastclamp(src[i], lo[i], hi)
         end
     else
         @inbounds @simd for i in eachindex(dst, src, lo)
-            dst[i] = clip(src[i], lo[i], nothing)
+            dst[i] = fastclamp(src[i], lo[i], nothing)
         end
     end
     return dst
@@ -126,11 +169,11 @@ function project_variables!(dst::DenseArray{T,N},
     @assert size(dst) == size(src) == size(hi)
     if lo > T(-Inf)
         @inbounds @simd for i in eachindex(dst, src, hi)
-            dst[i] = clip(src[i], lo, hi[i])
+            dst[i] = fastclamp(src[i], lo, hi[i])
         end
     else
         @inbounds @simd for i in eachindex(dst, src, hi)
-            dst[i] = clip(src[i], nothing, hi[i])
+            dst[i] = fastclamp(src[i], nothing, hi[i])
         end
     end
     return dst
@@ -142,7 +185,7 @@ function project_variables!(dst::DenseArray{T,N},
                             hi::DenseArray{T,N}) where {T<:AbstractFloat,N}
     @assert size(dst) == size(src) == size(lo) == size(hi)
     @inbounds  @simd for i in eachindex(dst, src, lo, hi)
-        dst[i] = clip(src[i], lo[i], hi[i])
+        dst[i] = fastclamp(src[i], lo[i], hi[i])
     end
     return dst
 end
