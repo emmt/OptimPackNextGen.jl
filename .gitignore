@@ -4,6 +4,7 @@
 # Specific files/directories
 notes/
 work/
+Manifest.toml
 
 # Backup files
 *~
