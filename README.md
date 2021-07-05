@@ -79,17 +79,22 @@ The following methods are provided for univariate functions:
 
 ## Installation
 
-`OptimPackNextGen` can be installed from Julia package manager by the command:
-
-```julia
-add https://github.com/emmt/OptimPackNextGen.jl
-```
-
-or from Julia by:
+`OptimPackNextGen` can be installed from Julia package manager by the following
+Julia commands:
 
 ```julia
 using Pkg
-Pkg.add(PackageSpec(url="https://github.com/emmt/OptimPackNextGen.jl.git"))
+pkg"add https://github.com/emmt/OptimPackNextGen.jl"
+```
+
+You may also consider using
+[`EmmtRegistry`](https://github.com/emmt/EmmtRegistry) which is my own registry
+of Julia packages:
+
+```julia
+using Pkg
+pkg"registry add https://github.com/emmt/EmmtRegistry"
+pkg"add OptimPackNextGen"
 ```
 
 
