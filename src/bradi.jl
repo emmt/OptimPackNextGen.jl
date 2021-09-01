@@ -25,7 +25,7 @@ using ..Brent: fmin_atol, fmin_rtol, fminbrkt
     BraDi.minimize([T=Float64,] f, x) -> (xbest, fbest)
     BraDi.maximize([T=Float64,] f, x) -> (xbest, fbest)
 
-finds the global minimum (resp. maximum) of an univariate function `f`.  The
+find the global minimum (resp. maximum) of an univariate function `f`.  The
 argument `x` is an abstract vector of coordinates in monotonic order; `x[1]`
 and `x[end]` are the endpoints of the global search interval and it is assumed
 that no more than a single local minimum lies in any subinterval
@@ -37,12 +37,12 @@ Optional argument `T` is the floating-point type used for the computations.
 If specified, keywords `atol` and `rtol` set the absolute and relative
 tolerances for the precision (see `Brent.fmin`).
 
-For instance:
+For example:
 
-    BraDi.minimize(f, range(a,stop=b,length=n))
+    BraDi.minimize(f, range(a, b; length=n))
 
 performs a global search in the closed interval `[a,b]` which is sampled by `n`
-equalspaced points.
+equally spaced points.
 
 These functions implement the BraDi ("Bracket" then "Dig") algorithm described
 in:
@@ -90,7 +90,7 @@ function _minimize(::Type{T}, f, x::AbstractVector{<:Real},
             end
         end
         if fa ≥ fb ≤ fc
-            # A minimum has been bracketed in [XA,XC].
+            # A minimum is bracketed in `[xa,xc]`.
             xm, fm = fminbrkt(f, xb, fb, xa, fa, xc, fc, atol, rtol)
             if fm < fbest
                 xbest = xm

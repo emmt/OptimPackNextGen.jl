@@ -26,7 +26,7 @@ export
     fzero_atol(T)
     fzero_rtol(T)
 
-yields default absolute and relative tolerances for Brent's `fzero` method.
+yield default absolute and relative tolerances for Brent's `fzero` method.
 Argument `T` is the floating-point type used for the computations.
 
 """
@@ -37,7 +37,7 @@ fzero_rtol(::Type{T}) where {T<:AbstractFloat} = eps(T)
     fmin_atol(T)
     fmin_rtol(T)
 
-yields default absolute and relative tolerances for Brent's `fmin` method.
+yield default absolute and relative tolerances for Brent's `fmin` method.
 Argument `T` is the floating-point type used for the computations.
 
 """
@@ -46,21 +46,21 @@ fmin_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
 
 # goldstep = 1/φ^2 = 2 - φ ≈ 0.3812
 import Base.MathConstants: φ
-goldstep(::Type{T}) where {T<:AbstractFloat} = T(2 - φ)
+goldstep(::Type{T}) where {T<:AbstractFloat} = (1/T(φ))^2
 
 """
 # Van Wijngaarden–Dekker–Brent method for finding a zero of a function
 
-    fzero([T=Float64,] f, a, b; atol=floatmin(T), rtol=eps(T)) -> (x, fx)
+    fzero([T=Float64,] f, a, b; atol=floatmin(T), rtol=eps(T)) -> (xs, fs)
 
 seeks a local root of the function `f(x)` in the interval `[a,b]`.
 
-It is assumed that `f(a)` and `f(b)` have opposite signs (an error is raised if
-this does not hold).  `fzero` returns a zero `x` in the given interval `[a,b]`
-to within a tolerance: `rtol*abs(x) + atol`.
+`f(a)` and `f(b)` must have opposite signs (an error is raised if this does not
+hold).  `fzero` returns a zero `x` in the given interval `[a,b]` to within a
+tolerance: `rtol*abs(x) + atol`.
 
-If the function value at the endpoints `a` and `b` of the search interval are
-known, the method can be called as:
+If the function values, say `fa = f(a)` and `fb = `f(b)`, at the endpoints `a`
+and `b` of the search interval are known, the method can be called as:
 
     fzero([T=Float64,] f, a, fa, b, fb; atol=floatmin(T), rtol=eps(T))
 
@@ -76,9 +76,8 @@ given in:
 
 ## Arguments
 
-* `T` is the floating-point data type to use for computations.  Defaulting to
-  `Float64`.  The function `f(x)` must return a result of type `T` or which can
-  be automatically promoted to type `T`.
+* `T` is the floating-point type to use for computations, `Float64` by default.
+  The function `f(x)` must return a result which can be converted to type `T`.
 
 * `f` - The user-supplied function whose local root is being sought.  Called as
   `f(x)` to evaluate the function at any `x` in the interval `[a,b]`.
@@ -96,8 +95,8 @@ given in:
 
 * `rtol` is the relative tolerance for the solution.  The recommended (and
   default) value for `rtol` is `eps(T)` where `eps(T)` is the relative
-  machine precision defined as the smallest representable number such that `1 +
-  eps > 1'.
+  machine precision defined as the smallest representable number such that
+  `1 + eps > 1'.
 
 
 ## Tolerance
@@ -105,24 +104,23 @@ given in:
 In original Brent's method, the tolerance (denoted `tol` in the code) is
 defined as:
 
-    δ = 2⋅ϵ⋅|b| + t
+    δ = 2⋅ϵ⋅abs(xs) + t
 
 where `ϵ = eps(T)/2` is the relative machine precision halved for rounded
-arithmetic (see Eq. (2.9) p. 51 in Brent's book), `b` (initially one of the
-bounds) is the estimated solution and `t > 0` is chosen by the caller.
+arithmetic (see Eq. (2.9) p. 51 in Brent's book), `xs` (initially one of the
+bounds) is the estimated solution and `t > 0` is chosen by the caller.  The
+value of `ϵ` should not be decreased below `eps(T)/2`, for then rounding errors
+might prevent convergence.  If `ϵ = eps(T)/2`, the error is approximately
+bounded by:
 
-The value of `ϵ` should not be decreased below `eps(T)/2`, the relative machine
-precision halved for rounded arithmetic, for then rounding errors might prevent
-convergence.  If `ϵ = eps(T)/2`, the error is approximately bounded by:
+    abs(xs - x) ≤ 6⋅ϵ⋅abs(x) + 2⋅t = 3*rtol*abs(x) + 2*atol
 
-    abs(b - x) ≤ 6⋅ϵ⋅abs(x) + 2⋅t
-
-with `x` and `b` the exact and estimated solutions (see Eq. (2.18) p. 52 in
+with `x` and `xs` the exact and estimated solutions (see Eq. (2.18) p. 52 in
 Brent's book).
 
 In this version of the code, the tolerance is computed as:
 
-    tol = δ = rtol*abs(b) + atol
+    tol = δ = rtol*abs(xs) + atol
 
 where the absolute and relative tolerances are related to the parameters `ϵ`
 and `t` of Brent's method by:
@@ -133,9 +131,9 @@ and `t` of Brent's method by:
 
 ## Result
 
-The returned value is the 2-tuple `(x, fx)` with `x` the estimated value of an
-abscissa for which `f` is approximately zero in `[a,b]`; `fx = f(x)` is the
-function value at `x`.
+The returned value is the 2-tuple `(xs, fs)` with `xs` the estimated value of
+an abscissa for which `f` is approximately zero in `[a,b]`; `fs = f(xs)` is the
+function value at `xs`.
 
 """
 fzero(f, a::Real, b::Real; kwds...) = fzero(Float64, f, a, b; kwds...)
@@ -188,8 +186,8 @@ function _fzero2(f, a::T, fa::T, b::T, fb::T,
 
     # Check the assumptions and the tolerance parameters.
     (fa > 0) == (fb > 0) && error("f(a) and f(b) must have different signs")
-    @assert atol > 0
-    @assert 0 < rtol < 1
+    atol > 0 || throw(ArgumentError("bad value for `atol`"))
+    0 < rtol < 1 || throw(ArgumentError("bad value for `rtol`"))
 
     # Initialize.
     c, fc = a, fa
@@ -265,7 +263,7 @@ end
 """
 # Brent's method for finding a minimum of a function
 
-    fmin([T=Float64,] f, a, b; atol=..., rtol=...) -> (x, fx, xlo, xhi)
+    fmin([T=Float64,] f, a, b; atol=..., rtol=...) -> (xm, fm, lo, hi)
 
 seeks a local minimum of a function `f(x)` in the interval `[a,b]`.
 
@@ -279,9 +277,9 @@ The keywords `rtol` and `atol` specify a tolerance `tol = rtol*abs(x) + atol`.
 The function `f` is never evaluated at two points closer than `tol`.
 
 If `f` is a unimodal function and the computed values of `f` are always
-unimodal when separated by at least `sqrt(eps)*abs(x) + (atol/3)`, then `fmin`
-approximates the abscissa of the global minimum of `f` on the interval `[a,b]`
-with an error less than `3*sqrt(eps)*abs(fmin) + atol`.
+unimodal when separated by at least `sqrt(eps)*abs(x) + (atol/3)`, then `xm`
+returned by `fmin` approximates the abscissa of the global minimum of `f` on
+the interval `[a,b]` with an error less than `3*sqrt(eps(T))*abs(fm) + atol`.
 
 If `f` is not unimodal, then `fmin` may approximate a local, but perhaps
 non-global, minimum to the same accuracy.
@@ -308,16 +306,15 @@ given in:
   than twice the relative machine precision, and preferably not much less than
   the square root of the relative machine precision.
 
-* `T` - The floating-point data type to use for computations.  Defaulting to
-  `Float64`.  The function `f(x)` must return a result of type `T` or which can
-  be automatically promoted to type `T`.
+* `T` - The floating-point type to use for computations, `Float64` by default.
+  The function `f(x)` must return a result that can be converted to type `T`.
 
 
 ## Result
 
-The returned value is the 4-tuple `(x, fx, xlo, xhi)` where `x` is the
+The returned value is the 4-tuple `(xm, fm, lo, hi)` where `xm` is the
 estimated value of an abscissa for which `f` attains a local minimum value in
-`[a,b]`, `fx` is the function value at `x`, `xlo` and `xhi` are the bounds for
+`[a,b]`, `fm` is the function value at `xm`, `lo` and `hi` are the bounds for
 the position of the local minimum.
 
 """
@@ -442,8 +439,8 @@ Original Brent's algorithm assumes that the minimum is in the open interval
 
 - `x`, `fx = f(x)`: position and least function value found so far;
 - `w`, `fw = f(w)`: previous values of `x` and `fx`;
-- `v`, `fv = f(v)`: previous values of `w` and fw`;
-- `d`: computed step (new try is: u = x + d, unless d too small);
+- `v`, `fv = f(v)`: previous values of `w` and `fw`;
+- `d`: computed step (new try is: `u = x + d`, unless `d` too small);
 - `e`: the previous value of `d`, if a parabolic step is taken; the
   difference between the most distant current endpoint and `x`, if a
   golden step is taken.
