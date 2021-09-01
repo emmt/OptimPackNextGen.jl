@@ -22,6 +22,9 @@ export
     fzero,
     fmin
 
+# Type for undefined argument/option.
+const Undef = typeof(undef)
+
 """
     fzero_atol(T)
     fzero_rtol(T)
@@ -62,9 +65,10 @@ tolerance: `rtol*abs(x) + atol`.
 If the function values, say `fa = f(a)` and `fb = `f(b)`, at the endpoints `a`
 and `b` of the search interval are known, the method can be called as:
 
-    fzero([T=Float64,] f, a, fa, b, fb; atol=floatmin(T), rtol=eps(T))
+    fzero([T=Float64,] f, a, fa, b[, fb]; atol=floatmin(T), rtol=eps(T))
 
-to save some computations.
+to save some computations.  Argument `fb` may be omitted if the function value
+at `b` has not been computed.
 
 This function has been derived from Richard Brent's F77 code ZEROIN which
 itself is a slightly modified translation of the Algol 60 procedure ZERO
@@ -138,56 +142,49 @@ function value at `xs`.
 """
 fzero(f, a::Real, b::Real; kwds...) = fzero(Float64, f, a, b; kwds...)
 
+fzero(f, a::Real, fa::Real, b::Real; kwds...) =
+    fzero(Float64, f, a, fa, b; kwds...)
+
 fzero(f, a::Real, fa::Real, b::Real, fb::Real; kwds...) =
     fzero(Float64, f, a, fa, b, fb; kwds...)
 
 function fzero(::Type{T}, f, a::Real, b::Real;
                atol::Real = fzero_atol(T),
                rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
-    _fzero1(f, T(a), T(b), T(atol), T(rtol))
+    _fzero(f, T(a), undef, T(b), undef, T(atol), T(rtol))
+end
+
+function fzero(::Type{T}, f, a::Real, fa::Real, b::Real;
+               atol::Real = fzero_atol(T),
+               rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
+    _fzero(f, T(a), T(fa), T(b), undef, T(atol), T(rtol))
 end
 
 function fzero(::Type{T}, f, a::Real, fa::Real, b::Real, fb::Real;
                atol::Real = fzero_atol(T),
                rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
-    _fzero1(f, T(a), T(fa), T(b), T(fb), T(atol), T(rtol))
+    _fzero(f, T(a), T(fa), T(b), T(fb), T(atol), T(rtol))
 end
 
-# 2 helpers are used by fzero: _fzero1 for early return and _fzero2 to refine
-# the interval by Brent's method.  In these 2 functions, the type of the
-# floating-point variables should be stable and equal to `T`.  Type stability
-# is one of the reasons for this splitting of the code.
+# The following private function is to deal with the variable number of
+# arguments and with type-stability.  The code will be specialized according to
+# the type of `f` so it is not really an issue to handle all possibilities.
+function _fzero(f,
+                a::T, _fa::Union{T,Undef},
+                b::T, _fb::Union{T,Undef},
+                atol::T, rtol::T) where {T<:AbstractFloat}
+    # Check tolerance parameters.
+    atol > 0 || throw(ArgumentError("bad value for `atol`"))
+    0 < rtol < 1 || throw(ArgumentError("bad value for `rtol`"))
 
-function _fzero1(f, a::T, b::T,
-                 atol::T, rtol::T) where {T<:AbstractFloat}
-    # Compute the function value at the endpoints.  Return as early as
-    # possible.
-    fa = T(f(a))
-    fa == 0 && return (a, fa)
-    fb = T(f(b))
-    fb == 0 && return (b, fb)
-
-    # Iterate to reduce the interval.
-    return _fzero2(f, a, fa, b, fb, atol, rtol)
-end
-
-function _fzero1(f, a::T, fa::T, b::T, fb::T,
-                 atol::T, rtol::T) where {T<:AbstractFloat}
     # Return immediately if possible.
+    fa = isa(_fa, T) ? _fa : T(f(a))
     fa == 0 && return (a, fa)
+    fb = isa(_fb, T) ? _fb : T(f(b))
     fb == 0 && return (b, fb)
-
-    # Iterate to reduce the interval.
-    return _fzero2(f, a, fa, b, fb, atol, rtol)
-end
-
-function _fzero2(f, a::T, fa::T, b::T, fb::T,
-                 atol::T, rtol::T) where {T<:AbstractFloat}
 
     # Check the assumptions and the tolerance parameters.
     (fa > 0) == (fb > 0) && error("f(a) and f(b) must have different signs")
-    atol > 0 || throw(ArgumentError("bad value for `atol`"))
-    0 < rtol < 1 || throw(ArgumentError("bad value for `rtol`"))
 
     # Initialize.
     c, fc = a, fa
