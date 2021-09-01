@@ -6,7 +6,7 @@
 module BrentTests
 
 using Test, Printf
-import OptimPackNextGen.Brent
+using OptimPackNextGen.Brent
 
 # Counter of function evaluations.
 const cnt = Ref{Int}(0)
@@ -66,33 +66,43 @@ params(::typeof(fzero_gsl5)) = (0, 3, 1) # (0.9995, 1.0002, 1)
 
 # Problem 4 from AMPGO, xm = 2.868034, fm = -3.85045:
 problem04(x) = (cnt[] += 1; -(16x^2 - 24x + 5)*exp(-x))
-bounds04 = [1.9, 3.9]
-solution04 = [2.868034, -3.85045]
+bounds(::typeof(problem04)) = [1.9, 3.9]
+solution(::typeof(problem04)) = [2.868034, -3.85045]
 
 # Problem 13 from AMPGO, xm = 1/sqrt(2), fm = -1.5874:
 problem13(x) = (cnt[] += 1; -x^(2/3) - (1 - x^2)^(1/3))
-bounds13 = [0.001, 0.99]
-solution13 = [1/sqrt(2), -1.5874]
+bounds(::typeof(problem13)) = [0.001, 0.99]
+solution(::typeof(problem13)) = [1/sqrt(2), -1.5874]
 
 # Problem 18 from AMPGO, xm = 2, fm = 0:
 problem18(x) = (cnt[] += 1; x ≤ 3 ? (x - 2)^2 : 2log(x - 2) + 1)
-bounds18 = [0, 6]
-solution18 = [2, 0]
+bounds(::typeof(problem18)) = [0, 6]
+solution(::typeof(problem18)) = [2, 0]
 
 verb = true
 @testset "Brent fzero" begin
-    for T in (Float32, Float64)
-        k = 0
-        for fn in (fzero_test0,
-                   fzero_test1, fzero_test2, fzero_test3, fzero_test4,
-                   fzero_test5, fzero_test6, fzero_test7, fzero_test8,
-                   fzero_gsl1, fzero_gsl2, fzero_gsl3, fzero_gsl4, fzero_gsl5)
-            rtol = 4*eps(T)
-            atol = eps(T)
-            prec = sqrt(eps(T))
+    let f = fzero_test0
+        (a, b, x0) = params(f)
+        @test_throws ArgumentError fzero(f, a, b; rtol=0)
+        @test_throws ArgumentError fzero(f, a, b; rtol=1)
+        @test_throws ArgumentError fzero(f, a, b; atol=NaN)
+    end
+    k = 0
+    for fn in (fzero_test0,
+               fzero_test1, fzero_test2, fzero_test3, fzero_test4,
+               fzero_test5, fzero_test6, fzero_test7, fzero_test8,
+               fzero_gsl1, fzero_gsl2, fzero_gsl3, fzero_gsl4, fzero_gsl5)
+        for T in (Float32, Float64)
             (a, b, x0) = params(fn)
+            rtol = Brent.fzero_rtol(T)
+            atol = (x0 == 0 ? eps(T) : Brent.fzero_atol(T))
+            prec = sqrt(eps(T))
             cnt[] = 0
-            (x, fx) = Brent.fzero(T, fn, a, b; rtol = rtol, atol = atol)
+            (x, fx) = if T === Float64
+                fzero(fn, a, b; rtol = rtol, atol = atol)
+            else
+                fzero(T, fn, a, b; rtol = rtol, atol = atol)
+            end
             if verb
                 if k ≤ 8
                     name = "fzero_test$k"
@@ -106,44 +116,42 @@ verb = true
             if !isnan(x0)
                 @test x ≈ T(x0) rtol=rtol atol=atol
             end
-            k += 1
         end
+        k += 1
     end
 end
 
 @testset "Brent fmin" begin
-    for (T, prec) in ((Float16, 3e-2),
-                      (Float32, 3e-6),
-                      (Float64, 6e-15))
-        atol = Brent.fmin_atol(T)
-        rtol = Brent.fmin_rtol(T)
+    for (f, id) in ((problem04,  4),
+                    (problem13, 13),
+                    (problem18, 18),)
+        for (T, prec) in ((Float16, 3e-2),
+                          (Float32, 3e-6),
+                          (Float64, 6e-15))
+            atol = Brent.fmin_atol(T)
+            rtol = Brent.fmin_rtol(T)
 
-        cnt[] = 0
-        (xm, fm, lo, hi) = Brent.fmin(T, problem04, bounds04...)
-        if verb
-            @printf("Problem 4: n = %d, x = %.15f ± %.3g, f(x) = %.15f\n",
-                    cnt[], xm, (hi - lo)/2, fm)
+            cnt[] = 0
+            (xm, fm, lo, hi) = if T === Float64
+                fmin(f, bounds(f)...)
+            else
+                fmin(T, f, bounds(f)...)
+            end
+            (xm_true, fm_true) = solution(f)
+            if verb
+                println("Problem $id (T=$T):")
+                @printf(" ├─ nevals = %d\n", cnt[])
+                @printf(" ├─ x_approx = %.15f ± %.3e\n", xm, (hi - lo)/2)
+                @printf(" ├─ x_true   = %.15f\n", xm_true)
+                @printf(" ├─ x_error  = %.3e\n", abs(xm - xm_true))
+                @printf(" ├─ f(x_approx) = %.15f\n", fm)
+                @printf(" ├─ f(x_true)   = %.15f\n", fm_true)
+                @printf(" └─ f_error     = %.3e\n", abs(fm - fm_true))
+            end
+            @test abs(xm - xm_true) ≤ atol + rtol*abs(xm_true)
+            #@test abs(fm - solution(f)[2]) ≤ prec
         end
-        @test abs(xm - solution04[1]) ≤ atol + rtol*abs(solution04[1])
-        #@test abs(fm - solution04[2]) ≤ prec
-
-        cnt[] = 0
-        (xm, fm, lo, hi) = Brent.fmin(T, problem13, bounds13...)
-        if verb
-            @printf("Problem 13: n = %d, x = %.15f ± %.3g, f(x) = %.15f\n",
-                    cnt[], xm, (hi - lo)/2, fm)
-        end
-        @test abs(xm - solution13[1]) ≤ atol + rtol*abs(solution13[1])
-        #@test abs(fm - solution13[2]) ≤ prec
-
-        cnt[] = 0
-        (xm, fm, lo, hi) = Brent.fmin(T, problem18, bounds18...)
-        if verb
-            @printf("Problem 18: n = %d, x = %.15f ± %.3g, f(x) = %.15f\n",
-                    cnt[], xm, (hi - lo)/2, fm)
-        end
-        @test abs(xm - solution18[1]) ≤ atol + rtol*abs(solution18[1])
-        #@test abs(fm - solution18[2]) ≤ prec
+        verb && println()
     end
 end
 
