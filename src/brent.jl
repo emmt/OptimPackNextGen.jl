@@ -274,7 +274,7 @@ The keywords `rtol` and `atol` specify a tolerance `tol = rtol*abs(x) + atol`.
 The function `f` is never evaluated at two points closer than `tol`.
 
 If `f` is a unimodal function and the computed values of `f` are always
-unimodal when separated by at least `sqrt(eps)*abs(x) + (atol/3)`, then `xm`
+unimodal when separated by at least `sqrt(eps(T))*abs(x) + (atol/3)`, then `xm`
 returned by `fmin` approximates the abscissa of the global minimum of `f` on
 the interval `[a,b]` with an error less than `3*sqrt(eps(T))*abs(fm) + atol`.
 
@@ -287,6 +287,7 @@ given in:
 
 > Richard Brent, "Algorithms for minimization without derivatives,"
 > Prentice-Hall, inc. (1973).
+
 
 ## Arguments
 
@@ -314,24 +315,29 @@ estimated value of an abscissa for which `f` attains a local minimum value in
 `[a,b]`, `fm` is the function value at `xm`, `lo` and `hi` are the bounds for
 the position of the local minimum.
 
+
+## Advanced usage
+
+To save computations, up to 3 points (`x`, `w`, and `v`) in the search interval
+`[a,b]` may be specified along with the corresponding functions values
+(resp. `fx = f(x)`, `fw = f(w)`, and `fv = f(v)`):
+
+    fmin([T=Float64,] f, a, b, x, fx, [w, fw, [v, fv]]) -> (xm, fm, lo, hi)
+
+These points need not be distinct and ordered.  The convergence criterion may
+be specified with the keyword `atol` and `rtol`.
+
 """
-fmin(f, a::Real, b::Real; kwds...) = fmin(Float64, f, a, b; kwds...)
+fmin(f, a::Real, b::Real, args...; kwds...) =
+    fmin(Float64, f, a, b, args...; kwds...)
 
 function fmin(::Type{T}, f, a::Real, b::Real;
-              atol::Real = fmin_atol(T),
-              rtol::Real = fmin_rtol(T)) where {T<:AbstractFloat}
-    fmin0(f, T(a), T(b), T(atol), T(rtol))
+              kwds...) where {T<:AbstractFloat}
+    fmin(T, f, T(a), T(b); kwds...)
 end
 
-"""
-    fmin0(f, a, b, atol, rtol)
-
-runs Brent's algorithm given a search interval `[a,b]` and tolerances.
-Floating-point type is guessed from the type of the arguments.
-
-"""
-function fmin0(f, a::T, b::T,
-               atol::T, rtol::T) where {T<:AbstractFloat}
+function fmin(::Type{T}, f, a::T, b::T;
+              kwds...) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered.  Initialize the search and call
     # the real worker.
     if a > b
@@ -339,78 +345,73 @@ function fmin0(f, a::T, b::T,
     end
     x = a + goldstep(T)*(b - a)
     fx = T(f(x))
-    _fmin(f, a, b, x, fx, x, fx, x, fx, atol, rtol)
+    _fmin(f, a, b, x, fx, x, fx, x, fx; kwds...)
 end
 
-"""
-    fmin1(f, a, b, x, fx, atol, rtol)
+function fmin(::Type{T}, f, a::Real, b::Real,
+              x::Real, fx::Real;
+              kwds...) where {T<:AbstractFloat}
+    fmin(T, f, T(a), T(b), T(x), T(fx); kwds...)
+end
 
-runs Brent's algorithm with a single given initial point, `x`, inside the
-search interval `[a,b]` and with one known function value: `fx = f(x)`.
-Floating-point type is guessed from the type of the arguments.
-
-"""
-function fmin1(f, a::T, b::T,
-               x::T, fx::T,
-               atol::T, rtol::T) where {T<:AbstractFloat}
+function fmin(::Type{T}, f, a::T, b::T,
+              x::T, fx::T;
+              kwds...) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered and check that given point is in
     # the interval.  Then call main loop of Brent's algorithm.
     if a > b
         a, b = b, a
     end
-    a ≤ x ≤ b || error("given point outside search interval")
-    _fmin(f, a, b, x, fx, x, fx, x, fx, atol, rtol)
+    a ≤ x ≤ b || throw(ArgumentError("given point not inside search interval"))
+    _fmin(f, a, b, x, fx, x, fx, x, fx, ; kwds...)
 end
 
-"""
-    fmin2(f, a, b, x, fx, w, fw, atol, rtol)
+function fmin(::Type{T}, f, a::Real, b::Real,
+              x::Real, fx::Real,
+              w::Real, fw::Real;
+              kwds...) where {T<:AbstractFloat}
+    fmin(T, f, T(a), T(b), T(x), T(fx), T(w), T(fw); kwds...)
+end
 
-runs Brent's algorithm with two given initial points `x` and `w` (not
-necessarily distinct) inside the search interval `[a,b]` and with known
-function values `fx = f(x)` and `fw = f(w)`.  Floating-point type is guessed
-from the type of the arguments.
-
-"""
-function fmin2(f, a::T, b::T,
-               x::T, fx::T,
-               w::T, fw::T,
-               atol::T, rtol::T) where {T<:AbstractFloat}
+function fmin(::Type{T}, f, a::T, b::T,
+              x::T, fx::T,
+              w::T, fw::T;
+              kwds...) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered and check that given points are in
     # the interval.
     if a > b
         a, b = b, a
     end
     (a ≤ x ≤ b && a ≤ w ≤ b) ||
-        error("given point(s) outside search interval")
+        throw(ArgumentError("given points not all inside search interval"))
 
     # Reorder the points as assumed by Brent's algorithm.
     if fw < fx
         x, fx, w, fw = w, fw, x, fx
     end
-    _fmin(f, a, b, x, fx, w, fw, w, fw, atol, rtol)
+    _fmin(f, a, b, x, fx, w, fw, w, fw; kwds...)
 end
 
-"""
-    fmin3(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
+function fmin(::Type{T}, f, a::Real, b::Real,
+              x::Real, fx::Real,
+              w::Real, fw::Real,
+              v::Real, fv::Real;
+              kwds...) where {T<:AbstractFloat}
+    fmin(T, f, T(a), T(b), T(x), T(fx), T(w), T(fw), T(v), T(fv); kwds...)
+end
 
-runs Brent's algorithm with three given initial points `x`, `w` and `v` (not
-necessarily distinct) inside the search interval `[a,b]` and with known
-function values `fx = f(x)`, `fw = f(w)` and `fv = f(v)`.  Floating-point type
-is guessed from the type of the arguments.
-
-"""
-function fmin3(f, a::T, b::T,
-               x::T, fx::T,
-               w::T, fw::T,
-               v::T, fv::T,
-               atol::T, rtol::T) where {T<:AbstractFloat}
+function fmin(::Type{T}, f, a::T, b::T,
+              x::T, fx::T,
+              w::T, fw::T,
+              v::T, fv::T;
+              kwds...) where {T<:AbstractFloat}
     # Make sure A and B are properly ordered and check that given points are in
     # the interval.
     if a > b
         a, b = b, a
     end
     (a ≤ x ≤ b && a ≤ w ≤ b && a ≤ v ≤ b) ||
-        error("given point(s) outside search interval")
+        throw(ArgumentError("given points not all inside search interval"))
 
     # Reorder the points as assumed by Brent's algorithm.
     if fw < fx
@@ -422,14 +423,15 @@ function fmin3(f, a::T, b::T,
     if fv < fw
         w, fw, v, fv = v, fv, w, fw
     end
-    _fmin(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
+    _fmin(f, a, b, x, fx, w, fw, v, fv; kwds...)
 end
 
 """
     _fmin(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
 
 performs the main loop of Brent's algorithm assuming that all parameters are
-properly set (as explained below).
+properly set (as explained below).  Tolerances `atol` and `rtol` may be (both)
+specified as keywords.
 
 Original Brent's algorithm assumes that the minimum is in the open interval
 `(a,b)` with `a ≤ b` and keeps track of the following variables:
@@ -456,7 +458,18 @@ other internal variables are:
     d = x - w
     e = w - v
 
-"""
+""" _fmin
+
+# This version is to convert keywords.
+function _fmin(f, a::T, b::T,
+               x::T, fx::T,
+               w::T, fw::T,
+               v::T, fv::T;
+               atol::Real = fmin_atol(T),
+               rtol::Real = fmin_rtol(T)) where {T<:AbstractFloat}
+    _fmin(f, a, b, x, fx, w, fw, v, fv, T(atol), T(rtol))
+end
+
 function _fmin(f, a::T, b::T,
                x::T, fx::T,
                w::T, fw::T,
@@ -467,8 +480,8 @@ function _fmin(f, a::T, b::T,
 
     # Check tolerances. (Other arguments are assumed to be checked by the
     # caller.)
-    @assert atol ≥ 0
-    @assert 0 < rtol < 1
+    atol ≥ 0 || throw(ArgumentError("bad value for `atol`"))
+    0 < rtol < 1 || throw(ArgumentError("bad value for `rtol`"))
 
     # Initialize.
     d = x - w
@@ -555,14 +568,16 @@ end
     fminbrkt(f, x, fx, w, fw, v, fv, atol, rtol)
 
 runs Brent's algorithm to minimize function `f` with a bracket of the minimum
-defined by 3 points (`x`, `w` and `v`) with known function values (`fx`, `fw`
-and `fv`) and such that the least function value is at `x` which is inside the
-interval `[v,w]`.
+defined by 3 points (`x`, `w`, and `v`) with known function values (`fx =
+f(x)`, `fw = f(w)`, and `fv = f(v)`) and such that the least function value is
+at `x` which is inside the interval `[v,w]`.
 
 """
 function fminbrkt(f, x::T, fx::T, w::T, fw::T,
                   v::T, fv::T, atol::T, rtol::T) where {T<:AbstractFloat}
-    # Reorder the points as assumed by Brent's algorithm.
+    # Reorder the points `w` and `v` and define the search interval `[a,b]` as
+    # assumed by Brent's algorithm.  That is so that `f(w) ≤ f(v)`,
+    # `a = min(v,w)` and `b = max(a,b)`.
     if fv < fw
         v, fv, w, fw = w, fw, v, fv
     end
@@ -571,7 +586,7 @@ function fminbrkt(f, x::T, fx::T, w::T, fw::T,
     else
         a, b = w, v
     end
-    (a ≤ x ≤ b && fx ≤ fw) || error("illegal bracket")
+    (a ≤ x ≤ b && fx ≤ fw) || throw(ArgumentError("illegal bracket"))
     _fmin(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
 end
 
