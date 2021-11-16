@@ -38,6 +38,8 @@ Argument `T` is the floating-point type used for the computations.
 @pure fzero_atol(::Type{T}) where {T<:AbstractFloat} = floatmin(T)
 @pure fzero_rtol(::Type{T}) where {T<:AbstractFloat} = eps(T)
 
+@doc @doc(fzero_atol) fzero_rtol
+
 """
     fmin_atol(T)
     fmin_rtol(T)
@@ -48,6 +50,8 @@ Argument `T` is the floating-point type used for the computations.
 """
 @pure fmin_atol(::Type{T}) where {T<:AbstractFloat} = floatmin(T)
 @pure fmin_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
+
+@doc @doc(fmin_atol) fmin_rtol
 
 # goldstep = 1/φ^2 = 2 - φ ≈ 0.3812
 import Base.MathConstants: φ
