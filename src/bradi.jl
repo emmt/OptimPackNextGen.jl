@@ -62,10 +62,15 @@ maximize(f, x::AbstractVector{<:Real}; kdws...) =
     maximize(Float64, f, x; kdws...)
 
 function minimize(::Type{T}, f, x::AbstractVector{<:Real};
+                  period::Union{Real,Nothing} = nothing,
                   atol::Real = fmin_atol(T),
                   rtol::Real = fmin_rtol(T)) where {T<:AbstractFloat}
-    _minimize(T, f, x, T(atol), T(rtol))
+    _minimize(T, f, x, T(atol), T(rtol), _conv(T, period))
 end
+
+_conv(::Type{T}, x::T) where {T} = x
+_conv(::Type{T}, x) where {T} = convert(T, x)
+_conv(::Type{T}, x::Nothing) where {T} = nothing
 
 function maximize(::Type{T}, f, x::AbstractVector{<:Real};
                   kdws...) where {T<:AbstractFloat}
@@ -73,16 +78,28 @@ function maximize(::Type{T}, f, x::AbstractVector{<:Real};
     return (xbest, -fbest)
 end
 
+@doc @doc(minimize) maximize
+
 function _minimize(::Type{T}, f, x::AbstractVector{<:Real},
-                   atol::T, rtol::T) where {T<:AbstractFloat}
-    xbest = xa = xb = xc = T(x[1])
-    fbest = fa = fb = fc = T(f(xc))
+                   atol::T, rtol::T, ::Nothing) where {T<:AbstractFloat}
+    # Check arguments.
+    _check_coordinates(x)
+
+    # Coordinate and functionn value of first point.
+    i1 = firstindex(x)
+    x1 = T(x[i1])
+    f1 = T(f(x1))
+
+    # Bracket and dig along given points.
+    xbest = xb = xc = x1
+    fbest = fb = fc = f1
     n = length(x)
-    for j in 2 : n + 1
+    for k in 1 : n
+        # Move to next triplet.
         xa, xb = xb, xc
         fa, fb = fb, fc
-        if j ≤ n
-            xc = T(x[j])
+        if k < n
+            xc = T(x[i1+k])
             fc = T(f(xc))
             if fc < fbest
                 xbest = xc
@@ -101,6 +118,107 @@ function _minimize(::Type{T}, f, x::AbstractVector{<:Real},
     return (xbest, fbest)
 end
 
-@doc @doc(minimize) maximize
+function _minimize(::Type{T}, f, x::AbstractVector{<:Real},
+                   atol::T, rtol::T, period::T) where {T<:AbstractFloat}
+    # Check arguments.
+    span = _check_coordinates(x)
+    (isfinite(period) && period != 0) ||
+        throw(ArgumentError("invalid period"))
+    (abs(period) > abs(span)) ||
+        throw(ArgumentError("period too small or spanned interval too large"))
+
+    # Set the sign of the period so that it can be used as and increment to
+    # move to next period.
+    if span > 0
+        period = +abs(period)
+    else
+        period = -abs(period)
+    end
+
+    # Coordinates and function values at the 2 first points.
+    i1 = firstindex(x)
+    x1 = T(x[i1])
+    f1 = T(f(x1))
+    x2 = T(x[i1+1])
+    f2 = T(f(x2))
+
+    # Bracket and dig along given points plus 2 extra ones to overlap the next
+    # period.
+    xb, fb = x1, f1
+    xc, fc = x2, f2
+    if fb < fb
+        xbest, fbest = xb, fb
+    else
+        xbest, fbest = xc, fc
+    end
+    n = length(x)
+    wa, wb = x1, x1 + period # endpoints of wrapping interval
+    for k in 2 : n + 1
+        # Move to next triplet (periodically).
+        xa, xb = xb, xc
+        fa, fb = fb, fc
+        if k < n
+            xc = T(x[i1+k])
+            fc = T(f(xc))
+            if fc < fbest
+                xbest = xc
+                fbest = fc
+            end
+        elseif k == n
+            xc = x1 + period
+            fc = f1
+        else
+            xc = x2 + period
+            fc = f2
+        end
+        if fa ≥ fb ≤ fc
+            # A minimum is bracketed in `[xa,xc]`.
+            xm, fm = fminbrkt(f, xb, fb, xa, fa, xc, fc, atol, rtol)
+            if fm < fbest
+                # Update best solution so far, taking care of wrapping the coordinate
+                # in the correct interval.
+                if k < n || (wa < wb ? wa ≤ xm < wb : wb < xm ≤ wa)
+                    xbest = xm
+                else
+                    xbest = xm - period
+                end
+                fbest = fm
+            end
+        end
+    end
+    return (xbest, fbest)
+end
+
+function _check_coordinates(x::AbstractVector{<:Real})
+    len = length(x)
+    len ≥ 2 || throw(ArgumentError("insufficient number of coordinates"))
+    if len ≥ 2
+        i_first = firstindex(x)
+        i_last = lastindex(x)
+        span = x[i_last] - x[i_first]
+        if span > 0
+            flag = true
+            if len > 2
+                @inbounds @simd for i in i_first:i_last-1
+                    flag &= (x[i] < x[i+1])
+                end
+            end
+            if flag
+                return span
+            end
+        elseif span < 0
+            flag = true
+            if len > 2
+                @inbounds @simd for i in i_first:i_last-1
+                    flag &= (x[i] > x[i+1])
+                end
+            end
+            if flag
+                return span
+            end
+        end
+    end
+    throw(ArgumentError("coordinates are not strictly decreasing or increasing"))
+end
 
 end # module
