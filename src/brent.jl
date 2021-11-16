@@ -49,7 +49,7 @@ fmin_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
 
 # goldstep = 1/φ^2 = 2 - φ ≈ 0.3812
 import Base.MathConstants: φ
-goldstep(::Type{T}) where {T<:AbstractFloat} = (1/T(φ))^2
+goldstep(::Type{T}) where {T<:AbstractFloat} = (1/to_type(T, φ))^2
 
 """
 # Van Wijngaarden–Dekker–Brent method for finding a zero of a function
@@ -151,19 +151,22 @@ fzero(f, a::Real, fa::Real, b::Real, fb::Real; kwds...) =
 function fzero(::Type{T}, f, a::Real, b::Real;
                atol::Real = fzero_atol(T),
                rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
-    _fzero(f, T(a), undef, T(b), undef, T(atol), T(rtol))
+    _fzero(f, to_type(T, a), undef, to_type(T, b), undef,
+           to_type(T, atol), to_type(T, rtol))
 end
 
 function fzero(::Type{T}, f, a::Real, fa::Real, b::Real;
                atol::Real = fzero_atol(T),
                rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
-    _fzero(f, T(a), T(fa), T(b), undef, T(atol), T(rtol))
+    _fzero(f, to_type(T, a), to_type(T, fa), to_type(T, b), undef,
+           to_type(T, atol), to_type(T, rtol))
 end
 
 function fzero(::Type{T}, f, a::Real, fa::Real, b::Real, fb::Real;
                atol::Real = fzero_atol(T),
                rtol::Real = fzero_rtol(T)) where {T<:AbstractFloat}
-    _fzero(f, T(a), T(fa), T(b), T(fb), T(atol), T(rtol))
+    _fzero(f, to_type(T, a), to_type(T, fa), to_type(T, b), to_type(T, fb),
+           to_type(T, atol), to_type(T, rtol))
 end
 
 # The following private function is to deal with the variable number of
@@ -178,9 +181,9 @@ function _fzero(f,
     0 < rtol < 1 || throw(ArgumentError("bad value for `rtol`"))
 
     # Return immediately if possible.
-    fa = isa(_fa, T) ? _fa : T(f(a))
+    fa = isa(_fa, T) ? _fa : to_type(T, f(a))
     fa == 0 && return (a, fa)
-    fb = isa(_fb, T) ? _fb : T(f(b))
+    fb = isa(_fb, T) ? _fb : to_type(T, f(b))
     fb == 0 && return (b, fb)
 
     # Check the assumptions and the tolerance parameters.
@@ -245,7 +248,7 @@ function _fzero(f,
         else
             b -= tol
         end
-        fb = T(f(b))
+        fb = to_type(T, f(b))
         fb == 0 && break
         if (fb > 0) == (fc > 0)
             # Drop point C (make it coincident with point A) and adjust bounds
@@ -333,7 +336,7 @@ fmin(f, a::Real, b::Real, args...; kwds...) =
 
 function fmin(::Type{T}, f, a::Real, b::Real;
               kwds...) where {T<:AbstractFloat}
-    fmin(T, f, T(a), T(b); kwds...)
+    fmin(T, f, to_type(T, a), to_type(T, b); kwds...)
 end
 
 function fmin(::Type{T}, f, a::T, b::T;
@@ -344,14 +347,15 @@ function fmin(::Type{T}, f, a::T, b::T;
         a, b = b, a
     end
     x = a + goldstep(T)*(b - a)
-    fx = T(f(x))
+    fx = to_type(T, f(x))
     _fmin(f, a, b, x, fx, x, fx, x, fx; kwds...)
 end
 
 function fmin(::Type{T}, f, a::Real, b::Real,
               x::Real, fx::Real;
               kwds...) where {T<:AbstractFloat}
-    fmin(T, f, T(a), T(b), T(x), T(fx); kwds...)
+    fmin(T, f, to_type(T, a), to_type(T, b),
+         to_type(T, x), to_type(T, fx); kwds...)
 end
 
 function fmin(::Type{T}, f, a::T, b::T,
@@ -370,7 +374,9 @@ function fmin(::Type{T}, f, a::Real, b::Real,
               x::Real, fx::Real,
               w::Real, fw::Real;
               kwds...) where {T<:AbstractFloat}
-    fmin(T, f, T(a), T(b), T(x), T(fx), T(w), T(fw); kwds...)
+    fmin(T, f, to_type(T, a), to_type(T, b),
+         to_type(T, x), to_type(T, fx),
+         to_type(T, w), to_type(T, fw); kwds...)
 end
 
 function fmin(::Type{T}, f, a::T, b::T,
@@ -397,7 +403,10 @@ function fmin(::Type{T}, f, a::Real, b::Real,
               w::Real, fw::Real,
               v::Real, fv::Real;
               kwds...) where {T<:AbstractFloat}
-    fmin(T, f, T(a), T(b), T(x), T(fx), T(w), T(fw), T(v), T(fv); kwds...)
+    fmin(T, f, to_type(T, a), to_type(T, b),
+         to_type(T, x), to_type(T, fx),
+         to_type(T, w), to_type(T, fw),
+         to_type(T, v), to_type(T, fv); kwds...)
 end
 
 function fmin(::Type{T}, f, a::T, b::T,
@@ -467,7 +476,7 @@ function _fmin(f, a::T, b::T,
                v::T, fv::T;
                atol::Real = fmin_atol(T),
                rtol::Real = fmin_rtol(T)) where {T<:AbstractFloat}
-    _fmin(f, a, b, x, fx, w, fw, v, fv, T(atol), T(rtol))
+    _fmin(f, a, b, x, fx, w, fw, v, fv, to_type(T, atol), to_type(T, rtol))
 end
 
 function _fmin(f, a::T, b::T,
@@ -536,7 +545,7 @@ function _fmin(f, a::T, b::T,
         else
             u = x - tol
         end
-        fu = T(f(u))
+        fu = to_type(T, f(u))
 
         # Update A, B, V, W, and X.
         if fu ≤ fx
@@ -589,5 +598,14 @@ function fminbrkt(f, x::T, fx::T, w::T, fw::T,
     (a ≤ x ≤ b && fx ≤ fw) || throw(ArgumentError("illegal bracket"))
     _fmin(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
 end
+
+"""
+    to_type(T, x)
+
+yields `x` converted to type `T`.  The result is asserted to be of type `T`.
+
+"""
+to_type(::Type{T}, x::T) where {T} = x
+to_type(::Type{T}, x) where {T} = convert(T, x)::T
 
 end # module
