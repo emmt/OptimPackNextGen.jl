@@ -5,6 +5,31 @@
 #
 module FminTestFunctions
 
+export
+    TestFunc,
+    incr_nevals,
+    reset_nevals,
+    get_nevals,
+
+    # Getters.
+    func,
+    ident,
+    local_lower,
+    local_upper,
+    global_lower,
+    global_upper,
+    xsol,
+    fsol,
+
+    # Test functions.
+    brent_2, brent_3, brent_4, brent_5,
+    michalewicz_1, michalewicz_2,
+    ampgo_2, ampgo_3, ampgo_4, ampgo_5, ampgo_6,
+    ampgo_7, ampgo_8, ampgo_9, ampgo_10, ampgo_11,
+    ampgo_12, ampgo_13, ampgo_14, ampgo_15,
+    ampgo_18, ampgo_20, ampgo_21, ampgo_22,
+    gsl_fmin_1, gsl_fmin_2, gsl_fmin_3, gsl_fmin_4
+
 # Counter of function evaluations.
 const cnt = Ref{Int}(0)
 incr_nevals(n::Integer=1) = (cnt[] += n; nothing)
@@ -67,19 +92,52 @@ global_upper(A::TestFunc) = A.gb
 xsol(A::TestFunc) = A.x0
 fsol(A::TestFunc) = A.f0
 
-# Problems 4 AMPGO (http://infinity77.net/global_optimization/test_functions_1d.html).
+# Brent's test functions (see Brent's book p. 104).  Brent's 2nd test function
+# is a simple parabola whose minimum is at xm=0, this is good to check for
+# excessive number of iterations due to excessive precision when xm=0.
+brent_2 = TestFunc(x -> x^2; id="Brent_2", a = -1, b = 2, x0 = 0, f0 = 0)
+brent_3 = TestFunc(x -> (x + 1)*x^2; id = "Brent_3",
+                   a = -1/2, b = 2, x0 = 0, f0 = 0)
+brent_4 = TestFunc(x -> (x + sin(x))*exp(-x^2); id = "Brent_4",
+                   a = -6, b = 1.1,
+                   ga = -10, gb = 10,
+                   x0 = -0.6795786600544, f0 = -0.8242393984761)
+brent_5 = TestFunc(x -> (x - sin(x))*exp(-x^2); id = "Brent_5",
+                   a = -6, b = 1.1,
+                   ga = -10, gb = 10,
+                   x0 = -1.1951366354693, f0 = -0.0634905289364)
+
+# Michalewicz's functions.
+michalewicz_1 = TestFunc(x -> x*sin(10x); id = "Michalewicz_1",
+                         a = 1.5, b = 2,
+                         ga = -1, gb = 2,
+                         x0 = 1.7336377924464, f0 = -1.7307608607859)
+michalewicz_2 = TestFunc(x -> (begin
+                               a = sin(x)
+                               b = x^2/π
+                               s = zero(a)
+                               for i in 1:10; s += sin(b*i)^20; end
+                               return a*s
+                               end);
+                         id = "Michalewicz_2",
+                         a = 2.53, b = 2.61,
+                         ga = 0.7, gb = 3,
+                         x0 = 2.5670924755652, f0 = 0.2105521936702)
+
+
+# Problems in AMPGO (http://infinity77.net/global_optimization/test_functions_1d.html).
 ampgo_2 = TestFunc(x -> sin(x) + sin(10x/3);
                    id="AMPGO_2",
                    a = 4.3,  b = 6.2,  # for local optimization
                    ga = 2.5, gb = 7.5, # for global optimization
                    x0 = 5.1457352882823, f0 = -1.8995993491521)
-ampgo_3 = TestFunc(x -> (begin;
-                         s = zero(x);
+ampgo_3 = TestFunc(x -> (begin
+                         s = zero(x)
                          # FIXME: The formula (in AMPGO web page) is for
                          #        `k ∈ 1:6` but the figure and the given
                          #        minimum if for `k ∈ 1:5`.
                          for k in 1:5; s -= k*sin((k + 1)*x + k); end
-                         return s;
+                         return s
                          end);
                    id = "AMPGO_3",
                    a = -7.3, b = -6.1, # for local optimization
@@ -103,13 +161,13 @@ ampgo_7 = TestFunc(x -> sin(x) + sin(10x/3) + log(x) - oftype(x,0.84)*x + 3;
                    a = 4.2, b = 6.1,   # for local optimization
                    ga = 2.7, gb = 7.5, # for global optimization
                    x0 = 5.1997783686004, f0 = -1.6013075464944)
-ampgo_8 = TestFunc(x -> (begin;
-                         s = zero(x);
+ampgo_8 = TestFunc(x -> (begin
+                         s = zero(x)
                          # FIXME: The formula (in AMPGO web page) is for
                          #        `k ∈ 1:6` but the figure and the given
                          #        minimum if for `k ∈ 1:5`.
                          for k in 1:5; s -= k*cos((k + 1)*x + k); end
-                         return s;
+                         return s
                          end);
                    id = "AMPGO_8",
                    a = -7.7, b = -6.15, # for local optimization

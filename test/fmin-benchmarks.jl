@@ -4,44 +4,10 @@ using Printf
 using BenchmarkTools
 
 using OptimPackNextGen.Brent
-using Brent: fmin_atol, fmin_rtol
+using .Brent: fmin_atol, fmin_rtol
 
 include("fmin-funcs.jl")
-using .FminTestFunctions:
-    TestFunc,
-    incr_nevals,
-    reset_nevals,
-    get_nevals,
-    func,
-    ident,
-    local_lower,
-    local_upper,
-    global_lower,
-    global_upper,
-    xsol,
-    fsol,
-    ampgo_2,
-    ampgo_3,
-    ampgo_4,
-    ampgo_5,
-    ampgo_6,
-    ampgo_7,
-    ampgo_8,
-    ampgo_9,
-    ampgo_10,
-    ampgo_11,
-    ampgo_12,
-    ampgo_13,
-    ampgo_14,
-    ampgo_15,
-    ampgo_18,
-    ampgo_20,
-    ampgo_21,
-    ampgo_22,
-    gsl_fmin_1,
-    gsl_fmin_2,
-    gsl_fmin_3,
-    gsl_fmin_4
+using .FminTestFunctions
 
 function run(;
              T::Type{<:AbstractFloat}=Float64,
@@ -54,7 +20,9 @@ function run(;
         atol = fmin_atol(T)
         rtol = fmin_rtol(T)
     end
-    for _f in (ampgo_2, ampgo_3, ampgo_4, ampgo_5, ampgo_6, ampgo_7,
+    for _f in (brent_2, brent_3, brent_4, brent_5,
+               michalewicz_1, michalewicz_2,
+               ampgo_2, ampgo_3, ampgo_4, ampgo_5, ampgo_6, ampgo_7,
                ampgo_8, ampgo_9, ampgo_10, ampgo_11, ampgo_12, ampgo_13,
                ampgo_14, ampgo_15, ampgo_18, ampgo_20, ampgo_21, ampgo_22,
                gsl_fmin_1, gsl_fmin_2, gsl_fmin_3, gsl_fmin_4)
