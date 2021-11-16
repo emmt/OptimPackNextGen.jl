@@ -22,6 +22,8 @@ export
     fzero,
     fmin
 
+using Base: @pure
+
 # Type for undefined argument/option.
 const Undef = typeof(undef)
 
@@ -33,8 +35,8 @@ yield default absolute and relative tolerances for Brent's `fzero` method.
 Argument `T` is the floating-point type used for the computations.
 
 """
-fzero_atol(::Type{T}) where {T<:AbstractFloat} = floatmin(T)
-fzero_rtol(::Type{T}) where {T<:AbstractFloat} = eps(T)
+@pure fzero_atol(::Type{T}) where {T<:AbstractFloat} = floatmin(T)
+@pure fzero_rtol(::Type{T}) where {T<:AbstractFloat} = eps(T)
 
 """
     fmin_atol(T)
@@ -44,12 +46,12 @@ yield default absolute and relative tolerances for Brent's `fmin` method.
 Argument `T` is the floating-point type used for the computations.
 
 """
-fmin_atol(::Type{T}) where {T<:AbstractFloat} = floatmin(T)
-fmin_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
+@pure fmin_atol(::Type{T}) where {T<:AbstractFloat} = floatmin(T)
+@pure fmin_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
 
 # goldstep = 1/φ^2 = 2 - φ ≈ 0.3812
 import Base.MathConstants: φ
-goldstep(::Type{T}) where {T<:AbstractFloat} = (1/to_type(T, φ))^2
+@pure goldstep(::Type{T}) where {T<:AbstractFloat} = (1/to_type(T, φ))^2
 
 """
 # Van Wijngaarden–Dekker–Brent method for finding a zero of a function
