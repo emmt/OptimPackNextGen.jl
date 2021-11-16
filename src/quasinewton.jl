@@ -80,20 +80,20 @@ the value and the gradient of the function as follows:
 
 where `x` are the current variables, `fx` is the value of the function at `x`
 and the contents of `gx` has to be overwritten with the gradient at `x` (when
-`fg!` is called, `gx` is already allocated as `gx = vcreate(x0)`).  Argument `x0`
-gives the initial approximation of the variables (its contents is left
+`fg!` is called, `gx` is already allocated as `gx = vcreate(x0)`).  Argument
+`x0` gives the initial approximation of the variables (its contents is left
 unchanged).  The best solution found so far is returned in `x`.
 
 If `Zygote` package has been loaded, the gradient of the function may be
 automatically computed and the first argument to `vmlmb` can be a simpler
-function, say `f`, that takes the variables `x` as a single argument and returns
-the function value:
+function, say `f`, that takes the variables `x` as a single argument and
+returns the function value:
 
     fx = f(x)
 
 It is also possible to extend the method
-[`OptimPackNextGen.QuasiNewton.auto_differentiate!](@ref) to compute the gradient
-for a specific function `f`.
+[`OptimPackNextGen.QuasiNewton.auto_differentiate!](@ref) to compute the
+gradient for a specific function `f`.
 
 The following keywords are available:
 
@@ -136,10 +136,10 @@ The following keywords are available:
 
 * `maxeval` specifies the maximum number of calls to `fg!`.
 
-* `verb` specifies the verbosity level. It can be a boolean to specify
-  whether to print information at every iteration or an integer to print
-  information every `verb` iteration(s).  No information is printed if
-  `verb` is less or equal zero. The default is `verb = false`.
+* `verb` specifies the verbosity level. It can be a boolean to specify whether
+  to print information at every iteration or an integer to print information
+  every `verb` iteration(s).  No information is printed if `verb` is less or
+  equal zero. The default is `verb = false`.
 
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
@@ -190,8 +190,7 @@ by Byrd at al. (1995) which has more overheads and is slower.
   Mathematics of Computation, vol. 35, pp. 773-782 (1980).
 
 * D.C. Liu & J. Nocedal, "*On the limited memory BFGS method for large scale
-  optimization*" in Mathematical programming, vol. 45, pp. 503-528
-  (1989).
+  optimization*" in Mathematical programming, vol. 45, pp. 503-528 (1989).
 
 * R.H. Byrd, P. Lu, J. Nocedal, & C. Zhu, "*A limited memory algorithm for
   bound constrained optimization*" in SIAM Journal on Scientific Computing,
@@ -205,7 +204,7 @@ by Byrd at al. (1995) which has more overheads and is slower.
   Astronomical Data Analysis II, Proc. SPIE 4847, pp. 174-183 (2002).
 
 """
-vmlmb(fg!::Function, x0; kwds...) = vmlmb!(fg!, vcopy(x0); kwds...)
+vmlmb(fg!, x0; kwds...) = vmlmb!(fg!, vcopy(x0); kwds...)
 
 """
 `vmlmb!` is the in-place version of `vmlmb` (which to see):
@@ -214,8 +213,9 @@ vmlmb(fg!::Function, x0; kwds...) = vmlmb!(fg!, vcopy(x0); kwds...)
 
 finds a local minimizer of `f(x)` starting at `x` and stores the best solution
 in `x`.
+
 """
-function vmlmb!(fg!::Function, x::T;
+function vmlmb!(fg!, x::T;
                 mem::Integer = min(5, length(x)),
                 lower::Union{Real,T} = -Inf,
                 upper::Union{Real,T} = +Inf,
@@ -285,7 +285,7 @@ function vmlmb!(fg!::Function, x::T;
 end
 
 # The real worker.
-function _vmlmb!(fg!::Function, x::T, mem::Int, flags::UInt,
+function _vmlmb!(fg!, x::T, mem::Int, flags::UInt,
                  lo::Union{Float, T},
                  hi::Union{Float, T},
                  bounds::UInt,
@@ -774,8 +774,8 @@ end
 """
     OmptimPackNextGen.QuasiNewton.auto_differentiate!(f, x, g) -> fx
 
-yields `fx = f(x)` for a given function `f` and variables `x` and overwrites the
-contents of `g` with the gradient of the function at `x`.
+yields `fx = f(x)` for a given function `f` and variables `x` and overwrites
+the contents of `g` with the gradient of the function at `x`.
 
 This method may be extended to compute the gradient and function value for
 specific `typeof(f)` or to automatically compute the gradient as can be done by
