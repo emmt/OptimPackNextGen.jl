@@ -1,27 +1,18 @@
-#
-# spg.jl --
-#
-# Implements Spectral Projected Gradient Method (Version 2: "continuous
-# projected gradient direction") to find the local minimizers of a given
-# function with convex constraints, described in:
-#
-# [1] E. G. Birgin, J. M. Martinez, and M. Raydan, "Nonmonotone spectral
-#     projected gradient methods on convex sets", SIAM Journal on Optimization
-#     10, pp. 1196-1211 (2000).
-#
-# [2] E. G. Birgin, J. M. Martinez, and M. Raydan, "SPG: software for
-#     convex-constrained optimization", ACM Transactions on Mathematical
-#     Software (TOMS) 27, pp. 340-349 (2001).
-#
-# -----------------------------------------------------------------------------
-#
-# This file is part of OptimPackNextGen.jl which is licensed under the MIT
-# "Expat" License.
-#
-# Copyright (C) 2015-2021, Éric Thiébaut.
-# <https://github.com/emmt/OptimPackNextGen.jl>.
-#
+"""
 
+Implements the Spectral Projected Gradient Method (Version 2: "continuous
+projected gradient direction") to find the local minimizers of a given function
+with convex constraints, described in:
+
+- E. G. Birgin, J. M. Martinez, and M. Raydan, "Nonmonotone spectral projected
+  gradient methods on convex sets", SIAM Journal on Optimization 10,
+  pp. 1196-1211 (2000).
+
+- E. G. Birgin, J. M. Martinez, and M. Raydan, "SPG: software for
+  convex-constrained optimization", ACM Transactions on Mathematical Software
+  (TOMS) 27, pp. 340-349 (2001).
+
+"""
 module SPG
 
 export
@@ -34,7 +25,8 @@ using LazyAlgebra
 using ...OptimPackNextGen
 
 import OptimPackNextGen: getreason
-using OptimPackNextGen.QuasiNewton: auto_differentiate!, verbose
+using OptimPackNextGen: auto_differentiate!
+using OptimPackNextGen.QuasiNewton: verbose
 
 const SEARCHING            =  0
 const INFNORM_CONVERGENCE  =  1
@@ -92,11 +84,9 @@ be used.
 
 The following keywords are available:
 
-* `autodiff` is a boolean specifying whether to rely on
-  automatic-differentiation by `Zygote` to compute the gradient of the
-  objective function.  If not specified, the decision is based on whether a
-  call like `fg!(x,g)` to compute the objective function and its gradient is
-  applicable.
+* `autodiff` is a boolean specifying whether to rely on automatic
+  differentiation by calling [`OptimPackNextGen.auto_differentiate!](@ref).
+  If not specified, this keyword is assumed to be `false`.
 
 * `eps1` specifies the stopping criterion `‖pg‖_∞ ≤ eps1` with `pg` the
   projected gradient.  By default, `eps1 = 1e-6`.
@@ -176,7 +166,7 @@ REASON = Dict{Int,String}(
 getreason(ws::Info) = get(REASON, ws.status, "unknown status")
 
 function spg!(fg!, prj!, x, m::Integer;
-              autodiff::Bool = !applicable(fg!, x, x),
+              autodiff::Bool = false,
               ws::Info = Info(),
               maxit::Integer = typemax(Int),
               maxfc::Integer = typemax(Int),
@@ -186,13 +176,21 @@ function spg!(fg!, prj!, x, m::Integer;
               printer::Function = default_printer,
               verb::Integer = false,
               io::IO = stdout)
-    _spg!(fg!, prj!, x, Int(m), autodiff, ws, Int(maxit), Int(maxfc),
-          Float64(eps1), Float64(eps2), Float64(eta),
-          printer, Int(verb), io)
+    if autodiff
+        _spg!((x, g) -> auto_differentiate!(fg!, x, g),
+              prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
+              Float64(eps1), Float64(eps2), Float64(eta),
+              printer, Int(verb), io)
+    else
+        _spg!(fg!,
+              prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
+              Float64(eps1), Float64(eps2), Float64(eta),
+              printer, Int(verb), io)
+    end
+    return x
 end
 
-function _spg!(fg!, prj!, x::T, m::Int, autodiff::Bool, ws::Info,
-               maxit::Int, maxfc::Int,
+function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
                eps1::Float64, eps2::Float64, eta::Float64,
                printer::Function, verb::Int, io::IO) where {T}
     # Initialization.
@@ -235,7 +233,7 @@ function _spg!(fg!, prj!, x::T, m::Int, autodiff::Bool, ws::Info,
 
     # Evaluate function and gradient.
     local f::Float64
-    f = (autodiff ? auto_differentiate!(fg!, x, g) : fg!(x, g))
+    f = fg!(x, g)
     fcnt += 1
 
     # Initialize best solution and best function value.
@@ -335,7 +333,7 @@ function _spg!(fg!, prj!, x::T, m::Int, autodiff::Bool, ws::Info,
         stp = 1.0 # Step length for first trial.
         while true
             # Evaluate function and gradient at trial point.
-            f = (autodiff ? auto_differentiate!(fg!, x, g) : fg!(x, g))
+            f = fg!(x, g)
             fcnt += 1
 
             # Compare the new function value against the best function value

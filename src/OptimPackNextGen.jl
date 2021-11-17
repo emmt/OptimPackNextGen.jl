@@ -29,6 +29,7 @@ export
     vmlmb!,
     vmlmb
 
+using Requires
 using LazyAlgebra
 import LazyAlgebra: conjgrad, conjgrad!
 
@@ -37,6 +38,8 @@ import LazyAlgebra: conjgrad, conjgrad!
 `Cdouble` which is itself an alias to `Float64`.
 """
 const Float = Cdouble
+
+include("autodiff.jl")
 
 include("bounds.jl")
 

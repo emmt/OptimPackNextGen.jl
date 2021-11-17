@@ -26,12 +26,13 @@ export
     vmlmb!,
     EMULATE_BLMVM
 
-using Printf, Requires
+using Printf
 
 using LazyAlgebra
 using ...OptimPackNextGen
 using OptimPackNextGen.LineSearches
 using OptimPackNextGen.SimpleBounds
+using OptimPackNextGen: auto_differentiate!
 
 # Use the same floating point type for scalars as in OptimPackNextGen.
 import OptimPackNextGen.Float
@@ -74,7 +75,7 @@ vnorm2(x::AbstractArray{<:Real,N}) where {N} = Float(LazyAlgebra.vnorm2(x))
 
 computes a local minimizer of a function of several variables by a limited
 memory variable metric method.  The caller provides a function `fg!` to compute
-the value and the gradient of the function as follows:
+the value and the gradient of the objective function as follows:
 
     fx = fg!(x, gx)
 
@@ -84,26 +85,33 @@ and the contents of `gx` has to be overwritten with the gradient at `x` (when
 `x0` gives the initial approximation of the variables (its contents is left
 unchanged).  The best solution found so far is returned in `x`.
 
-If `Zygote` package has been loaded, the gradient of the function may be
-automatically computed and the first argument to `vmlmb` can be a simpler
-function, say `f`, that takes the variables `x` as a single argument and
-returns the function value:
+Another possibility is to specify keyword `autodiff = true` and rely on
+automatic differentiation to compute the gradient:
+
+    x = vmlmb(f, x0; autodiff=true, kwds...)
+
+where `f` is a simpler function that takes the variables `x` as a single
+argument and returns the value of the objective function:
 
     fx = f(x)
 
-It is also possible to extend the method
-[`OptimPackNextGen.QuasiNewton.auto_differentiate!](@ref) to compute the
-gradient for a specific function `f`.
+The method [`OptimPackNextGen.auto_differentiate!`](@ref) is called to compute
+the gradient of the objective function, say `f`.  This method may be extended
+for the specific type of `f`.  An implementation of `auto_differentiate!` is
+provided by `OptimPackNextGen` if the `Zygote` package is loaded.
 
 The following keywords are available:
 
 * `mem` specifies the amount of storage.
 
-* `autodiff` is a boolean specifying whether to rely on
-  automatic-differentiation by `Zygote` to compute the gradient of the
-  objective function.  If not specified, the decision is based on whether a
-  call like `fg!(x,g)` to compute the objective function and its gradient is
-  applicable.
+* `autodiff` is a boolean specifying whether to rely on automatic
+  differentiation by calling [`OptimPackNextGen.auto_differentiate!](@ref).
+  If not specified, this keyword is assumed to be `false`.
+  You may use:
+
+      autodiff = !applicable(fg!, x0, x0)
+
+  to attempt to guess whether automatic differentiation is needed.
 
 * `xtol` is a tuple of two nonnegative reals specifying respectively the
   absolute and relative tolerances for deciding convergence on the variables.
@@ -219,7 +227,7 @@ function vmlmb!(fg!, x::T;
                 mem::Integer = min(5, length(x)),
                 lower::Union{Real,T} = -Inf,
                 upper::Union{Real,T} = +Inf,
-                autodiff::Bool = !applicable(fg!, x, x),
+                autodiff::Bool = false,
                 blmvm::Bool = false,
                 fmin::Real = -Inf,
                 maxiter::Integer = typemax(Int),
@@ -769,27 +777,6 @@ function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
         end
     end
     return (gamma != 0)
-end
-
-"""
-    OmptimPackNextGen.QuasiNewton.auto_differentiate!(f, x, g) -> fx
-
-yields `fx = f(x)` for a given function `f` and variables `x` and overwrites
-the contents of `g` with the gradient of the function at `x`.
-
-This method may be extended to compute the gradient and function value for
-specific `typeof(f)` or to automatically compute the gradient as can be done by
-the `Zygote` package if it is loaded.
-
-"""
-auto_differentiate!(arg...; kwds...) =
-    error("`Zygote` package must be loaded first")
-
-function __init__()
-    @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" auto_differentiate!(f, x, g) = begin
-        vcopy!(g, Zygote.gradient(f, x)[1]);
-        return f(x)
-    end
 end
 
 end # module

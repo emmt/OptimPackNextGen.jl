@@ -71,19 +71,19 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     #err = maximum(abs.(x1 .- xsol))
     #@printf("Maximum absolute error: %.3e\n", err)
     #@test err < atol
-    VERBOSE = 10 # test verbose != Bool  
+    VERBOSE = 10 # test verbose != Bool
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
     x2 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE)
     err = maximum(abs.(x2 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
 
-    @printf("\nTesting VMLMB with AD in %s precision with Oren & Spedicato scaling\n", prec)
-    x2a = vmlmb(rosenbrock_f, x0, verb=VERBOSE)
+    @printf("\nTesting VMLMB with automatic differentiation in %s precision with Oren & Spedicato scaling\n", prec)
+    x2a = vmlmb(rosenbrock_f, x0, verb=VERBOSE, autodiff=true)
     err = maximum(abs.(x2 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
-  
+
     VERBOSE = true
     @printf("\nTesting VMLMB in %s precision with Oren & Spedicato scaling\n", prec)
     x3 = vmlmb(rosenbrock_fg!, x0, verb=VERBOSE, mem=15)
@@ -91,8 +91,8 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
 
-    @printf("\nTesting VMLMB with AD in %s precision with Oren & Spedicato scaling\n", prec)
-    x3a = vmlmb(rosenbrock_f, x0, verb=VERBOSE, mem=15)
+    @printf("\nTesting VMLMB with automatic differentiation in %s precision with Oren & Spedicato scaling\n", prec)
+    x3a = vmlmb(rosenbrock_f, x0, verb=VERBOSE, mem=15, autodiff=true)
     err = maximum(abs.(x3 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
@@ -103,8 +103,8 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
 
-    @printf("\nTesting VMLMB with AD in %s precision with nonnegativity\n", prec)
-    x4a = vmlmb(rosenbrock_f, x0, verb=VERBOSE, lower=0)
+    @printf("\nTesting VMLMB with automatic differentiation in %s precision with nonnegativity\n", prec)
+    x4a = vmlmb(rosenbrock_f, x0, verb=VERBOSE, lower=0, autodiff=true)
     err = maximum(abs.(x4 .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
@@ -118,8 +118,8 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
 
     @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)
     x6 = spg(rosenbrock_fg!, nonnegative!, x0, 10; verb=VERBOSE)
-    @printf("\nTesting SPG in %s precision with AD and nonnegativity\n", prec)
-    x7 = spg(rosenbrock_f, nonnegative!, x0, 10; verb=VERBOSE)
+    @printf("\nTesting SPG in %s precision with automatic differentiation and nonnegativity\n", prec)
+    x7 = spg(rosenbrock_f, nonnegative!, x0, 10; verb=VERBOSE, autodiff=true)
 end
 
 end # module
