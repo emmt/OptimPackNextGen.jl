@@ -215,49 +215,107 @@ end
 #------------------------------------------------------------------------------
 # PROJECTING DIRECTION
 
-# Orientation is indicated by a singleton.
-abstract type Orientation end
-struct Forward  <: Orientation; end
-struct Backward <: Orientation; end
+const Forward  = typeof(+)
+const Backward = typeof(-)
+const Orientation = Union{Forward,Backward}
 
-const FORWARD = Forward()
-const BACKWARD = Backward()
+orientation(x::Orientation) = x
+orientation(x::Real) = (x > zero(x) ? (+) :
+                        x < zero(x) ? (-) :
+                        error("invalid orientation"))
+orientation(::Type{T}, x) where {T<:AbstractFloat} =
+    orientation(T, orientation(x))
+orientation(::Type{T}, ::Forward ) where {T<:AbstractFloat} = +oneunit(T)
+orientation(::Type{T}, ::Backward) where {T<:AbstractFloat} = -oneunit(T)
 
-Base.convert(::Type{Orientation}, ::Union{Forward,Type{Forward}}) = FORWARD
-Base.convert(::Type{Orientation}, ::Union{Backward,Type{Backward}}) = BACKWARD
-Base.convert(::Type{Orientation}, s::Real) = (s > 0 ? FORWARD :
-                                              s < 0 ? BACKWARD :
-                                              error("invalid orientation"))
-Base.sign(::Union{Forward,Type{Forward}}) = +1
-Base.sign(::Union{Backward,Type{Backward}}) = -1
+@inline @propagate_inbounds function projdir(x::AbstractArray,
+                                             lo, hi,
+                                             o::Orientation,
+                                             d::AbstractArray,
+                                             i) where {T<:AbstractFloat}
+    return projdir(x[i], bound_value(lo, i), bound_value(hi, i), o, d[i])
+end
 
-Orientation(x) = convert(Orientation, x)
-orientation(T::DataType, x) = Orientation(x) === FORWARD ? +one(T) : -one(T)
+"""
+    is_positive([±,] d)
 
-@inline projdir(x::T, lo::T, hi::T, ::Forward, d::T) where {T<:AbstractFloat} =
-    (d > zero(T) ? x < hi : x > lo) ? d : zero(T)
+yields whether `±d` is positive and not a NaN.
 
-@inline projdir(x::T, lo::T, hi::T, ::Backward, d::T) where {T<:AbstractFloat} =
-    (d < zero(T) ? x < hi : x > lo) ? d : zero(T)
+"""
+is_positive(d::Number) = (d > zero(d))
+is_positive(::Forward, d::Number) = is_positive(d)
+is_positive(::Backward, d::Number) = is_negative(d)
 
-@inline projdir(x::T, ::Nothing, hi::T, ::Forward, d::T) where {T<:AbstractFloat} =
-    (d < zero(T) || x < hi) ? d : zero(T)
+"""
+    is_negative([±,] d)
 
-@inline projdir(x::T, ::Nothing, hi::T, ::Backward, d::T) where {T<:AbstractFloat} =
-    (d > zero(T) || x < hi) ? d : zero(T)
+yields whether `±d` is negative and not a NaN.
 
-@inline projdir(x::T, lo::T, ::Nothing, ::Forward, d::T) where {T<:AbstractFloat} =
-    (d > zero(T) || x > lo) ? d : zero(T)
+"""
+is_negative(d::Number) = (d < zero(d))
+is_negative(::Forward, d::Number) = is_negative(d)
+is_negative(::Backward, d::Number) = is_positive(d)
 
-@inline projdir(x::T, lo::T, ::Nothing, ::Backward, d::T) where {T<:AbstractFloat} =
-    (d < zero(T) || x > lo) ? d : zero(T)
+"""
+    is_non_positive([±,] d)
+
+yields whether `±d` is non-positive and not a NaN.
+
+"""
+is_non_positive(d::Number) = (d ≤ zero(d))
+is_non_positive(::Forward, d::Number) = is_non_positive(d)
+is_non_positive(::Backward, d::Number) = is_non_negative(d)
+
+"""
+    is_non_negative([±,] d)
+
+yields whether `±d` is non-negative and not a NaN.
+
+"""
+is_non_negative(d::Number) = (d ≥ zero(d))
+is_non_negative(::Forward, d::Number) = is_non_negative(d)
+is_non_negative(::Backward, d::Number) = is_non_positive(d)
+
+"""
+    is_non_zero([±,] d)
+
+yields whether `±d` is non-zero and not a NaN.
+
+"""
+is_non_zero(d::Number) = (d != zero(d))
+is_non_zero(::Orientation, d::Number) = is_non_zero(d)
+
+"""
+    is_zero([±,] d)
+
+yields whether `±d` is zero and not a NaN.
+
+"""
+is_zero(d::Number) = (d == zero(d))
+is_zero(::Orientation, d::Number) = is_zero(d)
+
+"""
+    projdir(x, lo, hi, ±, d)
+
+yields `d` or `zero(d)` depending on whether `lo ≤ x ± ϵ⋅d ≤ hi` holds for any
+`ϵ > 0` sufficiently small.
+
+"""
+projdir(x::Number, lo::Nothing, hi::Nothing, o::Orientation, d::Number) = d
+
+function projdir(x::Number,
+                 lo::Union{Nothing,Number},
+                 hi::Union{Nothing,Number},
+                 o::Orientation, d::Number)
+    return can_change(x, lo, hi, o, d) ? d : zero(d)
+end
 
 function project_gradient!(dst::AbstractArray{T,N},
                            x::AbstractArray{T,N},
                            lo::SimpleBound{T,N},
                            hi::SimpleBound{T,N},
                            d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    project_direction!(dst, x, lo, hi, BACKWARD, d)
+    return project_direction!(dst, x, lo, hi, -, d)
 end
 
 function project_direction!(dst::AbstractArray{T,N},
@@ -266,9 +324,9 @@ function project_direction!(dst::AbstractArray{T,N},
                             hi::SimpleBound{T,N},
                             orient,
                             d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    project_direction!(dst, x,
-                       lower_bound(T, lo),
-                       upper_bound(T, hi), Orientation(orient), d)
+    return project_direction!(dst, x,
+                              lower_bound(T, lo),
+                              upper_bound(T, hi), orientation(orient), d)
 end
 
 function project_direction!(dst::AbstractArray{T,N},
@@ -294,7 +352,7 @@ function project_direction!(dst::AbstractArray{T,N},
             dst[i] = projdir(x[i], nothing, hi, o, d[i])
         end
     elseif dst !== d
-        vcopy!(dst, d)
+        copyto!(dst, d)
     end
     return dst
 end
@@ -544,12 +602,11 @@ function _step_limits(x::AbstractArray{T,N},
                       hi::AbstractArray{T,N},
                       s::T,
                       d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    @assert size(x) == size(lo) == size(hi) == size(d)
     ZERO = zero(T)
     smin = typemax(T)
     smax = ZERO
     @inbounds begin
-        @simd for i in eachindex(x, lo, hi, d)
+        @simd for i in all_indices(x, lo, hi, d)
             p = s*d[i]
             if p != ZERO
                 # Step length to reach the upper/lower bound:
@@ -569,23 +626,26 @@ end
 #------------------------------------------------------------------------------
 # GETTING FREE VARIABLES
 
-@inline may_move(x::T, lo::T, ::Nothing, ::Forward, d::T) where {T<:AbstractFloat} =
-    d > zero(T) || (d != zero(T) && x > lo)
+"""
+    can_change(x, lo, hi, ±, d)
 
-@inline may_move(x::T, lo::T, ::Nothing, ::Backward, d::T) where {T<:AbstractFloat} =
-    d < zero(T) || (d != zero(T) && x > lo)
+yields whether `clamp(x ± α⋅d, lo, hi)` is different from `x` for some `α > 0`
+large enough.  In other words, the result indicates whether the variable `x`
+changes along the search direction `±d` subject to the bound constraints
+specified by `[lo,hi]`.
 
-@inline may_move(x::T, ::Nothing, hi::T, ::Forward, d::T) where {T<:AbstractFloat} =
-    d < zero(T) || (d != zero(T) && x < hi)
+"""
+can_change(x::Number, lo::Nothing, hi::Nothing, o::Orientation, d::Number) =
+    is_non_zero(o, d)
 
-@inline may_move(x::T, ::Nothing, hi::T, ::Backward, d::T) where {T<:AbstractFloat} =
-    d > zero(T) || (d != zero(T) && x < hi)
+can_change(x::Number, lo::Number, hi::Nothing, o::Orientation, d::Number) =
+    (is_negative(o, d)&(x > lo))|is_positive(o, d)
 
-@inline may_move(x::T, lo::T, hi::T, ::Forward, d::T) where {T<:AbstractFloat} =
-    d != zero(T) && (d < zero(T) ? x > lo : x < hi)
+can_change(x::Number, lo::Nothing, hi::Number, o::Orientation, d::Number) =
+    is_negative(o, d)|(is_positive(o, d)&(x < hi))
 
-@inline may_move(x::T, lo::T, hi::T, ::Backward, d::T) where {T<:AbstractFloat} =
-    d != zero(T) && (d > zero(T) ? x > lo : x < hi)
+can_change(x::Number, lo::Number, hi::Number, o::Orientation, d::Number) =
+    (is_negative(o, d)&(x > lo))|(is_positive(o, d)&(x < hi))
 
 """
 ## Get free variables when following a direction
@@ -603,7 +663,7 @@ variables can be obtained by:
 
 where the projected gradient `gp` has been computed as:
 
-    project_direction!(gp, x, lo, hi, -1, g)
+    project_direction!(gp, x, lo, hi, -, g)
 
 with `g` the gradient of the objective function at `x`.
 
@@ -680,21 +740,21 @@ function get_free_variables!(sel::Vector{Int},
     j = 0
     if bounded_below && bounded_above
         @inbounds @simd for i in I
-            if may_move(x[i], lo, hi, o, d[i])
+            if can_change(x[i], lo, hi, o, d[i])
                 j += 1
                 sel[j] = i
             end
         end
     elseif bounded_below
         @inbounds @simd for i in I
-            if may_move(x[i], lo, nothing, o, d[i])
+            if can_change(x[i], lo, nothing, o, d[i])
                 j += 1
                 sel[j] = i
             end
         end
     elseif bounded_above
         @inbounds @simd for i in I
-            if may_move(x[i], nothing, hi, o, d[i])
+            if can_change(x[i], nothing, hi, o, d[i])
                 j += 1
                 sel[j] = i
             end
@@ -720,14 +780,14 @@ function get_free_variables!(sel::Vector{Int},
     j = 0
     if hi < typemax(T)
         @inbounds @simd for i in I
-            if may_move(x[i], lo[i], hi, o, d[i])
+            if can_change(x[i], lo[i], hi, o, d[i])
                 j += 1
                 sel[j] = i
             end
         end
     else
         @inbounds @simd for i in I
-            if may_move(x[i], lo[i], nothing, o, d[i])
+            if can_change(x[i], lo[i], nothing, o, d[i])
                 j += 1
                 sel[j] = i
             end
@@ -748,14 +808,14 @@ function get_free_variables!(sel::Vector{Int},
     j = 0
     if lo > typemin(T)
         @inbounds @simd for i in I
-            if may_move(x[i], lo, hi[i], o, d[i])
+            if can_change(x[i], lo, hi[i], o, d[i])
                 j += 1
                     sel[j] = i
             end
         end
     else
         @inbounds @simd for i in I
-            if may_move(x[i], nothing, hi[i], o, d[i])
+            if can_change(x[i], nothing, hi[i], o, d[i])
                 j += 1
                 sel[j] = i
             end
@@ -775,7 +835,7 @@ function get_free_variables!(sel::Vector{Int},
     resize!(sel, n)
     j = 0
     @inbounds @simd for i in I
-        if may_move(x[i], lo[i], hi[i], o, d[i])
+        if can_change(x[i], lo[i], hi[i], o, d[i])
             j += 1
             sel[j] = i
         end

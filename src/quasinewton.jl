@@ -385,7 +385,6 @@ function _vmlmb!(fg!, x::T, mem::Int, flags::UInt,
         if method > 0
             project_variables!(x, x, lo, hi)
         end
-        # if fg! takes a single argument (x), its derivative are automatically computed using Zygotes.jl
         if autodiff
             f = auto_differentiate!(fg!, x, g)
         else
@@ -394,7 +393,7 @@ function _vmlmb!(fg!, x::T, mem::Int, flags::UInt,
 
         eval += 1
         if method > 0
-            project_direction!(p, x, lo, hi, -1, g)
+            project_direction!(p, x, lo, hi, -, g)
         end
         if eval == 1 || f < bestf
             gnorm = vnorm2((method > 0 ? p : g))
@@ -533,7 +532,7 @@ function _vmlmb!(fg!, x::T, mem::Int, flags::UInt,
                 # FIXME: speedup project_direction with the free vars.?
                 if change
                     if method > 0
-                        project_direction!(d, x, lo, hi, -1, d)
+                        project_direction!(d, x, lo, hi, -, d)
                     end
                     gd = -vdot(g, d)
                     reject = ! sufficient_descent(gd, epsilon, gnorm, d)
