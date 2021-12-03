@@ -1,6 +1,11 @@
-# User visible changes in OptimPackNextGen
+# User visible changes in `OptimPackNextGen` package
 
-## Branch master
+## Version 0.3.1
+
+- Fix missing methods to handle upper bounds.
+
+
+## Version 0.3.0
 
 - Automatic-differentiation now possible with
   [`Zygote`](https://github.com/FluxML/Zygote.jl).
@@ -14,6 +19,7 @@
   methods `fmin0`, `fmin1`, `fmin2`, and `fmin3` which have been suppressed.
 
 
-## Branch v0.1
+## Version 0.1
+
 - Use [LazyAlgebra](https://github.com/emmt/LazyAlgebra.jl) package for
   vectorized operations and linear conjugate gradient.
