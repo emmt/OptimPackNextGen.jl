@@ -2,6 +2,9 @@
 
 * Brent.fzero and Brent.fmin: automatic bracketting of the solution:
 
+* Fix default tolerances to avoid excessive precision in `Brent.fmin` when the
+  solution is very close to zero.
+
 > If the interval to consider is not bounded or only left/right bounded, the
 > idea is to find a suitable interval (A,B) where at least one minimum must
 > exists (if the function is continue) and start Brent's algorithm with correct
