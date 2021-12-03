@@ -673,15 +673,15 @@ There are in-place versions:
     get_free_variables!(sel, gp)
 
 """
-function get_free_variables(gp::DenseArray{T,N}) where {T<:AbstractFloat,N}
+function get_free_variables(gp::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     get_free_variables!(resizable_vector(Int, length(gp)), gp)
 end
 
-function get_free_variables(x::DenseArray{T,N},
-                            lo::Union{Real,DenseArray{T,N}},
-                            hi::Union{Real,DenseArray{T,N}},
+function get_free_variables(x::AbstractArray{T,N},
+                            lo::SimpleBound{T,N},
+                            hi::SimpleBound{T,N},
                             orient,
-                            d::DenseArray{T,N}) where {T<:AbstractFloat,N}
+                            d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     get_free_variables!(resizable_vector(Int, length(x)),
                         x, lo, hi, orient, d)
 end
@@ -699,7 +699,7 @@ Argument `sel` is overwritten with the result and resized as needed.
 
 """
 function get_free_variables!(sel::Vector{Int},
-                             gp::DenseArray{T,N}) where {T<:AbstractFloat,N}
+                             gp::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     ZERO = zero(T)
     n = length(gp)
     resize!(sel, n)
@@ -714,23 +714,23 @@ function get_free_variables!(sel::Vector{Int},
 end
 
 function get_free_variables!(sel::Vector{Int},
-                             x::DenseArray{T,N},
-                             lo::Real,
-                             hi::Real,
+                             x::AbstractArray{T,N},
+                             lo::SimpleBound{T,N},
+                             hi::SimpleBound{T,N},
                              orient,
-                             d::DenseArray{T,N}) where {T<:AbstractFloat,N}
+                             d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     get_free_variables!(sel, x,
                         lower_bound(T, lo),
                         upper_bound(T, hi),
-                        Orientation(orient), d)
+                        orientation(orient), d)
 end
 
 function get_free_variables!(sel::Vector{Int},
-                             x::DenseArray{T,N},
+                             x::AbstractArray{T,N},
                              lo::T,
                              hi::T,
                              o::Orientation,
-                             d::DenseArray{T,N}) where {T<:AbstractFloat,N}
+                             d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     I = all_indices(x, d)
     lo ≤ hi || argument_error("invalid bounds") # this also checks for NaN
     bounded_below = (lo > typemin(T))
@@ -769,11 +769,11 @@ function get_free_variables!(sel::Vector{Int},
 end
 
 function get_free_variables!(sel::Vector{Int},
-                             x::DenseArray{T,N},
-                             lo::DenseArray{T,N},
+                             x::AbstractArray{T,N},
+                             lo::AbstractArray{T,N},
                              hi::T,
                              o::Orientation,
-                             d::DenseArray{T,N}) where {T<:AbstractFloat,N}
+                             d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     I = all_indices(x, d, lo)
     n = length(x)
     resize!(sel, n)
@@ -797,11 +797,11 @@ function get_free_variables!(sel::Vector{Int},
 end
 
 function get_free_variables!(sel::Vector{Int},
-                             x::DenseArray{T,N},
+                             x::AbstractArray{T,N},
                              lo::T,
-                             hi::DenseArray{T,N},
+                             hi::AbstractArray{T,N},
                              o::Orientation,
-                             d::DenseArray{T,N}) where {T<:AbstractFloat,N}
+                             d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     I = all_indices(x, d, hi)
     n = length(x)
     resize!(sel, n)
@@ -825,11 +825,11 @@ function get_free_variables!(sel::Vector{Int},
 end
 
 function get_free_variables!(sel::Vector{Int},
-                             x::DenseArray{T,N},
-                             lo::DenseArray{T,N},
-                             hi::DenseArray{T,N},
+                             x::AbstractArray{T,N},
+                             lo::AbstractArray{T,N},
+                             hi::AbstractArray{T,N},
                              o::Orientation,
-                             d::DenseArray{T,N}) where {T<:AbstractFloat,N}
+                             d::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     I = all_indices(x, d, lo, hi)
     n = length(x)
     resize!(sel, n)
