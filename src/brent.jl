@@ -22,6 +22,7 @@ export
     fzero,
     fmin
 
+using ArrayTools
 using Base: @pure
 
 # Type for undefined argument/option.
@@ -604,14 +605,5 @@ function fminbrkt(f, x::T, fx::T, w::T, fw::T,
     (a ≤ x ≤ b && fx ≤ fw) || throw(ArgumentError("illegal bracket"))
     _fmin(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
 end
-
-"""
-    to_type(T, x)
-
-yields `x` converted to type `T`.  The result is asserted to be of type `T`.
-
-"""
-to_type(::Type{T}, x::T) where {T} = x
-to_type(::Type{T}, x) where {T} = convert(T, x)::T
 
 end # module
