@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2019, Éric Thiébaut
+# Copyright (C) 2015-2022, Éric Thiébaut
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -20,40 +20,36 @@ export
 
 using Printf
 
+using ...Lib: opk_index
+
 import
+    ...Lib,
     ..AbstractContext,
-    ..AbstractStatus,
     ..getreason,
     ..getstatus,
     ..grow!,
     ..iterate,
     ..restart
 
-# The dynamic library implementing the method.
-import ..libbobyqa
-
-# Status returned by most functions of the library.
-struct Status <: AbstractStatus
-    _code::Cint
-end
-
-const SUCCESS              = Status( 0)
-const BAD_NVARS            = Status(-1)
-const BAD_NPT              = Status(-2)
-const BAD_RHO_RANGE        = Status(-3)
-const BAD_SCALING          = Status(-4)
-const TOO_CLOSE            = Status(-5)
-const ROUNDING_ERRORS      = Status(-6)
-const TOO_MANY_EVALUATIONS = Status(-7)
-const STEP_FAILED          = Status(-8)
+# Aliases.
+const Status               = Lib.bobyqa_status
+const SUCCESS              = Lib.BOBYQA_SUCCESS
+const BAD_NVARS            = Lib.BOBYQA_BAD_NVARS
+const BAD_NPT              = Lib.BOBYQA_BAD_NPT
+const BAD_RHO_RANGE        = Lib.BOBYQA_BAD_RHO_RANGE
+const BAD_SCALING          = Lib.BOBYQA_BAD_SCALING
+const TOO_CLOSE            = Lib.BOBYQA_TOO_CLOSE
+const ROUNDING_ERRORS      = Lib.BOBYQA_ROUNDING_ERRORS
+const TOO_MANY_EVALUATIONS = Lib.BOBYQA_TOO_MANY_EVALUATIONS
+const STEP_FAILED          = Lib.BOBYQA_STEP_FAILED
 
 # Get a textual explanation of the status returned by BOBYQA.
 function getreason(status::Status)
-    ptr = ccall((:bobyqa_reason, libbobyqa), Ptr{UInt8}, (Cint,), status._code)
-    if ptr == C_NULL
-        error("unknown BOBYQA status: ", status._code)
+    cstr = Lib.bobyqa_reason(status)
+    if cstr == C_NULL
+        error("unknown BOBYQA status: ", status)
     end
-    unsafe_string(ptr)
+    unsafe_string(cstr)
 end
 
 """
@@ -191,7 +187,7 @@ end
 
 # Wrapper for the objective function in BOBYQA, the actual objective function
 # is provided by the client data as a `jl_value_t*` pointer.
-function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
+function _objfun(n::opk_index, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     x = unsafe_wrap(Array, xptr, n)
     f = unsafe_pointer_to_objref(fptr)
     return Cdouble(f(x))
@@ -202,7 +198,7 @@ end
 const _objfun_c = Ref{Ptr{Cvoid}}()
 function __init__()
     _objfun_c[] = @cfunction(_objfun, Cdouble,
-                             (Cptrdiff_t, Ptr{Cdouble}, Ptr{Cvoid}))
+                             (opk_index, Ptr{Cdouble}, Ptr{Cvoid}))
 end
 
 """
@@ -243,14 +239,9 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
         error("bad number of scaling factors")
     end
     grow!(work, _wrklen(x, scale, npt))
-    status = Status(ccall((:bobyqa_optimize, libbobyqa), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
-                           Ptr{Cdouble}, Ptr{Cdouble},
-                           Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
-                           Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble}),
-                          n, npt, (maximize ? Cint(1) : Cint(0)),
-                          _objfun_c[], f, x, xl, xu, sclptr, rhobeg, rhoend,
-                          verbose, maxeval, work))
+    status = Lib.bobyqa_optimize(
+        n, npt, (maximize ? Cint(1) : Cint(0)), _objfun_c[], f,
+        x, xl, xu, sclptr, rhobeg, rhoend, verbose, maxeval, work)
     if check && status != SUCCESS
         error(getreason(status))
     end
@@ -275,13 +266,9 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
     grow!(work, _wrklen(x, npt))
-    status = Status(ccall((:bobyqa, libbobyqa), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
-                           Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble},
-                           Cdouble, Cdouble, Cptrdiff_t, Cptrdiff_t,
-                           Ptr{Cdouble}),
-                          n, npt, _objfun_c[], f, x, xl, xu,
-                          rhobeg, rhoend, verbose, maxeval, work))
+    status = Lib.bobyqa(
+        n, npt, _objfun_c[], f, x, xl, xu,
+        rhobeg, rhoend, verbose, maxeval, work)
     if check && status != SUCCESS
         error(getreason(status))
     end

@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2019, Éric Thiébaut
+# Copyright (C) 2015-2022, Éric Thiébaut
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -34,21 +34,13 @@ export
 
 import Base: ==, iterate
 
-import OptimPack_jll
-const libcobyla = OptimPack_jll.libcobyla_path
-const libbobyqa = OptimPack_jll.libbobyqa_path
-const libnewuoa = OptimPack_jll.libnewuoa_path
-
 abstract type AbstractContext end
-abstract type AbstractStatus end
-
-==(a::T, b::T) where {T<:AbstractStatus} = (a._code == b._code)
-==(a::AbstractStatus, b::AbstractStatus) = false
 
 """
-The `iterate(ctx, ...)` method performs the next iteration of the reverse
-communication algorithm associated with the context `ctx`.  Other arguments
-depend on the type of algorithm.
+    iterate(ctx, ...) -> status
+
+performs the next iteration of the reverse communication algorithm associated
+with the context `ctx`.  Other arguments depend on the type of algorithm.
 
 For **COBYLA** algorithm, the next iteration is performed by:
 
@@ -164,7 +156,7 @@ large enough.  Argument `x` is returned.
 See also [`resize!`](@ref).
 
 """
-grow!(x::Vector, n::Integer) = begin
+function grow!(x::Vector, n::Integer)
     length(x) < n && resize!(x, n)
     return x
 end

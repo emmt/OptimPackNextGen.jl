@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2019, Éric Thiébaut
+# Copyright (C) 2015-2022, Éric Thiébaut
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -20,9 +20,11 @@ export
 
 using Printf
 
+using ...Lib: opk_index
+
 import
+    ...Lib,
     ..AbstractContext,
-    ..AbstractStatus,
     ..getncalls,
     ..getradius,
     ..getreason,
@@ -31,34 +33,27 @@ import
     ..iterate,
     ..restart
 
-# The dynamic library implementing the method.
-import ..libcobyla
-
-# Status returned by most functions of the library.
-struct Status <: AbstractStatus
-    _code::Cint
-end
-
-# Possible status values returned by COBYLA.
-const INITIAL_ITERATE      = Status( 2)
-const ITERATE              = Status( 1)
-const SUCCESS              = Status( 0)
-const BAD_NVARS            = Status(-1)
-const BAD_NCONS            = Status(-2)
-const BAD_RHO_RANGE        = Status(-3)
-const BAD_SCALING          = Status(-4)
-const ROUNDING_ERRORS      = Status(-5)
-const TOO_MANY_EVALUATIONS = Status(-6)
-const BAD_ADDRESS          = Status(-7)
-const CORRUPTED            = Status(-8)
+# Aliases.
+const Status               = Lib.cobyla_status
+const INITIAL_ITERATE      = Lib.COBYLA_INITIAL_ITERATE
+const ITERATE              = Lib.COBYLA_ITERATE
+const SUCCESS              = Lib.COBYLA_SUCCESS
+const BAD_NVARS            = Lib.COBYLA_BAD_NVARS
+const BAD_NCONS            = Lib.COBYLA_BAD_NCONS
+const BAD_RHO_RANGE        = Lib.COBYLA_BAD_RHO_RANGE
+const BAD_SCALING          = Lib.COBYLA_BAD_SCALING
+const ROUNDING_ERRORS      = Lib.COBYLA_ROUNDING_ERRORS
+const TOO_MANY_EVALUATIONS = Lib.COBYLA_TOO_MANY_EVALUATIONS
+const BAD_ADDRESS          = Lib.COBYLA_BAD_ADDRESS
+const CORRUPTED            = Lib.COBYLA_CORRUPTED
 
 # Get a textual explanation of the status returned by COBYLA.
 function getreason(status::Status)
-    ptr = ccall((:cobyla_reason, libcobyla), Ptr{UInt8}, (Cint,), status._code)
-    if ptr == C_NULL
-        error("unknown COBYLA status: ", status._code)
+    cstr = Lib.cobyla_reason(status)
+    if cstr == C_NULL
+        error("unknown COBYLA status: ", status)
     end
-    unsafe_string(ptr)
+    unsafe_string(cstr)
 end
 
 """
@@ -182,7 +177,7 @@ _work(::Type{T}, len::Integer) where {T} = Vector{T}(undef, len)
 
 # Wrapper for the objective function in COBYLA, the actual objective
 # function is provided by the client data as a `jl_value_t*` pointer.
-function _objfun(n::Cptrdiff_t, m::Cptrdiff_t, xptr::Ptr{Cdouble},
+function _objfun(n::opk_index, m::opk_index, xptr::Ptr{Cdouble},
                  _c::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     x = unsafe_wrap(Array, xptr, n)
     f = unsafe_pointer_to_objref(fptr)
@@ -194,7 +189,7 @@ end
 const _objfun_c = Ref{Ptr{Cvoid}}()
 function __init__()
     _objfun_c[] = @cfunction(_objfun, Cdouble,
-                             (Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
+                             (opk_index, opk_index, Ptr{Cdouble},
                               Ptr{Cdouble}, Ptr{Cvoid}))
 end
 
@@ -222,7 +217,7 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
                    verbose::Integer = 0,
                    maxeval::Integer = 30*length(x),
                    work::Vector{Cdouble} = _work(Cdouble, _wrklen(length(x), m)),
-                   iact::Vector{Cptrdiff_t} = _work(Cptrdiff_t, m + 1))
+                   iact::Vector{opk_index} = _work(opk_index, m + 1))
     n = length(x)
     nscl = length(scale)
     if nscl == 0
@@ -234,15 +229,10 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
     end
     grow!(work, _wrklen(n, m))
     grow!(iact, m + 1)
-    status = Status(ccall((:cobyla_optimize, libcobyla), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
-                           Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
-                           Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble},
-                           Ptr{Cptrdiff_t}),
-                          n, m, maximize, _objfun_c[], fc,
-                          x, sclptr, rhobeg, rhoend, verbose, maxeval,
-                          work, iact))
-    if check && status != SUCCESS
+    status = Lib.cobyla_optimize(
+        n, m, maximize, _objfun_c[], fc, x, sclptr, rhobeg, rhoend,
+        verbose, maxeval, work, iact)
+    if check && status != COBYLA_SUCCESS
         error(getreason(status))
     end
     return (status, x, work[1])
@@ -258,16 +248,12 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
                  verbose::Integer = 0,
                  maxeval::Integer = 30*length(x),
                  work::Vector{Cdouble} = _work(Cdouble, _wrklen(length(x), m)),
-                 iact::Vector{Cptrdiff_t} = _work(Cptrdiff_t, m + 1))
+                 iact::Vector{opk_index} = _work(opk_index, m + 1))
     n = length(x)
     grow!(work, _wrklen(n, m))
     grow!(iact, m + 1)
-    status = Status(ccall((:cobyla, libcobyla), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
-                           Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
-                           Cptrdiff_t, Ptr{Cdouble}, Ptr{Cptrdiff_t}),
-                          n, m, _objfun_c[], f, x, rhobeg, rhoend,
-                          verbose, maxeval, work, iact))
+    status = Lib.cobyla(
+        n, m, _objfun_c[], f, x, rhobeg, rhoend, verbose, maxeval, work, iact)
     if check && status != SUCCESS
         error(getreason(status))
     end
@@ -278,15 +264,11 @@ cobyla(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
     cobyla!(f, copy(x0), args...; kwds...)
 
 """
-
-```julia
-using OptimPackNextGen.Powell
-ctx = Cobyla.Context(n, m, rhobeg, rhoend; verbose=0, maxeval=500)
-```
+    using OptimPackNextGen.Powell
+    ctx = Cobyla.Context(n, m, rhobeg, rhoend; verbose=0, maxeval=500)
 
 creates a new reverse communication workspace for COBYLA algorithm.  A typical
 usage is:
-
 
 ```julia
 x = Array{Cdouble}(undef, n)
@@ -304,12 +286,9 @@ if status != Cobyla.SUCCESS
 end
 ```
 
-""" Context
-
-# Context for reverse communication variant of COBYLA.
-# Must be mutable to be finalized.
+"""
 mutable struct Context <: AbstractContext
-    ptr::Ptr{Cvoid}
+    ptr::Ptr{Lib.cobyla_context}
     n::Int
     m::Int
     rhobeg::Cdouble
@@ -323,16 +302,19 @@ mutable struct Context <: AbstractContext
         m ≥ 0 || throw(ArgumentError("bad number of constraints"))
         0 ≤ rhoend ≤ rhobeg ||
             throw(ArgumentError("bad trust region radius parameters"))
-        ptr = ccall((:cobyla_create, libcobyla), Ptr{Cvoid},
-                    (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
-                     Cptrdiff_t, Cptrdiff_t),
-                    n, m, rhobeg, rhoend, verbose, maxeval)
+        ptr = Lib.cobyla_create(n, m, rhobeg, rhoend, verbose, maxeval)
         ptr != C_NULL || error(errno() == Base.Errno.ENOMEM
                                ? "insufficient memory"
                                : "unexpected error")
-        return finalizer(ctx -> ccall((:cobyla_delete, libcobyla), Cvoid,
-                                      (Ptr{Cvoid},), ctx.ptr),
-                         new(ptr, n, m, rhobeg, rhoend, verbose, maxeval))
+        ctx = new(ptr, n, m, rhobeg, rhoend, verbose, maxeval)
+        return finalizer(_finalize, ctx)
+    end
+end
+
+function _finalize(ctx::Context)
+    if ctx.ptr != C_NULL
+        Lib.cobyla_delete(ctx.ptr)
+        ctx.ptr = C_NULL
     end
 end
 
@@ -342,34 +324,19 @@ function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble},
                  c::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     length(c) == ctx.m || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, libcobyla), Cint,
-                 (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}, Ptr{Cdouble}),
-                 ctx.ptr, f, x, c))
+    return Lib.cobyla_iterate(ctx.ptr, f, x, c)
 end
 
 function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
     ctx.m == 0 || error("bad number of constraints")
-    Status(ccall((:cobyla_iterate, libcobyla), Cint,
-                 (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}, Ptr{Cvoid}),
-                 ctx.ptr, f, x, C_NULL))
+    return Lib.cobyla_iterate(ctx.ptr, f, x, C_NULL)
 end
 
-restart(ctx::Context) =
-    Status(ccall((:cobyla_restart, libcobyla), Cint, (Ptr{Cvoid},), ctx.ptr))
-
-getstatus(ctx::Context) =
-    Status(ccall((:cobyla_get_status, libcobyla), Cint, (Ptr{Cvoid},), ctx.ptr))
-
-# Get the current number of function evaluations.  Result is -1 if
-# something is wrong (e.g. CTX is NULL), nonnegative otherwise.
-getncalls(ctx::Context) =
-    Int(ccall((:cobyla_get_nevals, libcobyla), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
-
-getradius(ctx::Context) =
-    ccall((:cobyla_get_rho, libcobyla), Cdouble, (Ptr{Cvoid},), ctx.ptr)
-
-getlastf(ctx::Context) =
-    ccall((:cobyla_get_last_f, libcobyla), Cdouble, (Ptr{Cvoid},), ctx.ptr)
+restart(ctx::Context) = Lib.cobyla_restart(ctx.ptr)
+getstatus(ctx::Context) = Lib.cobyla_get_status(ctx.ptr)
+getncalls(ctx::Context) = Lib.cobyla_get_nevals(ctx.ptr) |> Int
+getradius(ctx::Context) = Lib.cobyla_get_rho(ctx.ptr)
+getlastf(ctx::Context) = Lib.cobyla_get_last_f(ctx.ptr)
 
 end # module Cobyla

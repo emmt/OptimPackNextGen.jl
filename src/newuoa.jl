@@ -8,7 +8,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License:
 #
-# Copyright (C) 2015-2019 Éric Thiébaut
+# Copyright (C) 2015-2022 Éric Thiébaut
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -20,9 +20,11 @@ export
 
 using Printf
 
+using ...Lib: opk_index
+
 import
+    ...Lib,
     ..AbstractContext,
-    ..AbstractStatus,
     ..getncalls,
     ..getradius,
     ..getreason,
@@ -31,35 +33,28 @@ import
     ..iterate,
     ..restart
 
-# The dynamic library implementing the method.
-import ..libnewuoa
-
-# Status returned by most functions of the library.
-struct Status <: AbstractStatus
-    _code::Cint
-end
-
-# Possible status values returned by NEWUOA.
-const INITIAL_ITERATE      = Status( 2)
-const ITERATE              = Status( 1)
-const SUCCESS              = Status( 0)
-const BAD_NVARS            = Status(-1)
-const BAD_NPT              = Status(-2)
-const BAD_RHO_RANGE        = Status(-3)
-const BAD_SCALING          = Status(-4)
-const ROUNDING_ERRORS      = Status(-5)
-const TOO_MANY_EVALUATIONS = Status(-6)
-const STEP_FAILED          = Status(-7)
-const BAD_ADDRESS          = Status(-8)
-const CORRUPTED            = Status(-9)
+# Aliases.
+const Status               = Lib.newuoa_status
+const INITIAL_ITERATE      = Lib.NEWUOA_INITIAL_ITERATE
+const ITERATE              = Lib.NEWUOA_ITERATE
+const SUCCESS              = Lib.NEWUOA_SUCCESS
+const BAD_NVARS            = Lib.NEWUOA_BAD_NVARS
+const BAD_NPT              = Lib.NEWUOA_BAD_NPT
+const BAD_RHO_RANGE        = Lib.NEWUOA_BAD_RHO_RANGE
+const BAD_SCALING          = Lib.NEWUOA_BAD_SCALING
+const ROUNDING_ERRORS      = Lib.NEWUOA_ROUNDING_ERRORS
+const TOO_MANY_EVALUATIONS = Lib.NEWUOA_TOO_MANY_EVALUATIONS
+const STEP_FAILED          = Lib.NEWUOA_STEP_FAILED
+const BAD_ADDRESS          = Lib.NEWUOA_BAD_ADDRESS
+const CORRUPTED            = Lib.NEWUOA_CORRUPTED
 
 # Get a textual explanation of the status returned by NEWUOA.
 function getreason(status::Status)
-    ptr = ccall((:newuoa_reason, libnewuoa), Ptr{UInt8}, (Cint,), status._code)
-    if ptr == C_NULL
-        error("unknown NEWUOA status: ", status._code)
+    cstr = Lib.newuoa_reason(status)
+    if cstr == C_NULL
+        error("unknown NEWUOA status: ", status)
     end
-    unsafe_string(ptr)
+    unsafe_string(cstr)
 end
 
 """
@@ -188,7 +183,7 @@ end
 
 # Wrapper for the objective function in NEWUOA, the actual objective function
 # is provided by the client data as a `jl_value_t*` pointer.
-function _objfun(n::Cptrdiff_t, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
+function _objfun(n::opk_index, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     x = unsafe_wrap(Array, xptr, n)
     f = unsafe_pointer_to_objref(fptr)
     return Cdouble(f(x))
@@ -199,7 +194,7 @@ end
 const _objfun_c = Ref{Ptr{Cvoid}}()
 function __init__()
     _objfun_c[] = @cfunction(_objfun, Cdouble,
-                             (Cptrdiff_t, Ptr{Cdouble}, Ptr{Cvoid}))
+                             (opk_index, Ptr{Cdouble}, Ptr{Cvoid}))
 end
 
 """
@@ -237,12 +232,9 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
         error("bad number of scaling factors")
     end
     grow!(work, _wrklen(x, scale, npt))
-    status = Status(ccall((:newuoa_optimize, libnewuoa), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Cint, Ptr{Cvoid}, Any,
-                           Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cdouble,
-                           Cptrdiff_t, Cptrdiff_t, Ptr{Cdouble}),
-                          n, npt, maximize, _objfun_c[], f, x, sclptr,
-                          rhobeg, rhoend, verbose, maxeval, work))
+    status = Lib.newuoa_optimize(
+        n, npt, maximize, _objfun_c[], f, x,
+        sclptr, rhobeg, rhoend, verbose, maxeval, work)
     if check && status != SUCCESS
         error(getreason(status))
     end
@@ -264,12 +256,8 @@ function newuoa!(f::Function, x::DenseVector{Cdouble},
                  work::Vector{Cdouble} = _work(x, npt))
     n = length(x)
     grow!(work, _wrklen(x, npt))
-    status = Status(ccall((:newuoa, libnewuoa), Cint,
-                          (Cptrdiff_t, Cptrdiff_t, Ptr{Cvoid}, Any,
-                           Ptr{Cdouble}, Cdouble, Cdouble, Cptrdiff_t,
-                           Cptrdiff_t, Ptr{Cdouble}),
-                          n, npt, _objfun_c[], f, x, rhobeg, rhoend,
-                          verbose, maxeval, work))
+    status = Lib.newuoa(
+        n, npt, _objfun_c[], f, x, rhobeg, rhoend, verbose, maxeval, work)
     if check && status != SUCCESS
         error(getreason(status))
     end
@@ -305,7 +293,7 @@ end
 # Context for reverse communication variant of NEWUOA.
 # Must be mutable to be finalized.
 mutable struct Context <: AbstractContext
-    ptr::Ptr{Cvoid}
+    ptr::Ptr{Lib.newuoa_context}
     n::Int
     npt::Int
     rhobeg::Cdouble
@@ -316,16 +304,19 @@ mutable struct Context <: AbstractContext
                      npt::Integer = 2*length(x) + 1,
                      verbose::Integer = 0,
                      maxeval::Integer = 30*length(x))
-        ptr = ccall((:newuoa_create, libnewuoa), Ptr{Cvoid},
-                    (Cptrdiff_t, Cptrdiff_t, Cdouble, Cdouble,
-                     Cptrdiff_t, Cptrdiff_t),
-                    n, npt, rhobeg, rhoend, verbose, maxeval)
+        ptr = Lib.newuoa_create(n, npt, rhobeg, rhoend, verbose, maxeval)
         ptr != C_NULL || error(errno() == Base.Errno.ENOMEM
                                ? "insufficient memory"
                                : "invalid argument(s)")
-        return finalizer(ctx -> ccall((:newuoa_delete, libnewuoa), Cvoid,
-                                      (Ptr{Cvoid},), ctx.ptr),
-                         new(ptr, n, npt, rhobeg, rhoend, verbose, maxeval))
+        ctx = new(ptr, n, npt, rhobeg, rhoend, verbose, maxeval)
+        return finalizer(_finalize, ctx)
+    end
+end
+
+function _finalize(ctx::Context)
+    if ctx.ptr != C_NULL
+        Lib.newuoa_delete(ctx.ptr)
+        ctx.ptr = C_NULL
     end
 end
 
@@ -333,21 +324,12 @@ end
 
 function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
-    Status(ccall((:newuoa_iterate, libnewuoa), Cint,
-                       (Ptr{Cvoid}, Cdouble, Ptr{Cdouble}),
-                       ctx.ptr, f, x))
+    return Lib.newuoa_iterate(ctx.ptr, f, x)
 end
 
-restart(ctx::Context) =
-    Status(ccall((:newuoa_restart, libnewuoa), Cint, (Ptr{Cvoid},), ctx.ptr))
-
-getstatus(ctx::Context) =
-    Status(ccall((:newuoa_get_status, libnewuoa), Cint, (Ptr{Cvoid},), ctx.ptr))
-
-getncalls(ctx::Context) =
-    Int(ccall((:newuoa_get_nevals, libnewuoa), Cptrdiff_t, (Ptr{Cvoid},), ctx.ptr))
-
-getradius(ctx::Context) =
-    ccall((:newuoa_get_rho, libnewuoa), Cdouble, (Ptr{Cvoid},), ctx.ptr)
+restart(ctx::Context) = Lib.newuoa_restart(ctx.ptr)
+getstatus(ctx::Context) = Lib.newuoa_get_status(ctx.ptr)
+getncalls(ctx::Context) = Lib.newuoa_get_nevals(ctx.ptr) |> Int
+getradius(ctx::Context) = Lib.newuoa_get_rho(ctx.ptr)
 
 end # module Newuoa

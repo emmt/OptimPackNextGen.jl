@@ -39,6 +39,8 @@ import LazyAlgebra: conjgrad, conjgrad!
 """
 const Float = Cdouble
 
+include("lib.jl")
+
 include("autodiff.jl")
 
 include("bounds.jl")
