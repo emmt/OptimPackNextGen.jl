@@ -102,7 +102,7 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                 xbest = b
                 fbest = fb
             end
-            xtol::Float = (b - a)/2
+            xtol::Float = b - a
             level = $incr(fbest, hypot(alpha*fbest, beta))
             rehash::Bool = true
             verb && printer(output, evaluations, xbest, fbest, xtol)
