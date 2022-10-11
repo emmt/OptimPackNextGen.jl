@@ -7,7 +7,7 @@
 # [1] S. Swarzberg, G. Seront & H. Bersini, "S.T.E.P.: the easiest way to
 #     optimize a function," in IEEE World Congress on Computational
 #     Intelligence, Proceedings of the First IEEE Conference on Evolutionary
-#     Computation,vol. 1, pp. 519-524 (1994).
+#     Computation, vol. 1, pp. 519-524 (1994).
 #
 # -----------------------------------------------------------------------------
 #
@@ -103,6 +103,7 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                 fbest = fb
             end
             xtol::Float = (b - a)/2
+            level = $incr(fbest, hypot(alpha*fbest, beta))
             rehash::Bool = true
             verb && printer(output, evaluations, xbest, fbest, xtol)
             c = xbest
@@ -119,8 +120,6 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                 split = list
                 if rehash
                     qmin = Float(Inf)
-                    t = hypot(alpha*fbest, beta)
-                    level = $incr(fbest, t)
                     n2 = list
                     x2 = n2.data.x
                     w2 = $wgt(level, n2.data.y)
@@ -167,6 +166,7 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                     xbest = c
                     fbest = fc
                     xtol = (x1 - x0)/2
+                    level = $incr(fbest, hypot(alpha*fbest, beta))
                     rehash = true
                     verb && printer(output, evaluations, xbest, fbest, xtol)
                 end
