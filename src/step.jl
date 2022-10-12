@@ -86,9 +86,6 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
             alpha ≥ 0 || error("parameter `alpha` must be nonnegative")
             beta ≥ 0 || error("parameter `beta` must be nonnegative")
 
-            # Assume normal termination status.
-            status = :sufficient_precision
-
             # The code requires that a ≤ b.
             if a > b
                 (a, b) = (b, a)
@@ -119,47 +116,68 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                     fbest = fb
                 end
             end
-
-            # Check initial interval.
             prec = b - a
+            ftrial = $incr(fbest, hypot(alpha*fbest, beta))
             verb && printer(output, iter, eval, xbest, fbest, prec)
             if prec ≤ hypot(tol[1], xbest*tol[2])
-                return (xbest, fbest, prec, eval, status)
+                status = :sufficient_precision
+            elseif eval ≥ maxeval
+                status = :too_many_evaluations
+            else
+                status = :continue
             end
-            ftrial = $incr(fbest, hypot(alpha*fbest, beta))
 
-            # Iteration number of the last rehash.
+            # Create initial chained list of nodes and manage to split initial
+            # interval.
+            list = Node(a, fa, NaN)
+            append!(list, b, fb, NaN)
+            split = list
+
+            # Iteration number of the last full update of priorities.
             last_rehash = -1
 
-            # Create initial chained list of nodes.
-            list = Node(a, fa, 0)
-            append!(list, b, fb, 0)
-
-            while true
-                # Check for convergence.
-                if prec ≤ hypot(tol[1], xbest*tol[2])
-                    break
+            # Iterate until convergence or exceeding number of evaluations.
+            while status === :continue
+                # Split the chosen interval.
+                c = (a + b)/2
+                fc = float(f(c))
+                eval += 1
+                if $cmp(fc, fbest)
+                    # Solution has improved. Memorize it and check for
+                    # convergence.
+                    iter += 1
+                    xbest = c
+                    fbest = fc
+                    prec = (b - a)/2
+                    ftrial = $incr(fbest, hypot(alpha*fbest, beta))
+                    verb && printer(output, iter, eval, xbest, fbest, prec)
+                    if prec ≤ hypot(tol[1], xbest*tol[2])
+                        status = :sufficient_precision
+                        break
+                    end
                 end
                 if eval ≥ maxeval
                     status = :too_many_evaluations
                     break
                 end
 
-                # Find where to split.
-                split = list
+                # Insert node c in chained list, update priorities, and find
+                # next sub-interval to split.
+                append!(split, c, fc, NaN)
+                qmin = typemax(list.q)
                 if last_rehash < iter
-                    # Recompute all priorities.
+                    # Do not rehash until next iteration.
                     last_rehash = iter
-                    qmin = typemax(Float)
+
+                    # Recompute all priorities.
                     this = list
-                    w2 = $wgt(ftrial, this.fx)
+                    w = $wgt(ftrial, this.fx)
                     while true
                         next = this.next
                         e = next.x - this.x
                         e > zero(e) || break
-                        w1 = w2
-                        w2 = $wgt(ftrial, next.fx)
-                        q = (w1 + w2)/e
+                        w′, w = w, $wgt(ftrial, next.fx)
+                        q = (w + w′)/e
                         if q < qmin
                             qmin = q
                             split = this
@@ -168,7 +186,15 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                         this = next
                     end
                 else
-                    qmin = split.q
+                    # Compute the priorities of the two new sub-intervals.
+                    wa = $wgt(ftrial, fa)
+                    wb = $wgt(ftrial, fb)
+                    wc = $wgt(ftrial, fc)
+                    e = (b - a)/2
+                    split.q      = (wa + wc)/e
+                    split.next.q = (wc + wb)/e
+
+                    # Find next interval to split.
                     this = list
                     while true
                         next = this.next
@@ -181,34 +207,12 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                     end
                 end
 
-                # Split the chosen interval.
+                # Get ends of the chosen interval and corresponding function
+                # values.
                 a = split.x
                 b = split.next.x
-                c = (a + b)/2
-                fc = float(f(c))
-                eval += 1
-                if $cmp(fc, fbest)
-                    xbest = c
-                    fbest = fc
-                    prec = (b - a)/2
-                    ftrial = $incr(fbest, hypot(alpha*fbest, beta))
-                    iter += 1
-                    verb && printer(output, iter, eval, xbest, fbest, prec)
-                end
-                if last_rehash < iter
-                    # All priorities have to be recomputed.
-                    q = zero(Float)
-                else
-                    # Compute the priorities for the split interval and for the
-                    # new one.
-                    wa = $wgt(ftrial, split.fx)
-                    wb = $wgt(ftrial, split.next.fx)
-                    wc = $wgt(ftrial, fc)
-                    e = (b - a)/2
-                    split.q = (wa + wc)/e
-                    q = (wc + wb)/e
-                end
-                append!(split, c, fc, q)
+                fa = split.fx
+                fb = split.next.fx
             end
 
             # Return best point found so far.
