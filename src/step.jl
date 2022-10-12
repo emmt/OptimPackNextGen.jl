@@ -30,6 +30,48 @@ import OptimPackNextGen.Float
 using Printf
 
 """
+    Step.minimize(f, a, b) -> (xbest, fbest, prec, n, st)
+    Step.maximize(f, a, b) -> (xbest, fbest, prec, n, st)
+
+attempts to find a global minimum (resp. maximum) of `f(x)` in the interval
+`[a,b]` and returns its position `xbest`, the corresponding function value
+`fbest = f(xbest)`, the uncertainty `prec`, the number `n` of function
+evaluations needed to find it, and a symbolic status `st`. The status `st` is
+`:sufficient_precision` if a solution satisfying the convergence criterion has
+been found; otherwise, `st` is `:too_many_evaluations` to indicate that the
+required precision was not achieved after the maximum number of allowed
+function calls
+
+The algorithm is based on the STEP method described in:
+
+> Swarzberg, S., Seront, G. & Bersini, H., "S.T.E.P.: the easiest way to
+> optimize a function," in IEEE World Congress on Computational Intelligence,
+> Proceedings of the First IEEE Conference on Evolutionary Computation, vol. 1,
+> pp. 519-524 (1994).
+
+The following optional keywords can be used:
+
+* `printer` can be set with a user defined function to print iteration
+  information, its signature is:
+
+      printer(io::IO, iter::Int, eval::Int, xbest, fbest, prec)
+
+  where `io` is the output stream, `iter` the iteration number (`iter = 0` for
+  the starting point), `eval` is the number of calls to `f`, `xbest` is the
+  best solution found so far, `fbest = f(xbest)` is the corresponding function
+  value, and `prec` is an upper bound on the absolute precision for the
+  solution.
+
+* `output` specifies the output stream for printing information (`stdout` is
+  used by default).
+
+"""
+minimize(f, a, b; kwds...) = search(:min, f, a, b; kwds...)
+
+maximize(f, a, b; kwds...) = search(:max, f, a, b; kwds...)
+@doc @doc(minimize) maximize
+
+"""
     Node(x, fx, q[, next]) -> node
 
 yields a node for the S.T.E.P. method at coordinate `x`, function value `fx =
@@ -66,219 +108,177 @@ end
 # Default absolute and relative tolerances:
 const TOL = (floatmin(Float), sqrt(eps(Float)))
 
-@inline sqrtdifmin(lvl,val) = sqrt(val - lvl)
-@inline sqrtdifmax(lvl,val) = sqrt(lvl - val)
-
-for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
-                               (:maximize, >, +, :sqrtdifmax))
-    @eval begin
-
-        function $func(f::Function, a::Float, b::Float;
-                       maxeval::Int = 100000,
-                       tol::NTuple{2,Float} = TOL,
-                       alpha::Float=0.0, beta::Float=0.0,
-                       verb::Bool = false,
-                       printer = default_printer, output::IO = stdout)
-
-            maxeval ≥ 2 || error("parameter `maxeval` must be at least 2")
-            tol[1] ≥ 0 || error("absolute tolerance `tol[1]` must be nonnegative")
-            0 ≤ tol[2] ≤ 1 || error("relative tolerance `tol[2]` must be in [0,1]")
-            alpha ≥ 0 || error("parameter `alpha` must be nonnegative")
-            beta ≥ 0 || error("parameter `beta` must be nonnegative")
-
-            # The code requires that a ≤ b.
-            if a > b
-                (a, b) = (b, a)
-            end
-
-            # Initial number of evaluations.
-            eval = 0
-
-            # Initial number of iterations.
-            iter = 0
-
-            # Evaluate function at ends of initial interval and determine which
-            # is the best.
-            fa = float(f(a))
-            eval += 1
-            if b == a
-                fb = fa
-                xbest = a
-                fbest = fa
-            else
-                fb = float(f(b))
-                eval += 1
-                if $cmp(fa, fb)
-                    xbest = a
-                    fbest = fa
-                else
-                    xbest = b
-                    fbest = fb
-                end
-            end
-            prec = b - a
-            ftrial = $incr(fbest, hypot(alpha*fbest, beta))
-            verb && printer(output, iter, eval, xbest, fbest, prec)
-            if prec ≤ hypot(tol[1], xbest*tol[2])
-                status = :sufficient_precision
-            elseif eval ≥ maxeval
-                status = :too_many_evaluations
-            else
-                status = :continue
-            end
-
-            # Create initial chained list of nodes and manage to split initial
-            # interval.
-            list = Node(a, fa, NaN)
-            append!(list, b, fb, NaN)
-            split = list
-
-            # Iteration number of the last full update of priorities.
-            last_rehash = -1
-
-            # Iterate until convergence or exceeding number of evaluations.
-            while status === :continue
-                # Split the chosen interval.
-                c = (a + b)/2
-                fc = float(f(c))
-                eval += 1
-                if $cmp(fc, fbest)
-                    # Solution has improved. Memorize it and check for
-                    # convergence.
-                    iter += 1
-                    xbest = c
-                    fbest = fc
-                    prec = (b - a)/2
-                    ftrial = $incr(fbest, hypot(alpha*fbest, beta))
-                    verb && printer(output, iter, eval, xbest, fbest, prec)
-                    if prec ≤ hypot(tol[1], xbest*tol[2])
-                        status = :sufficient_precision
-                        break
-                    end
-                end
-                if eval ≥ maxeval
-                    status = :too_many_evaluations
-                    break
-                end
-
-                # Insert node c in chained list, update priorities, and find
-                # next sub-interval to split.
-                append!(split, c, fc, NaN)
-                qmin = typemax(list.q)
-                if last_rehash < iter
-                    # Do not rehash until next iteration.
-                    last_rehash = iter
-
-                    # Recompute all priorities.
-                    this = list
-                    w = $wgt(ftrial, this.fx)
-                    while true
-                        next = this.next
-                        e = next.x - this.x
-                        e > zero(e) || break
-                        w′, w = w, $wgt(ftrial, next.fx)
-                        q = (w + w′)/e
-                        if q < qmin
-                            qmin = q
-                            split = this
-                        end
-                        this.q = q
-                        this = next
-                    end
-                else
-                    # Compute the priorities of the two new sub-intervals.
-                    wa = $wgt(ftrial, fa)
-                    wb = $wgt(ftrial, fb)
-                    wc = $wgt(ftrial, fc)
-                    e = (b - a)/2
-                    split.q      = (wa + wc)/e
-                    split.next.q = (wc + wb)/e
-
-                    # Find next interval to split.
-                    this = list
-                    while true
-                        next = this.next
-                        this.x < next.x || break
-                        if this.q < qmin
-                            qmin = this.q
-                            split = this
-                        end
-                        this = next
-                    end
-                end
-
-                # Get ends of the chosen interval and corresponding function
-                # values.
-                a = split.x
-                b = split.next.x
-                fa = split.fx
-                fb = split.next.fx
-            end
-
-            # Return best point found so far.
-            (xbest, fbest, prec, eval, status)
-        end
-
-        function $func(f::Function, a::Real, b::Real;
-                       maxeval::Integer=10000,
-                       tol::NTuple{2,Real}=TOL,
-                       alpha::Real=0.0, beta::Real=0.0,
-                       kwds...)
-            $func(f, Float(a), Float(b);
+function search(obj::Symbol, f::Function, a::Real, b::Real;
+                maxeval::Integer=10000,
+                tol::NTuple{2,Real} = TOL,
+                alpha::Real=0.0, beta::Real=0.0,
+                kwds...)
+    return search(obj, f, Float(a), Float(b);
                   maxeval = Int(maxeval),
                   tol = (Float(tol[1]), Float(tol[2])),
                   alpha = Float(alpha),
                   beta = Float(beta),
                   kwds...)
-        end
-
-    end
 end
 
-"""
-# Find a global minimum or maximum
+function search(obj::Symbol, f::Function, a::Float, b::Float;
+                maxeval::Int = 100000,
+                tol::NTuple{2,Float} = TOL,
+                alpha::Float=0.0, beta::Float=0.0,
+                verb::Bool = false,
+                printer = default_printer, output::IO = stdout)
 
-    Step.minimize(f, a, b) -> (xbest, fbest, prec, n, st)
-    Step.maximize(f, a, b) -> (xbest, fbest, prec, n, st)
+    maxeval ≥ 2 || error("parameter `maxeval` must be at least 2")
+    tol[1] ≥ 0 || error("absolute tolerance `tol[1]` must be nonnegative")
+    0 ≤ tol[2] ≤ 1 || error("relative tolerance `tol[2]` must be in [0,1]")
+    alpha ≥ 0 || error("parameter `alpha` must be nonnegative")
+    beta ≥ 0 || error("parameter `beta` must be nonnegative")
 
-finds a global minimum (resp. maximum) of `f(x)` in the interval `[a,b]` and
-returns its position `xbest`, the corresponding function value `fbest =
-f(xbest)`, the uncertainty `prec`, the number `n` of function evaluations
-needed to find it, and a symbolic status `st`. The status `st` is
-`:sufficient_precision` if a solution satisfying the convergence criterion has
-been found; otherwise, `st` is `:too_many_evaluations` to indicate that the
-required precision was not achieved after the maximum number of allowed
-function calls
+    # The code requires that a ≤ b.
+    if a > b
+        (a, b) = (b, a)
+    end
 
-The algorithm is based on the STEP method described in:
+    # Initial number of evaluations.
+    eval = 0
 
-> Swarzberg, S., Seront, G. & Bersini, H., "S.T.E.P.: the easiest way to
-> optimize a function," in IEEE World Congress on Computational Intelligence,
-> Proceedings of the First IEEE Conference on Evolutionary Computation, vol. 1,
-> pp. 519-524 (1994).
+    # Initial number of iterations.
+    iter = 0
 
-The following optional keywords can be used:
+    # Evaluate function at leftmost ends of initial interval.
+    fa = float(f(a))
+    eval += 1
 
-* `printer` can be set with a user defined function to print iteration
-  information, its signature is:
+    # Set sign multiplier according to objective.
+    sgn = one(fa)
+    if obj === :max
+        sgn = -sgn
+        fa = -fa
+    elseif obj !== :min
+        error("objective must be `:min` or `:max`")
+    end
 
-      printer(io::IO, iter::Int, eval::Int, xbest, fbest, prec)
+    # Evaluate function at rightmost ends of initial interval.
+    if b == a
+        fb = fa
+    else
+        fb = sgn*float(f(b))
+        eval += 1
+    end
 
-  where `io` is the output stream, `iter` the iteration number (`iter = 0` for
-  the starting point), `eval` is the number of calls to `f`, `xbest` is the
-  best solution found so far, `fbest = f(xbest)` is the corresponding function
-  value, and `prec` is an upper bound on the absolute precision for the
-  solution.
+    # Initial best solution.
+    if fa < fb
+        xbest = a
+        fbest = fa
+    else
+        xbest = b
+        fbest = fb
+    end
+    prec = b - a
+    ftrial = fbest - hypot(alpha*fbest, beta)
+    verb && printer(output, iter, eval, xbest, sgn*fbest, prec)
+    if prec ≤ hypot(tol[1], xbest*tol[2])
+        status = :sufficient_precision
+    elseif eval ≥ maxeval
+        status = :too_many_evaluations
+    else
+        status = :continue
+    end
 
-* `output` specifies the output stream for printing information (`stdout` is
-  used by default).
+    # If the initial interval is larger than the required precision,
+    # iteratively split the "easiest" sub-interval until the precision
+    # criterion is satisfied or the number of evaluations exceeds the limit.
+    if status === :continue
+        # Create initial chained list of nodes and manage to split the initial
+        # interval.
+        list = Node(a, fa, NaN)
+        append!(list, b, fb, NaN)
+        split = list
 
-""" minimize
+        # Iteration number of the last full update of priorities.
+        last_rehash = -1
 
-@doc @doc(minimize) maximize
+        # Iterate until convergence or exceeding number of evaluations.
+        while true
+            # Split the chosen interval.
+            c = (a + b)/2
+            fc = sgn*float(f(c))
+            eval += 1
+            if fc < fbest
+                # Solution has improved. Memorize it and check for convergence.
+                iter += 1
+                xbest = c
+                fbest = fc
+                prec = (b - a)/2
+                ftrial = fbest - hypot(alpha*fbest, beta)
+                verb && printer(output, iter, eval, xbest, sgn*fbest, prec)
+                if prec ≤ hypot(tol[1], xbest*tol[2])
+                    status = :sufficient_precision
+                    break
+                end
+            end
+            if eval ≥ maxeval
+                status = :too_many_evaluations
+                break
+            end
 
-function default_printer(iter::Int, eval::Int, xm::Float, fm::Float, prec::Float)
-    default_printer(stdout, eval, xm, fm, prec)
+            # Insert node c in chained list, update priorities, and find next
+            # sub-interval to split.
+            append!(split, c, fc, NaN)
+            qmin = typemax(list.q)
+            if last_rehash < iter
+                # Do not rehash until next iteration.
+                last_rehash = iter
+
+                # Recompute all priorities.
+                this = list
+                w = sqrt(this.fx - ftrial)
+                while true
+                    next = this.next
+                    e = next.x - this.x
+                    e > zero(e) || break
+                    w′, w = w, sqrt(next.fx - ftrial)
+                    q = (w + w′)/e
+                    if q < qmin
+                        qmin = q
+                        split = this
+                    end
+                    this.q = q
+                    this = next
+                end
+            else
+                # Compute the priorities of the two new sub-intervals.
+                wa = sqrt(fa - ftrial)
+                wb = sqrt(fb - ftrial)
+                wc = sqrt(fc - ftrial)
+                e = (b - a)/2
+                split.q      = (wa + wc)/e
+                split.next.q = (wc + wb)/e
+
+                # Find next interval to split.
+                this = list
+                while true
+                    next = this.next
+                    this.x < next.x || break
+                    if this.q < qmin
+                        qmin = this.q
+                        split = this
+                    end
+                    this = next
+                end
+            end
+
+            # Get ends of the chosen interval and corresponding function
+            # values.
+            a = split.x
+            b = split.next.x
+            fa = split.fx
+            fb = split.next.fx
+        end
+    end
+
+    # Return best point found so far.
+    (xbest, sgn*fbest, prec, eval, status)
 end
 
 function default_printer(io::IO, iter::Int, eval::Int,
