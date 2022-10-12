@@ -14,7 +14,7 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2015-2018, Éric Thiébaut.
+# Copyright (C) 2015-2022, Éric Thiébaut.
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
@@ -86,9 +86,8 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
             if a > b
                 (a, b) = (b, a)
             elseif a == b
-                return (a, f(a), zero(Float), 1)
+                return (a, f(a), zero(Float), 1, :sufficient_precision)
             end
-
             fa = f(a)
             fb = f(b)
             list = Item(NodeData(a, fa, 0))
@@ -107,12 +106,14 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
             rehash::Bool = true
             verb && printer(output, evaluations, xbest, fbest, xtol)
             c = xbest
+            status = :sufficient_precision # normal termination status
             while true
+                # Check for convergence.
                 if xtol ≤ hypot(tol[1], xbest*tol[2])
                     break
                 end
                 if evaluations ≥ maxeval
-                    @warn "too many evaluations"
+                    status = :too_many_evaluations
                     break
                 end
 
@@ -187,7 +188,7 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
             end
 
             # Return best point found so far.
-            (xbest, fbest, xtol, evaluations)
+            (xbest, fbest, xtol, evaluations, status)
         end
 
         function $func(f::Function, a::Real, b::Real;
@@ -209,13 +210,17 @@ end
 """
 # Find a global minimum or maximum
 
-    Step.minimize(f, a, b) -> (xbest, fbest, xtol, n)
-    Step.maximize(f, a, b) -> (xbest, fbest, xtol, n)
+    Step.minimize(f, a, b) -> (xbest, fbest, xtol, n, st)
+    Step.maximize(f, a, b) -> (xbest, fbest, xtol, n, st)
 
 finds a global minimum (resp. maximum) of `f(x)` in the interval `[a,b]` and
 returns its position `xbest`, the corresponding function value `fbest =
-f(xbest)`, the uncertainty `xtol` and the number of function evaluations needed
-to find it.
+f(xbest)`, the uncertainty `xtol`, the number `n` of function evaluations
+needed to find it, and a symbolic status `st`. The status `st` is
+`:sufficient_precision` if a solution satisfying the convergence criterion has
+been found; otherwise, `st` is `:too_many_evaluations` to indicate that the
+required precision was not achieved after the maximum number of allowed
+function calls
 
 The algorithm is based on the STEP method described in:
 
@@ -282,24 +287,24 @@ end
 
 function runtests()
     println("\n# Simple parabola:")
-    (xbest, fbest, xtol, n) = minimize(testParabola, -1, 2, verb=true,
-                                       maxeval=100, alpha=0, beta=0)
-    println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
+    (xbest, fbest, xtol, n, st) = minimize(testParabola, -1, 2, verb=true,
+                                           maxeval=100, alpha=0, beta=0)
+    println("x = $xbest ± $xtol, f(x) = $fbest, ncalls = $n, status = $st")
 
     println("\n# Brent's 5th function:")
-    (xbest, fbest, xtol, n) = minimize(testBrent5, -10, 10, verb=true,
-                                       maxeval=1000)
-    println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
+    (xbest, fbest, xtol, n, st) = minimize(testBrent5, -10, 10, verb=true,
+                                           maxeval=1000)
+    println("x = $xbest ± $xtol, f(x) = $fbest, ncalls = $n, status = $st")
 
     println("\n# Michalewicz's 1st function:")
-    (xbest, fbest, xtol, n) = minimize(testMichalewicz1, -1, 2, verb=true,
-                                       maxeval=1000)
-    println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
+    (xbest, fbest, xtol, n, st) = minimize(testMichalewicz1, -1, 2, verb=true,
+                                           maxeval=1000)
+    println("x = $xbest ± $xtol, f(x) = $fbest, ncalls = $n, status = $st")
 
     println("\n# Michalewicz's 2nd function:")
-    (xbest, fbest, xtol, n) = maximize(testMichalewicz2, 0, pi, verb=true,
-                                       maxeval=1000, tol=(1e-12,0))
-    println("x = $xbest ± $xtol, f(x) = $fbest, n = $n")
+    (xbest, fbest, xtol, n, st) = maximize(testMichalewicz2, 0, pi, verb=true,
+                                           maxeval=1000, tol=(1e-12,0))
+    println("x = $xbest ± $xtol, f(x) = $fbest, ncalls = $n, status = $st")
 end
 
 
