@@ -74,11 +74,11 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
     @eval begin
 
         function $func(f::Function, a::Float, b::Float;
-                       maxeval::Int=100000,
-                       tol::NTuple{2,Float}=TOL,
+                       maxeval::Int = 100000,
+                       tol::NTuple{2,Float} = TOL,
                        alpha::Float=0.0, beta::Float=0.0,
-                       verb::Bool=false,
-                       printer::Function=default_printer, output::IO=stdout)
+                       verb::Bool = false,
+                       printer = default_printer, output::IO = stdout)
 
             maxeval ≥ 2 || error("parameter `maxeval` must be at least 2")
             tol[1] ≥ 0 || error("absolute tolerance `tol[1]` must be nonnegative")
@@ -86,112 +86,133 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
             alpha ≥ 0 || error("parameter `alpha` must be nonnegative")
             beta ≥ 0 || error("parameter `beta` must be nonnegative")
 
+            # Assume normal termination status.
+            status = :sufficient_precision
+
+            # The code requires that a ≤ b.
             if a > b
                 (a, b) = (b, a)
-            elseif a == b
-                return (a, f(a), zero(Float), 1, :sufficient_precision)
             end
-            fa = f(a)
-            fb = f(b)
-            list = Node(a, fa, 0)
-            append!(list, b, fb, 0)
-            evaluations::Int = 2
 
-            if $cmp(fa, fb)
+            # Initial number of evaluations.
+            eval = 0
+
+            # Initial number of iterations.
+            iter = 0
+
+            # Evaluate function at ends of initial interval and determine which
+            # is the best.
+            fa = float(f(a))
+            eval += 1
+            if b == a
+                fb = fa
                 xbest = a
                 fbest = fa
             else
-                xbest = b
-                fbest = fb
+                fb = float(f(b))
+                eval += 1
+                if $cmp(fa, fb)
+                    xbest = a
+                    fbest = fa
+                else
+                    xbest = b
+                    fbest = fb
+                end
             end
-            xtol::Float = b - a
-            level = $incr(fbest, hypot(alpha*fbest, beta))
-            rehash::Bool = true
-            verb && printer(output, evaluations, xbest, fbest, xtol)
-            c = xbest
-            status = :sufficient_precision # normal termination status
+
+            # Check initial interval.
+            prec = b - a
+            verb && printer(output, iter, eval, xbest, fbest, prec)
+            if prec ≤ hypot(tol[1], xbest*tol[2])
+                return (xbest, fbest, prec, eval, status)
+            end
+            ftrial = $incr(fbest, hypot(alpha*fbest, beta))
+
+            # Iteration number of the last rehash.
+            last_rehash = -1
+
+            # Create initial chained list of nodes.
+            list = Node(a, fa, 0)
+            append!(list, b, fb, 0)
+
             while true
                 # Check for convergence.
-                if xtol ≤ hypot(tol[1], xbest*tol[2])
+                if prec ≤ hypot(tol[1], xbest*tol[2])
                     break
                 end
-                if evaluations ≥ maxeval
+                if eval ≥ maxeval
                     status = :too_many_evaluations
                     break
                 end
 
                 # Find where to split.
                 split = list
-                if rehash
-                    qmin = Float(Inf)
-                    n2 = list
-                    x2 = n2.x
-                    w2 = $wgt(level, n2.fx)
+                if last_rehash < iter
+                    # Recompute all priorities.
+                    last_rehash = iter
+                    qmin = typemax(Float)
+                    this = list
+                    w2 = $wgt(ftrial, this.fx)
                     while true
-                        n1 = n2
-                        n2 = n2.next
-                        x1 = x2
-                        x2 = n2.x
-                        x2 > x1 || break
+                        next = this.next
+                        e = next.x - this.x
+                        e > zero(e) || break
                         w1 = w2
-                        w2 = $wgt(level, n2.fx)
-                        q = (w1 + w2)/(x2 - x1)
-                        n1.q = q
+                        w2 = $wgt(ftrial, next.fx)
+                        q = (w1 + w2)/e
                         if q < qmin
                             qmin = q
-                            split = n1
+                            split = this
                         end
+                        this.q = q
+                        this = next
                     end
-                    rehash = false
                 else
                     qmin = split.q
-                    n1 = list
-                    x1 = n1.x
+                    this = list
                     while true
-                        n2 = n1.next
-                        x2 = n2.x
-                        x2 > x1 || break
-                        q = n1.q
-                        if q < qmin
-                            qmin = q
-                            split = n1
+                        next = this.next
+                        this.x < next.x || break
+                        if this.q < qmin
+                            qmin = this.q
+                            split = this
                         end
-                        n1, x1 = n2, x2
+                        this = next
                     end
                 end
 
                 # Split the chosen interval.
-                evaluations += 1
-                x0 = split.x
-                x1 = split.next.x
-                c = (x0 + x1)/2
-                fc = f(c)
+                a = split.x
+                b = split.next.x
+                c = (a + b)/2
+                fc = float(f(c))
+                eval += 1
                 if $cmp(fc, fbest)
                     xbest = c
                     fbest = fc
-                    xtol = (x1 - x0)/2
-                    level = $incr(fbest, hypot(alpha*fbest, beta))
-                    rehash = true
-                    verb && printer(output, evaluations, xbest, fbest, xtol)
+                    prec = (b - a)/2
+                    ftrial = $incr(fbest, hypot(alpha*fbest, beta))
+                    iter += 1
+                    verb && printer(output, iter, eval, xbest, fbest, prec)
                 end
-                if rehash
-                    # All Q factors have to be recomputed.
+                if last_rehash < iter
+                    # All priorities have to be recomputed.
                     q = zero(Float)
                 else
-                    # Compute the Q factors for the split interval and for the
+                    # Compute the priorities for the split interval and for the
                     # new one.
-                    w1 = $wgt(level, split.fx)
-                    w2 = $wgt(level, fc)
-                    w3 = $wgt(level, split.next.fx)
-                    e = (x1 - x0)/2
-                    split.q = (w1 + w2)/e
-                    q = (w2 + w3)/e
+                    wa = $wgt(ftrial, split.fx)
+                    wb = $wgt(ftrial, split.next.fx)
+                    wc = $wgt(ftrial, fc)
+                    e = (b - a)/2
+                    split.q = (wa + wc)/e
+                    q = (wc + wb)/e
                 end
                 append!(split, c, fc, q)
             end
 
             # Return best point found so far.
-            (xbest, fbest, xtol, evaluations, status)
+            (xbest, fbest, prec, eval, status)
         end
 
         function $func(f::Function, a::Real, b::Real;
@@ -213,12 +234,12 @@ end
 """
 # Find a global minimum or maximum
 
-    Step.minimize(f, a, b) -> (xbest, fbest, xtol, n, st)
-    Step.maximize(f, a, b) -> (xbest, fbest, xtol, n, st)
+    Step.minimize(f, a, b) -> (xbest, fbest, prec, n, st)
+    Step.maximize(f, a, b) -> (xbest, fbest, prec, n, st)
 
 finds a global minimum (resp. maximum) of `f(x)` in the interval `[a,b]` and
 returns its position `xbest`, the corresponding function value `fbest =
-f(xbest)`, the uncertainty `xtol`, the number `n` of function evaluations
+f(xbest)`, the uncertainty `prec`, the number `n` of function evaluations
 needed to find it, and a symbolic status `st`. The status `st` is
 `:sufficient_precision` if a solution satisfying the convergence criterion has
 been found; otherwise, `st` is `:too_many_evaluations` to indicate that the
@@ -237,14 +258,13 @@ The following optional keywords can be used:
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
 
-      printer(io::IO, iter::Integer, eval::Integer, rejects::Integer,
-              f::Real, gnorm::Real, stp::Real)
+      printer(io::IO, iter::Int, eval::Int, xbest, fbest, prec)
 
   where `io` is the output stream, `iter` the iteration number (`iter = 0` for
-  the starting point), `eval` is the number of calls to `fg!`, `rejects` is the
-  number of times the computed direction was rejected, `f` and `gnorm` are the
-  value of the function and norm of the gradient at the current point, `stp` is
-  the length of the step to the current point.
+  the starting point), `eval` is the number of calls to `f`, `xbest` is the
+  best solution found so far, `fbest = f(xbest)` is the corresponding function
+  value, and `prec` is an upper bound on the absolute precision for the
+  solution.
 
 * `output` specifies the output stream for printing information (`stdout` is
   used by default).
@@ -253,19 +273,20 @@ The following optional keywords can be used:
 
 @doc @doc(minimize) maximize
 
-function default_printer(eval::Int, xm::Float, fm::Float, prec::Float)
+function default_printer(iter::Int, eval::Int, xm::Float, fm::Float, prec::Float)
     default_printer(stdout, eval, xm, fm, prec)
 end
 
-function default_printer(io::IO, eval::Int, xm::Float, fm::Float, prec::Float)
+function default_printer(io::IO, iter::Int, eval::Int,
+                         xm::Float, fm::Float, prec::Float)
     if eval < 3
         @printf(io, "# %s%s\n# %s%s\n",
-                "EVALS              X                      F(X)        ",
-                "       PREC",
-                "------------------------------------------------------",
-                "-------------")
+                "ITERS    EVALS              X         ",
+                "             F(X)               PREC",
+                "--------------------------------------",
+                "--------------------------------------")
     end
-    @printf(io, "%7d  %23.15e  %23.15e  %10.2e\n", eval, xm, fm, prec)
+    @printf(io, "%7d  %7d  %23.15e  %23.15e  %10.2e\n", iter, eval, xm, fm, prec)
 end
 
 # Simple parabola.  To be minimized over [-1,2].
@@ -290,24 +311,24 @@ end
 
 function runtests()
     println("\n# Simple parabola:")
-    (xbest, fbest, xtol, n, st) = minimize(testParabola, -1, 2, verb=true,
+    (xbest, fbest, prec, n, st) = minimize(testParabola, -1, 2, verb=true,
                                            maxeval=100, alpha=0, beta=0)
-    println("x = $xbest ± $xtol, f(x) = $fbest, ncalls = $n, status = $st")
+    println("x = $xbest ± $prec, f(x) = $fbest, ncalls = $n, status = $st")
 
     println("\n# Brent's 5th function:")
-    (xbest, fbest, xtol, n, st) = minimize(testBrent5, -10, 10, verb=true,
+    (xbest, fbest, prec, n, st) = minimize(testBrent5, -10, 10, verb=true,
                                            maxeval=1000)
-    println("x = $xbest ± $xtol, f(x) = $fbest, ncalls = $n, status = $st")
+    println("x = $xbest ± $prec, f(x) = $fbest, ncalls = $n, status = $st")
 
     println("\n# Michalewicz's 1st function:")
-    (xbest, fbest, xtol, n, st) = minimize(testMichalewicz1, -1, 2, verb=true,
+    (xbest, fbest, prec, n, st) = minimize(testMichalewicz1, -1, 2, verb=true,
                                            maxeval=1000)
-    println("x = $xbest ± $xtol, f(x) = $fbest, ncalls = $n, status = $st")
+    println("x = $xbest ± $prec, f(x) = $fbest, ncalls = $n, status = $st")
 
     println("\n# Michalewicz's 2nd function:")
-    (xbest, fbest, xtol, n, st) = maximize(testMichalewicz2, 0, pi, verb=true,
+    (xbest, fbest, prec, n, st) = maximize(testMichalewicz2, 0, pi, verb=true,
                                            maxeval=1000, tol=(1e-12,0))
-    println("x = $xbest ± $xtol, f(x) = $fbest, ncalls = $n, status = $st")
+    println("x = $xbest ± $prec, f(x) = $fbest, ncalls = $n, status = $st")
 end
 
 end # module
