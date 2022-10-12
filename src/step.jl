@@ -30,34 +30,37 @@ import OptimPackNextGen.Float
 using Printf
 
 """
-# Cyclic singly linked list
+    Node(x, fx, q[, next]) -> node
+
+yields a node for the S.T.E.P. method at coordinate `x`, function value `fx =
+f(x)`, and quality factor `q`. The nodes form a cyclic chained list, the next
+node of the new node may optionaly be specified.
+
 """
-mutable struct Item{T}
-    next::Item{T}
-    data::T
-    (::Type{Item{T}})(next::Item{T}, data::T) where {T} = new{T}(next, data)
-    function (::Type{Item{T}})(data::T) where {T}
-        newitem = new{T}()
-        newitem.next = newitem
-        newitem.data = data
-        return newitem
+mutable struct Node
+    x::Float  # position
+    fx::Float # function value
+    q::Float  # "quality" factor of the interval
+    next::Node
+    Node(x::Number, fx::Number, q::Number, next::Node) = new(x, fx, q, next)
+    function Node(x::Number, fx::Number, q::Number)
+        node = new(x, fx, q)
+        node.next = node
+        return node
     end
 end
-Item(data::T) where {T} = Item{T}(data)
 
 """
-Append a new item after a given item of a cyclic singly linked list.
-"""
-function append!(item::Item{T}, data::T) where {T}
-    newitem = Item{T}(item.next, data)
-    item.next = newitem
-    return newitem
-end
+    append!(node, x, fx, q) -> next
 
-mutable struct NodeData
-    x::Float # position
-    y::Float # function value
-    q::Float # "quality" factor
+appends a new node with parameters `x`, `fx = f(x)`, and `q` to `node` and
+return it.
+
+"""
+function Base.append!(node::Node, x::Number, fx::Number, q::Number)
+    next = Node(x, fx, q, node.next)
+    node.next = next
+    return next
 end
 
 # Default absolute and relative tolerances:
@@ -90,8 +93,8 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
             end
             fa = f(a)
             fb = f(b)
-            list = Item(NodeData(a, fa, 0))
-            append!(list, NodeData(b, fb, 0))
+            list = Node(a, fa, 0)
+            append!(list, b, fb, 0)
             evaluations::Int = 2
 
             if $cmp(fa, fb)
@@ -122,18 +125,18 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                 if rehash
                     qmin = Float(Inf)
                     n2 = list
-                    x2 = n2.data.x
-                    w2 = $wgt(level, n2.data.y)
+                    x2 = n2.x
+                    w2 = $wgt(level, n2.fx)
                     while true
                         n1 = n2
                         n2 = n2.next
                         x1 = x2
-                        x2 = n2.data.x
+                        x2 = n2.x
                         x2 > x1 || break
                         w1 = w2
-                        w2 = $wgt(level, n2.data.y)
+                        w2 = $wgt(level, n2.fx)
                         q = (w1 + w2)/(x2 - x1)
-                        n1.data.q = q
+                        n1.q = q
                         if q < qmin
                             qmin = q
                             split = n1
@@ -141,14 +144,14 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                     end
                     rehash = false
                 else
-                    qmin = split.data.q
+                    qmin = split.q
                     n1 = list
-                    x1 = n1.data.x
+                    x1 = n1.x
                     while true
                         n2 = n1.next
-                        x2 = n2.data.x
+                        x2 = n2.x
                         x2 > x1 || break
-                        q = n1.data.q
+                        q = n1.q
                         if q < qmin
                             qmin = q
                             split = n1
@@ -159,8 +162,8 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
 
                 # Split the chosen interval.
                 evaluations += 1
-                x0 = split.data.x
-                x1 = split.next.data.x
+                x0 = split.x
+                x1 = split.next.x
                 c = (x0 + x1)/2
                 fc = f(c)
                 if $cmp(fc, fbest)
@@ -177,14 +180,14 @@ for (func, cmp, incr, wgt) in ((:minimize, <, -, :sqrtdifmin),
                 else
                     # Compute the Q factors for the split interval and for the
                     # new one.
-                    w1 = $wgt(level, split.data.y)
+                    w1 = $wgt(level, split.fx)
                     w2 = $wgt(level, fc)
-                    w3 = $wgt(level, split.next.data.y)
+                    w3 = $wgt(level, split.next.fx)
                     e = (x1 - x0)/2
-                    split.data.q = (w1 + w2)/e
+                    split.q = (w1 + w2)/e
                     q = (w2 + w3)/e
                 end
-                append!(split, NodeData(c, fc, q))
+                append!(split, c, fc, q)
             end
 
             # Return best point found so far.
@@ -306,6 +309,5 @@ function runtests()
                                            maxeval=1000, tol=(1e-12,0))
     println("x = $xbest ± $xtol, f(x) = $fbest, ncalls = $n, status = $st")
 end
-
 
 end # module
