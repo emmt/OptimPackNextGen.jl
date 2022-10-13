@@ -15,7 +15,7 @@ optimization with particular focus on large scale problems.
 
 * [Quasi-Newton methods](doc/quasinewton.md) can be used to solve nonlinear
   large scale optimization problems. Optionally, bounds on the variables can be
-  taken into account.  The objective function must be differentiable and the
+  taken into account. The objective function must be differentiable and the
   caller must provide means to compute the objective function and its gradient.
   If the [`Zygote`](https://github.com/FluxML/Zygote.jl) is loaded, the
   gradient of the objective function may be computed by means of
@@ -23,9 +23,9 @@ optimization with particular focus on large scale problems.
 
 * *Spectral Projected Gradient* (SPG) method is provided for large-scale
   optimization problems with a differentiable objective function and convex
-  constraints.  The caller of `spg` (or `spg!`) shall provide a couple of
+  constraints. The caller of `spg` (or `spg!`) shall provide a couple of
   functions to compute the objective function and its gradient and to project
-  the variables on the feasible set.  If the
+  the variables on the feasible set. If the
   [`Zygote`](https://github.com/FluxML/Zygote.jl) is loaded, the gradient of
   the objective function may be computed by means of automatic-differentiation.
 
@@ -40,12 +40,12 @@ optimization with particular focus on large scale problems.
 
 For problems of small to moderate size, `OptimPackNextGen` provides:
 
-* Mike Powell's `COBYLA` (Powell, 1994), `NEWUOA` (Powell, 2006), and
-  `BOBYQA` (Powell, 2009) algorithms for minimizing a function of many
-  variables.  These methods are *derivatives free* (only the function values
-  are needed).  `NEWUOA` is for unconstrained optimization.  `COBYLA`
-  accounts for general inequality constraints.  `BOBYQA` accounts for bound
-  constraints on the variables.
+* Mike Powell's `COBYLA` (Powell, 1994), `NEWUOA` (Powell, 2006), and `BOBYQA`
+  (Powell, 2009) algorithms for minimizing a function of many variables. These
+  methods are *derivatives free* (only the function values are needed).
+  `NEWUOA` is for unconstrained optimization. `COBYLA` accounts for general
+  inequality constraints. `BOBYQA` accounts for bound constraints on the
+  variables.
 
 * `nllsq` implements non-linear (weighted) least squares fit. Powell's NEWUOA
   method is exploited to find the best fit parameters of given data by a user
@@ -68,7 +68,8 @@ The following methods are provided for univariate functions:
 
 * `Step.minimize` (resp. `Step.maximize`) implements the STEP method (Swarzberg
   *et al.*, 1994) for finding the global minimum (resp. maximum) of a function
-  on an interval.
+  on an interval. The objective function `f(x)` and the variable `x` may have
+  units.
 
 
 ## Trust region
@@ -84,6 +85,7 @@ The easiest way to install `OptimPackNextGen` is via Julia registry
 
 ```julia
 using Pkg
+pkg"registry add General"  # if not yet any registries
 pkg"registry add https://github.com/emmt/EmmtRegistry"
 pkg"add OptimPackNextGen"
 ```
@@ -94,17 +96,17 @@ pkg"add OptimPackNextGen"
 Related software are the [`OptimPack`](https://github.com/emmt/OptimPack)
 library which implements the C version of the algorithms and the
 [`OptimPack.jl`](https://github.com/emmt/OptimPack.jl) Julia package which is a
-wrapper of this library for Julia.  Compared to `OptimPack.jl`, the new
+wrapper of this library for Julia. Compared to `OptimPack.jl`, the new
 `OptimPackNextGen.jl` implements in pure Julia the algorithms dedicated to
 large scale problems but still relies on the C libraries for a few algorithms
-(notably the Powell methods).  Precompiled versions of these libraries are
+(notably the Powell methods). Precompiled versions of these libraries are
 provided by
 [OptimPack_jll](https://github.com/JuliaBinaryWrappers/OptimPack_jll.jl)
-package.  The rationale is to facilitate the integration of exotic types of
-variables for optimization problems in Julia.  Eventually,
-`OptimPackNextGen.jl` will become the next version of `OptimPack.jl` but, until
-then, it is more flexible to have two separate modules and avoid coping with
-compatibility and design issues.
+package. The rationale is to facilitate the integration of exotic types of
+variables for optimization problems in Julia. Eventually, `OptimPackNextGen.jl`
+will become the next version of `OptimPack.jl` but, until then, it is more
+flexible to have two separate modules and avoid coping with compatibility and
+design issues.
 
 
 ## References
@@ -133,8 +135,8 @@ compatibility and design issues.
 * D. Liu and J. Nocedal, "*On the limited memory BFGS method for large scale
   optimization*", Mathematical Programming B **45**, 503-528 (1989).
 
-* J.J. Moré & D.C. Sorensen, "*Computing a Trust Region Step*," SIAM
-  J. Sci. Stat. Comp. **4**, 553-572 (1983).
+* J.J. Moré & D.C. Sorensen, "*Computing a Trust Region Step*," SIAM J. Sci.
+  Stat. Comp. **4**, 553-572 (1983).
 
 * J.J. Moré and D.J. Thuente, "*Line search algorithms with guaranteed
   sufficient decrease*" in ACM Transactions on Mathematical Software (TOMS)
@@ -142,8 +144,8 @@ compatibility and design issues.
 
 * M.J.D. Powell, "*A direct search optimization method that models the
   objective and constraint functions by linear interpolation*" in Advances in
-  Optimization and Numerical Analysis Mathematics and Its Applications,
-  vol. **275** (eds. Susana Gomez and Jean-Pierre Hennart), Kluwer Academic
+  Optimization and Numerical Analysis Mathematics and Its Applications, vol.
+  **275** (eds. Susana Gomez and Jean-Pierre Hennart), Kluwer Academic
   Publishers, pp. 51-67 (1994).
 
 * M.J.D. Powell, "*The NEWUOA software for unconstrained minimization without
@@ -151,7 +153,7 @@ compatibility and design issues.
   M. Roma, Springer, pp. 255-297 (2006).
 
 * M.J.D. Powell, "*The BOBYQA Algorithm for Bound Constrained Optimization
-  Without Derivatives*",  Technical report, Department of Applied Mathematics
+  Without Derivatives*", Technical report, Department of Applied Mathematics
   and Theoretical Physics, University of Cambridge (2009).
 
 * F. Soulez, É. Thiébaut, M. Tallon, I. Tallon-Bosc & P. Garcia, "*Optimal a
@@ -165,8 +167,8 @@ compatibility and design issues.
 
 * S. Swarzberg, G. Seront & H. Bersini, "*S.T.E.P.: the easiest way to optimize
   a function*" in IEEE World Congress on Computational Intelligence,
-  Proceedings of the First IEEE Conference on Evolutionary Computation,
-  vol. **1**, pp. 519-524 (1994).
+  Proceedings of the First IEEE Conference on Evolutionary Computation, vol.
+  **1**, pp. 519-524 (1994).
 
 * É. Thiébaut, "*Optimization issues in blind deconvolution algorithms*," in
   Astronomical Data Analysis II, SPIE Proc. **4847**, 174-183 (2002).
