@@ -1,5 +1,20 @@
 # User visible changes in `OptimPackNextGen` package
 
+## Version 0.4.0
+
+- The STEP method for finding a global minimum or maximum of an univariate
+  function `f(x)` has been improved in many respects:
+  - `x` and `f(x)` may have units.
+  - The numerical precision used by the algorithm is automatically defined by
+    the floating-point types of `x` and `f(x)`.
+  - Speed-up computations (by a factor of two) by simplifying the storage of
+    trials.
+  - Keywords have different names: `atol` and `rtol` specify absolute and
+    relative tolerances for the precision of the solution, `aboost` and
+    `rboost` specify absolute and relative boost parameters to define the
+    function value to aim at.
+
+
 ## Version 0.3.1
 
 - Fix missing methods to handle upper bounds.

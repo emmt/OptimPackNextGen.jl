@@ -72,6 +72,30 @@ The algorithm is based on the STEP method described in:
 
 The following optional keywords can be specified:
 
+* `atol` and `rtol` are absolute and relative tolerances for the accuracy
+  of the solution. The algorithm stops when:
+
+      prec ≤ max(atol, rtol*abs(xm))
+
+  By default, the absolute tolerance `atol` is set to the smallest positive
+  normal number representable by the floating-point type of `x`, while the
+  relative tolerance `rtol` is set to the square root of the relative precision
+  of the floating-point type of `x`.
+
+* `maxeval` specifies the maximum number of function evaluations. By default,
+  `maxeval = 10_000`.
+
+* `aboost` and `rboost` are absolute and relative boost parameters for the
+  function value that the algorithm is trying to reach and which is defined as:
+
+      fboost = fm ± max(aboost, rboost*abs(fm))
+
+  where `fm` is the best function value so far and `±` is `+` when seeking for
+  a maximum and -` when seeking for a minimum. By default, these parameters are
+  both set to zero as (hence `fboost = fm`) because these settings are the most
+  efficient in practice (despite what is claimed in the paper describing the
+  S.T.E.P. method).
+
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
 
@@ -105,10 +129,18 @@ function search(obj::Symbol, f, a, b; kwds...)
     # determine the type of function values and `qnan` a NaN with the same type
     # as the "difficulty" of a sub-interval.
     fa = float(f(a_))
+    sgn = one(fa)
+    if obj === :max
+        # The low-level code seeks for a minimum.
+        sgn = -sgn
+        fa = -fa
+    elseif obj !== :min
+        error("objective must be `:min` or `:max`")
+    end
     qnan = sqrt(zero(fa))/zero(Tx)
 
     # Call the algorithm with correctly typed parameters.
-    return _search(obj, f, a_, b_, fa, qnan; kwds...)
+    return search_(sgn, f, a_, b_, fa, qnan; kwds...)
 end
 
 """
@@ -156,49 +188,49 @@ end
 #
 # NOTE: We use one(T) to get rid of units and nextfloat(zero(T)) instead of
 #       floatmin(T) which does not support unitful quantities.
-default_xatol(Tx::Type) = nextfloat(zero(Tx))
-default_xrtol(Tx::Type) = sqrt(eps(one(Tx)))
-default_fatol(Tf::Type) = zero(Tf)
-default_frtol(Tf::Type) = zero(one(Tf))
+default_atol(Tx::Type) = nextfloat(zero(Tx))
+default_rtol(Tx::Type) = sqrt(eps(one(Tx)))
+default_aboost(Tf::Type) = zero(Tf)
+default_rboost(Tf::Type) = zero(one(Tf))
 
-for func in (:default_xatol, :default_xrtol, :default_fatol, :default_frtol)
+for func in (:default_atol, :default_rtol, :default_aboost, :default_rboost)
     @eval $func(arg) = $func(typeof(arg))
 end
 
-function _search(obj::Symbol, f, a::Tx, b::Tx, fa::Tf, qnan::Tq;
+# First low level helper to check settings and convert keywords types.
+function search_(sgn, f, a::Tx, b::Tx, fa::Tf, qnan::Tq;
                  maxeval::Integer = 10_000,
-                 tol::Tuple{Any,Any} = (default_xatol(Tx),
-                                        default_xrtol(Tx)),
-                 alpha = default_frtol(Tf),
-                 beta = default_fatol(Tf),
-                 verb::Bool = false,
-                 printer = default_printer,
-                 output::IO = stdout) where {Tx,Tf,Tq}
+                 atol = default_atol(Tx),
+                 rtol = default_rtol(Tx),
+                 rboost = default_rboost(Tf),
+                 aboost = default_aboost(Tf),
+                 kwds...) where {Tx,Tf,Tq}
+    # Check keywords.
     maxeval ≥ 2 || error("parameter `maxeval` must be at least 2")
-    tol[1] ≥ zero(tol[1]) || error("absolute tolerance `xatol` must be nonnegative")
-    zero(tol[2]) ≤ tol[2] ≤ one(tol[2]) || error("relative tolerance `xrtol` must be in [0,1]")
-    alpha ≥ zero(alpha) || error("parameter `alpha` must be nonnegative")
-    beta ≥ zero(beta) || error("parameter `beta` must be nonnegative")
+    atol ≥ zero(atol) || error("absolute tolerance `atol` must be nonnegative")
+    zero(rtol) ≤ rtol ≤ one(rtol) || error("relative tolerance `rtol` must be in [0,1]")
+    rboost ≥ zero(rboost) || error("parameter `rboost` must be nonnegative")
+    aboost ≥ zero(aboost) || error("parameter `aboost` must be nonnegative")
 
-    # Convert tolerances to their correct types.
-    xatol = convert(Tx, tol[1])
-    xrtol = convert(typeof(one(Tx)), tol[2])
-    fatol = convert(Tf, beta)
-    frtol = convert(typeof(one(Tf)), alpha)
+    # Call next helper with keywords converted to their correct types.
+    return search__(sgn, f, a, b, fa, qnan;
+                    maxeval = convert(Int, maxeval),
+                    atol = convert(Tx, atol),
+                    rtol = convert(typeof(one(Tx)), rtol),
+                    aboost = convert(Tf, aboost),
+                    rboost = convert(typeof(one(Tf)), rboost),
+                    kwds...)
+end
 
-    # Initial number of iterations and of evaluations, f(a) has already been
-    # computed.
+function search__(sgn, f, a::Tx, b::Tx, fa::Tf, qnan::Tq;
+                  maxeval::Int, atol::Tx, rtol, aboost::Tf, rboost,
+                  verb::Bool = false,
+                  printer = default_printer,
+                  output::IO = stdout) where {Tx,Tf,Tq}
+    # Initial number of iterations and of evaluations. Note that f(a) has
+    # already been computed.
     iter = 0
     eval = 1
-
-    # Set sign multiplier according to objective.
-    sgn = one(fa)
-    if obj === :max
-        sgn = -sgn
-        fa = -fa
-    elseif obj !== :min
-        error("objective must be `:min` or `:max`")
-    end
 
     # Evaluate function at rightmost ends of initial interval.
     if b == a
@@ -217,9 +249,9 @@ function _search(obj::Symbol, f, a::Tx, b::Tx, fa::Tf, qnan::Tq;
         fbest = fb
     end
     prec = b - a
-    ftrial = fbest - hypot(frtol*fbest, fatol)
+    fboost = fbest - max(aboost, rboost*abs(fbest))
     verb && printer(output, iter, eval, xbest, sgn*fbest, prec)
-    if prec ≤ hypot(xatol, xbest*xrtol)
+    if prec ≤ max(atol, rtol*abs(xbest))
         status = :sufficient_precision
     elseif eval ≥ maxeval
         status = :too_many_evaluations
@@ -253,9 +285,9 @@ function _search(obj::Symbol, f, a::Tx, b::Tx, fa::Tf, qnan::Tq;
                 xbest = c
                 fbest = fc
                 prec = (b - a)/2
-                ftrial = fbest - hypot(frtol*fbest, fatol)
+                fboost = fbest - max(aboost, rboost*abs(fbest))
                 verb && printer(output, iter, eval, xbest, sgn*fbest, prec)
-                if prec ≤ hypot(xatol, xbest*xrtol)
+                if prec ≤ max(atol, rtol*abs(xbest))
                     status = :sufficient_precision
                     break
                 end
@@ -275,12 +307,12 @@ function _search(obj::Symbol, f, a::Tx, b::Tx, fa::Tf, qnan::Tq;
 
                 # Recompute all "difficulties".
                 this = list
-                w = sqrt(this.fx - ftrial)
+                w = sqrt(this.fx - fboost)
                 while true
                     next = this.next
                     e = next.x - this.x
                     e > zero(e) || break
-                    w′, w = w, sqrt(next.fx - ftrial)
+                    w′, w = w, sqrt(next.fx - fboost)
                     q = (w + w′)/e
                     if q < qmin
                         qmin = q
@@ -291,9 +323,9 @@ function _search(obj::Symbol, f, a::Tx, b::Tx, fa::Tf, qnan::Tq;
                 end
             else
                 # Compute the "difficulties" of the two new sub-intervals.
-                wa = sqrt(fa - ftrial)
-                wb = sqrt(fb - ftrial)
-                wc = sqrt(fc - ftrial)
+                wa = sqrt(fa - fboost)
+                wb = sqrt(fb - fboost)
+                wc = sqrt(fc - fboost)
                 e = (b - a)/2
                 split.q      = (wa + wc)/e
                 split.next.q = (wc + wb)/e
@@ -360,7 +392,7 @@ end
 function runtests()
     println("\n# Simple parabola:")
     (xbest, fbest, prec, n, st) = minimize(testParabola, -1, 2, verb=true,
-                                           maxeval=100, alpha=0, beta=0)
+                                           maxeval=100, atol=1e-12, rtol=0)
     println("x = $xbest ± $prec, f(x) = $fbest, ncalls = $n, status = $st")
 
     println("\n# Brent's 5th function:")
@@ -375,7 +407,7 @@ function runtests()
 
     println("\n# Michalewicz's 2nd function:")
     (xbest, fbest, prec, n, st) = maximize(testMichalewicz2, 0, pi, verb=true,
-                                           maxeval=1000, tol=(1e-12,0))
+                                           maxeval=1000, atol=1e-12, rtol=0)
     println("x = $xbest ± $prec, f(x) = $fbest, ncalls = $n, status = $st")
 end
 
