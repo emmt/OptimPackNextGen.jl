@@ -18,29 +18,50 @@
 # <https://github.com/emmt/OptimPackNextGen.jl>.
 #
 
-# FIXME: use priority queues
-# FIXME: fix estimation of precision (compared to Yorick version)
-# FIXME: make sure no other minima exist when precision test is satisfied
-
 module Step
-
-# Use the same floating point type for scalars as in OptimPackNextGen.
-import OptimPackNextGen.Float
 
 using Printf
 
 """
-    Step.minimize(f, a, b) -> (xbest, fbest, prec, n, st)
-    Step.maximize(f, a, b) -> (xbest, fbest, prec, n, st)
+    Step.minimize(f, a, b; kwds...) -> (xm, fm, prec, n, st)
 
-attempts to find a global minimum (resp. maximum) of `f(x)` in the interval
-`[a,b]` and returns its position `xbest`, the corresponding function value
-`fbest = f(xbest)`, the uncertainty `prec`, the number `n` of function
-evaluations needed to find it, and a symbolic status `st`. The status `st` is
-`:sufficient_precision` if a solution satisfying the convergence criterion has
-been found; otherwise, `st` is `:too_many_evaluations` to indicate that the
-required precision was not achieved after the maximum number of allowed
-function calls
+attempts to find a global minimum of `f(x)` in the interval `[a,b]` and returns
+its position `xm`, `fm = f(xm)`, the uncertainty `prec`, the number `n` of
+function evaluations, and a symbolic status `st`.
+
+See [`Step.search`](@ref) for possible values of `st` and for allowed keywords.
+See [`Step.maximize`](@ref) for searching for a global maximum.
+
+"""
+minimize(f, a, b; kwds...) = search(:min, f, a, b; kwds...)
+
+"""
+    Step.maximize(f, a, b; kwds...) -> (xm, fm, prec, n, st)
+
+attempts to find a global maximum of `f(x)` in the interval `[a,b]` and returns
+its position `xm`, `fm = f(xm)`, the uncertainty `prec`, the number `n` of
+function evaluations, and a symbolic status `st`.
+
+See [`Step.search`](@ref) for possible values of `st` and for allowed keywords.
+See [`Step.minimize`](@ref) for searching for a global minimum.
+
+"""
+maximize(f, a, b; kwds...) = search(:max, f, a, b; kwds...)
+
+"""
+    Step.search(obj::Symbol, f, a, b; kwds...) -> (xm, fm, prec, n, st)
+
+attempts to find a global extremum of the univariate function `f(x)` in the
+interval `[a,b]`. Objective `obj` can be `:min` (resp. `:max`) to search for
+ a global minimum (resp. maximum).
+
+The result is a 5-tuple with `xm` the position of the extremum, `fm = f(xm)`
+the corresponding function value, `prec` an upper bound on the absolute
+accuracy of the solution, `n` the number of function evaluations, and a
+symbolic termination status `st` (which is `:sufficient_precision` if a
+solution satisfying the convergence criterion has been found or
+`:too_many_evaluations` if the required precision was not achieved after the
+maximum number of allowed function calls).
 
 The algorithm is based on the STEP method described in:
 
@@ -49,44 +70,65 @@ The algorithm is based on the STEP method described in:
 > Proceedings of the First IEEE Conference on Evolutionary Computation, vol. 1,
 > pp. 519-524 (1994).
 
-The following optional keywords can be used:
+The following optional keywords can be specified:
 
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:
 
-      printer(io::IO, iter::Int, eval::Int, xbest, fbest, prec)
+      printer(io::IO, iter::Int, eval::Int, xm, fm, prec)
 
-  where `io` is the output stream, `iter` the iteration number (`iter = 0` for
-  the starting point), `eval` is the number of calls to `f`, `xbest` is the
-  best solution found so far, `fbest = f(xbest)` is the corresponding function
-  value, and `prec` is an upper bound on the absolute precision for the
-  solution.
+  with `io` the output stream, `iter` the iteration number (`iter = 0` for the
+  starting point), `eval` the number of calls to `f`, `xm` the best solution
+  found so far, `fm = f(xm)` the corresponding function value, and `prec` an
+  upper bound on the absolute accuracy of the solution. If the variable `x`
+  and/or the function value `f(x)` have units, these are discarded by the
+  default printer (`xm` and `prec` however always have the same units).
 
 * `output` specifies the output stream for printing information (`stdout` is
   used by default).
 
-"""
-minimize(f, a, b; kwds...) = search(:min, f, a, b; kwds...)
+See also [`Step.minimize`](@ref) and [`Step.maximize`](@ref).
 
-maximize(f, a, b; kwds...) = search(:max, f, a, b; kwds...)
-@doc @doc(minimize) maximize
+"""
+function search(obj::Symbol, f, a, b; kwds...)
+    # Convert ends of intial interval to a common floating-point type.
+    Tx = float(promote_type(typeof(a), typeof(b)))
+    a_ = convert(Tx, a)::Tx
+    b_ = convert(Tx, b)::Tx
+
+    # The low-level code requires that a ≤ b.
+    if a_ > b_
+        (a_, b_) = (b_, a_)
+    end
+
+    # Compute function value at leftmost ends of initial interval. This is to
+    # determine the type of function values and `qnan` a NaN with the same type
+    # as the "difficulty" of a sub-interval.
+    fa = float(f(a_))
+    qnan = sqrt(zero(fa))/zero(Tx)
+
+    # Call the algorithm with correctly typed parameters.
+    return _search(obj, f, a_, b_, fa, qnan; kwds...)
+end
 
 """
     Node(x, fx, q[, next]) -> node
 
 yields a node for the S.T.E.P. method at coordinate `x`, function value `fx =
-f(x)`, and quality factor `q`. The nodes form a cyclic chained list, the next
+f(x)`, and "difficulty" `q`. The nodes form a cyclic chained list, the next
 node of the new node may optionaly be specified.
 
 """
-mutable struct Node
-    x::Float  # position
-    fx::Float # function value
-    q::Float  # "quality" factor of the interval
-    next::Node
-    Node(x::Number, fx::Number, q::Number, next::Node) = new(x, fx, q, next)
-    function Node(x::Number, fx::Number, q::Number)
-        node = new(x, fx, q)
+mutable struct Node{Tx,Tf,Tq}
+    x::Tx  # position
+    fx::Tf # function value
+    q::Tq  # "quality" factor of the interval
+    next::Node{Tx,Tf,Tq}
+    function Node{Tx,Tf,Tq}(x, fx, q, next::Node{Tx,Tf,Tq}) where {Tx,Tf,Tq}
+        return new{Tx,Tf,Tq}(x, fx, q, next)
+    end
+    function Node{Tx,Tf,Tq}(x, fx, q) where {Tx,Tf,Tq}
+        node = new{Tx,Tf,Tq}(x, fx, q)
         node.next = node
         return node
     end
@@ -99,55 +141,55 @@ appends a new node with parameters `x`, `fx = f(x)`, and `q` to `node` and
 return it.
 
 """
-function Base.append!(node::Node, x::Number, fx::Number, q::Number)
-    next = Node(x, fx, q, node.next)
+function Base.append!(node::Node{Tx,Tf,Tq}, x, fx, q) where {Tx,Tf,Tq}
+    next = Node{Tx,Tf,Tq}(x, fx, q, node.next)
     node.next = next
     return next
 end
 
-# Default absolute and relative tolerances:
-const TOL = (floatmin(Float), sqrt(eps(Float)))
+# The following methods yield the default tolerances for variables of type Tx
+# and function values of type Tf. Tx and Tf may have units but must be
+# floating-point types.
+#
+# NOTE: See the inline documentation for `isapprox` about the difficulty to
+#       define a universal absolute tolerance.
+#
+# NOTE: We use one(T) to get rid of units and nextfloat(zero(T)) instead of
+#       floatmin(T) which does not support unitful quantities.
+default_xatol(Tx::Type) = nextfloat(zero(Tx))
+default_xrtol(Tx::Type) = sqrt(eps(one(Tx)))
+default_fatol(Tf::Type) = zero(Tf)
+default_frtol(Tf::Type) = zero(one(Tf))
 
-function search(obj::Symbol, f::Function, a::Real, b::Real;
-                maxeval::Integer=10000,
-                tol::NTuple{2,Real} = TOL,
-                alpha::Real=0.0, beta::Real=0.0,
-                kwds...)
-    return search(obj, f, Float(a), Float(b);
-                  maxeval = Int(maxeval),
-                  tol = (Float(tol[1]), Float(tol[2])),
-                  alpha = Float(alpha),
-                  beta = Float(beta),
-                  kwds...)
+for func in (:default_xatol, :default_xrtol, :default_fatol, :default_frtol)
+    @eval $func(arg) = $func(typeof(arg))
 end
 
-function search(obj::Symbol, f::Function, a::Float, b::Float;
-                maxeval::Int = 100000,
-                tol::NTuple{2,Float} = TOL,
-                alpha::Float=0.0, beta::Float=0.0,
-                verb::Bool = false,
-                printer = default_printer, output::IO = stdout)
-
+function _search(obj::Symbol, f, a::Tx, b::Tx, fa::Tf, qnan::Tq;
+                 maxeval::Integer = 10_000,
+                 tol::Tuple{Any,Any} = (default_xatol(Tx),
+                                        default_xrtol(Tx)),
+                 alpha = default_frtol(Tf),
+                 beta = default_fatol(Tf),
+                 verb::Bool = false,
+                 printer = default_printer,
+                 output::IO = stdout) where {Tx,Tf,Tq}
     maxeval ≥ 2 || error("parameter `maxeval` must be at least 2")
-    tol[1] ≥ 0 || error("absolute tolerance `tol[1]` must be nonnegative")
-    0 ≤ tol[2] ≤ 1 || error("relative tolerance `tol[2]` must be in [0,1]")
-    alpha ≥ 0 || error("parameter `alpha` must be nonnegative")
-    beta ≥ 0 || error("parameter `beta` must be nonnegative")
+    tol[1] ≥ zero(tol[1]) || error("absolute tolerance `xatol` must be nonnegative")
+    zero(tol[2]) ≤ tol[2] ≤ one(tol[2]) || error("relative tolerance `xrtol` must be in [0,1]")
+    alpha ≥ zero(alpha) || error("parameter `alpha` must be nonnegative")
+    beta ≥ zero(beta) || error("parameter `beta` must be nonnegative")
 
-    # The code requires that a ≤ b.
-    if a > b
-        (a, b) = (b, a)
-    end
+    # Convert tolerances to their correct types.
+    xatol = convert(Tx, tol[1])
+    xrtol = convert(typeof(one(Tx)), tol[2])
+    fatol = convert(Tf, beta)
+    frtol = convert(typeof(one(Tf)), alpha)
 
-    # Initial number of evaluations.
-    eval = 0
-
-    # Initial number of iterations.
+    # Initial number of iterations and of evaluations, f(a) has already been
+    # computed.
     iter = 0
-
-    # Evaluate function at leftmost ends of initial interval.
-    fa = float(f(a))
-    eval += 1
+    eval = 1
 
     # Set sign multiplier according to objective.
     sgn = one(fa)
@@ -175,9 +217,9 @@ function search(obj::Symbol, f::Function, a::Float, b::Float;
         fbest = fb
     end
     prec = b - a
-    ftrial = fbest - hypot(alpha*fbest, beta)
+    ftrial = fbest - hypot(frtol*fbest, fatol)
     verb && printer(output, iter, eval, xbest, sgn*fbest, prec)
-    if prec ≤ hypot(tol[1], xbest*tol[2])
+    if prec ≤ hypot(xatol, xbest*xrtol)
         status = :sufficient_precision
     elseif eval ≥ maxeval
         status = :too_many_evaluations
@@ -191,11 +233,12 @@ function search(obj::Symbol, f::Function, a::Float, b::Float;
     if status === :continue
         # Create initial chained list of nodes and manage to split the initial
         # interval.
-        list = Node(a, fa, NaN)
-        append!(list, b, fb, NaN)
+        list = Node{Tx,Tf,Tq}(a, fa, qnan)
+        append!(list, b, fb, qnan)
         split = list
 
-        # Iteration number of the last full update of priorities.
+        # Iteration number of the last full update of the "difficulties" of the
+        # sub-intervals.
         last_rehash = -1
 
         # Iterate until convergence or exceeding number of evaluations.
@@ -210,9 +253,9 @@ function search(obj::Symbol, f::Function, a::Float, b::Float;
                 xbest = c
                 fbest = fc
                 prec = (b - a)/2
-                ftrial = fbest - hypot(alpha*fbest, beta)
+                ftrial = fbest - hypot(frtol*fbest, fatol)
                 verb && printer(output, iter, eval, xbest, sgn*fbest, prec)
-                if prec ≤ hypot(tol[1], xbest*tol[2])
+                if prec ≤ hypot(xatol, xbest*xrtol)
                     status = :sufficient_precision
                     break
                 end
@@ -222,15 +265,15 @@ function search(obj::Symbol, f::Function, a::Float, b::Float;
                 break
             end
 
-            # Insert node c in chained list, update priorities, and find next
-            # sub-interval to split.
-            append!(split, c, fc, NaN)
+            # Insert node c in chained list, update "difficulties", and find
+            # next sub-interval to split.
+            append!(split, c, fc, qnan)
             qmin = typemax(list.q)
             if last_rehash < iter
                 # Do not rehash until next iteration.
                 last_rehash = iter
 
-                # Recompute all priorities.
+                # Recompute all "difficulties".
                 this = list
                 w = sqrt(this.fx - ftrial)
                 while true
@@ -247,7 +290,7 @@ function search(obj::Symbol, f::Function, a::Float, b::Float;
                     this = next
                 end
             else
-                # Compute the priorities of the two new sub-intervals.
+                # Compute the "difficulties" of the two new sub-intervals.
                 wa = sqrt(fa - ftrial)
                 wb = sqrt(fb - ftrial)
                 wc = sqrt(fc - ftrial)
@@ -282,7 +325,7 @@ function search(obj::Symbol, f::Function, a::Float, b::Float;
 end
 
 function default_printer(io::IO, iter::Int, eval::Int,
-                         xm::Float, fm::Float, prec::Float)
+                         xm::Tx, fm::Tf, prec::Tx) where {Tx,Tf}
     if eval < 3
         @printf(io, "# %s%s\n# %s%s\n",
                 "ITERS    EVALS              X         ",
@@ -290,7 +333,8 @@ function default_printer(io::IO, iter::Int, eval::Int,
                 "--------------------------------------",
                 "--------------------------------------")
     end
-    @printf(io, "%7d  %7d  %23.15e  %23.15e  %10.2e\n", iter, eval, xm, fm, prec)
+    @printf(io, "%7d  %7d  %23.15e  %23.15e  %10.2e\n", iter, eval,
+            xm/oneunit(Tx), fm/oneunit(Tf), prec/oneunit(Tx))
 end
 
 # Simple parabola.  To be minimized over [-1,2].
