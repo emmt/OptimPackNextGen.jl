@@ -14,28 +14,85 @@
 # This file is part of OptimPackNextGen.jl which is licensed under the MIT
 # "Expat" License.
 #
-# Copyright (C) 2014-2020, Éric Thiébaut.
+# Copyright (C) 2014-2023, Éric Thiébaut.
 #
 
 module BraDi
 
-using ..Brent: fmin_atol, fmin_rtol, fminbrkt
+using Unitless
+using ..Brent: fminbrkt, bad_argument
 
 """
-    BraDi.minimize([T=Float64,] f, x) -> (xbest, fbest)
-    BraDi.maximize([T=Float64,] f, x) -> (xbest, fbest)
+    BraDi.maximize([T,] f, x; kwds...) -> (xm, fm, nf)
 
-find the global minimum (resp. maximum) of an univariate function `f`.  The
-argument `x` is an abstract vector of coordinates in monotonic order; `x[1]`
-and `x[end]` are the endpoints of the global search interval and it is assumed
-that no more than a single local minimum lies in any subinterval
-`[x[i],x[i+2]]`.  The result is a tuple of 2-values: `xbest` the position of
-the global minimum and `fbest` the function value at this position.
+finds the global maximum of the univariate function `f` over the interval
+`[first(x),last(x)]` with `x` an abstract vector of values in monotonic order
+such that it can be assumed that no more than a single local maximum lies in
+any sub-interval `[x[i],x[i+2]]`. The result is a 3-tuple with `xm` the
+position of the global maximum, `fm = f(xm)`, and `nf` the number of function
+calls.
 
 Optional argument `T` is the floating-point type used for the computations.
+If unspecified, `T` is guessed from the type of the elements of `X`.
 
-If specified, keywords `atol` and `rtol` set the absolute and relative
-tolerances for the precision (see `Brent.fmin`).
+Keyword `period` may be used to specify the period of `f(x)` if it is a
+periodic function.
+
+Keywords `atol` and `rtol` may be used to specify the absolute and relative
+tolerances for the precision of the solution (see [`Brent.fmin`](@ref)).
+
+For example:
+
+    BraDi.maximize(f, range(a, b; length=n))
+
+performs a global search in the closed interval `[a,b]` which is sampled by `n`
+equally spaced points.
+
+This implements the BraDi ("Bracket" then "Dig") algorithm described in:
+
+> Ferréol Soulez, Éric Thiébaut, Michel Tallon, Isabelle Tallon-Bosc and Paulo
+> Garcia, "Optimal a posteriori fringe tracking in optical interferometry",
+> Proc. SPIE 9146, Optical and Infrared Interferometry IV, 91462Y (July 24,
+> 2014); doi:10.1117/12.2056590
+
+See also [`BraDi.minimize`](@ref), [`Brent.fmin`](@ref), and
+[`Step.minimize`](@ref).
+
+"""
+maximize(f, x::AbstractVector{<:Number}; kdws...) =
+    maximize(default_float(x), f, x; kdws...)
+
+# Simple structure to negate a callable object.
+struct Negate{F}
+    func::F
+end
+
+@inline (obj::Negate)(args...; kwds...) = -obj.func(args...; kwds...)
+
+function maximize(::Type{T}, f, x::AbstractVector{<:Number};
+                  kdws...) where {T<:AbstractFloat}
+    (xm, fm, nf) = minimize(T, Negate(f), x; kdws...)
+    return (xm, -fm, nf)
+end
+
+"""
+    BraDi.minimize([T,] f, X; kwds...) -> (xm, fm, nf)
+
+finds the global minimum of the univariate function `f` over the interval
+`[first(x),last(x)]` with `x` an abstract vector of values in monotonic order
+such that it can be assumed that no more than a single local minimum lies in
+any sub-interval `[x[i],x[i+2]]`. The result is a 3-tuple with `xm` the
+position of the global minimum, `fm = f(xm)`, and `nf` the number of function
+calls.
+
+Optional argument `T` is the floating-point type used for the computations.
+If unspecified, `T` is guessed from the type of the elements of `X`.
+
+Keyword `period` may be used to specify the period of `f(x)` if it is a
+periodic function.
+
+Keywords `atol` and `rtol` may be used to specify the absolute and relative
+tolerances for the precision of the solution (see [`Brent.fmin`](@ref)).
 
 For example:
 
@@ -44,63 +101,80 @@ For example:
 performs a global search in the closed interval `[a,b]` which is sampled by `n`
 equally spaced points.
 
-These functions implement the BraDi ("Bracket" then "Dig") algorithm described
-in:
+This implements the BraDi ("Bracket" then "Dig") algorithm described in:
 
 > Ferréol Soulez, Éric Thiébaut, Michel Tallon, Isabelle Tallon-Bosc and Paulo
 > Garcia, "Optimal a posteriori fringe tracking in optical interferometry",
 > Proc. SPIE 9146, Optical and Infrared Interferometry IV, 91462Y (July 24,
 > 2014); doi:10.1117/12.2056590
 
-See also `Brent.fmin` and `Step.minimize`.
+See also [`BraDi.maximize`](@ref), [`Brent.fmin`](@ref), and
+[`Step.minimize`](@ref).
 
 """
-minimize(f, x::AbstractVector{<:Real}; kdws...) =
-    minimize(Float64, f, x; kdws...)
+minimize(f, x::AbstractVector{<:Number}; kdws...) =
+    minimize(default_float(x), f, x; kdws...)
 
-maximize(f, x::AbstractVector{<:Real}; kdws...) =
-    maximize(Float64, f, x; kdws...)
+function minimize(::Type{T}, f, x::AbstractVector{<:Number};
+                  period::Union{Number,Nothing} = nothing,
+                  kwds...) where {T<:AbstractFloat}
+    # Check x in increasing or decreasing.
+    i_first, i_last = firstindex(x), lastindex(x)
+    len = i_last - i_first + 1
+    len ≥ 2 || bad_argument("insufficient number of coordinates")
+    if len > 2
+        flag = true
+        if x[i_first] < x[i_last]
+            @inbounds @simd for i in i_first:i_last-1
+                flag &= (x[i] < x[i+1])
+            end
+        elseif span < zero(span)
+            @inbounds @simd for i in i_first:i_last-1
+                flag &= (x[i] > x[i+1])
+            end
+        end
+        flag || bad_argument("values of `x` are not strictly decreasing or increasing")
+    end
 
-function minimize(::Type{T}, f, x::AbstractVector{<:Real};
-                  period::Union{Real,Nothing} = nothing,
-                  atol::Real = fmin_atol(T),
-                  rtol::Real = fmin_rtol(T)) where {T<:AbstractFloat}
-    _minimize(T, f, x, T(atol), T(rtol), _conv(T, period))
+    # If the function is periodic, check the period and set the sign of the
+    # period so that it can be used as and increment to move to next period.
+    if period !== nothing
+        (isfinite(period) && period != zero(period)) ||
+            bad_argument("invalid period")
+        span = x[i_last] - x[i_first]
+        (abs(period) > abs(span)) ||
+            bad_argument("period too small or spanned interval too large")
+        period = copysign(period, span)
+    end
+
+    # Extract first point and compute corresponding function value to determine
+    # types and then call private method with converted arguments.
+    Tx = convert_real_type(T, eltype(x))
+    x1 = convert(Tx, first(x))
+    f1 = convert_real_type(T, f(x1))
+    return _minimize(f, x, x1, f1, maybe_convert(Tx, period); kwds...)
 end
 
-_conv(::Type{T}, x::T) where {T} = x
-_conv(::Type{T}, x) where {T} = convert(T, x)
-_conv(::Type{T}, x::Nothing) where {T} = nothing
-
-function maximize(::Type{T}, f, x::AbstractVector{<:Real};
-                  kdws...) where {T<:AbstractFloat}
-    (xbest, fbest) = minimize(T, t -> -f(t), x; kdws...)
-    return (xbest, -fbest)
-end
-
-@doc @doc(minimize) maximize
-
-function _minimize(::Type{T}, f, x::AbstractVector{<:Real},
-                   atol::T, rtol::T, ::Nothing) where {T<:AbstractFloat}
-    # Check arguments.
-    _check_coordinates(x)
-
-    # Coordinate and functionn value of first point.
-    i1 = firstindex(x)
-    x1 = T(x[i1])
-    f1 = T(f(x1))
+# Aperiodic version.
+function _minimize(f, x::AbstractVector, x1::Tx, f1::Tf, ::Nothing;
+                   kwds...) where {Tx,Tf}
+    # Initialization.
+    i_first, i_last = firstindex(x), lastindex(x)
+    eval = 1 # f(first(x))
+    xbest = x1
+    fbest = f1
 
     # Bracket and dig along given points.
-    xbest = xb = xc = x1
-    fbest = fb = fc = f1
-    n = length(x)
-    for k in 1 : n
+    xb = xc = x1
+    fb = fc = f1
+    for i in i_first+1:i_last+1
         # Move to next triplet.
         xa, xb = xb, xc
         fa, fb = fb, fc
-        if k < n
-            xc = T(x[i1+k])
-            fc = T(f(xc))
+        if i ≤ i_last
+            xc = convert(Tx, x[i])
+            fc = convert(Tf, f(xc))
+            eval += 1
             if fc < fbest
                 xbest = xc
                 fbest = fc
@@ -108,63 +182,53 @@ function _minimize(::Type{T}, f, x::AbstractVector{<:Real},
         end
         if fa ≥ fb ≤ fc
             # A minimum is bracketed in `[xa,xc]`.
-            xm, fm = fminbrkt(f, xb, fb, xa, fa, xc, fc, atol, rtol)
+            xm, fm, lo, hi, nf = fminbrkt(f, xb, fb, xa, fa, xc, fc; kwds...)
+            eval += nf
             if fm < fbest
                 xbest = xm
                 fbest = fm
             end
         end
     end
-    return (xbest, fbest)
+    return (xbest, fbest, eval)
 end
 
-function _minimize(::Type{T}, f, x::AbstractVector{<:Real},
-                   atol::T, rtol::T, period::T) where {T<:AbstractFloat}
-    # Check arguments.
-    span = _check_coordinates(x)
-    (isfinite(period) && period != 0) ||
-        throw(ArgumentError("invalid period"))
-    (abs(period) > abs(span)) ||
-        throw(ArgumentError("period too small or spanned interval too large"))
+# Periodic version.
+function _minimize(f, x::AbstractVector, x1::Tx, f1::Tf, period::Tx;
+                   kwds...) where {Tx,Tf}
 
-    # Set the sign of the period so that it can be used as and increment to
-    # move to next period.
-    if span > 0
-        period = +abs(period)
+    # Position of 2nd point and corresponding function value.
+    i_first, i_last = firstindex(x), lastindex(x)
+    x2 = convert(Tx, x[i_first+1])
+    f2 = convert(Tf, f(x2))
+    eval = 2
+
+    # Best initial solution.
+    if f1 < f2
+        xbest = x1
+        fbest = f1
     else
-        period = -abs(period)
+        xbest = x2
+        fbest = f2
     end
-
-    # Coordinates and function values at the 2 first points.
-    i1 = firstindex(x)
-    x1 = T(x[i1])
-    f1 = T(f(x1))
-    x2 = T(x[i1+1])
-    f2 = T(f(x2))
 
     # Bracket and dig along given points plus 2 extra ones to overlap the next
     # period.
-    xb, fb = x1, f1
-    xc, fc = x2, f2
-    if fb < fb
-        xbest, fbest = xb, fb
-    else
-        xbest, fbest = xc, fc
-    end
-    n = length(x)
-    wa, wb = x1, x1 + period # endpoints of wrapping interval
-    for k in 2 : n + 1
-        # Move to next triplet (periodically).
+    xb, xc = x1, x2
+    fb, fc = f1, f2
+    for i in i_first+2:i_last+2
+        # Move to next triplet (periodically). Points a, b, and c are distinct.
         xa, xb = xb, xc
         fa, fb = fb, fc
-        if k < n
-            xc = T(x[i1+k])
-            fc = T(f(xc))
+        if i ≤ i_last
+            xc = convert(Tx, x[i])
+            fc = convert(Tf, f(xc))
+            eval += 1
             if fc < fbest
                 xbest = xc
                 fbest = fc
             end
-        elseif k == n
+        elseif i == i_last+1
             xc = x1 + period
             fc = f1
         else
@@ -173,52 +237,25 @@ function _minimize(::Type{T}, f, x::AbstractVector{<:Real},
         end
         if fa ≥ fb ≤ fc
             # A minimum is bracketed in `[xa,xc]`.
-            xm, fm = fminbrkt(f, xb, fb, xa, fa, xc, fc, atol, rtol)
+            xm, fm, hi, lo, nf = fminbrkt(f, xb, fb, xa, fa, xc, fc; kwds...)
+            eval += nf
             if fm < fbest
-                # Update best solution so far, taking care of wrapping the coordinate
-                # in the correct interval.
-                if k < n || (wa < wb ? wa ≤ xm < wb : wb < xm ≤ wa)
-                    xbest = xm
-                else
-                    xbest = xm - period
-                end
+                xbest = xm
                 fbest = fm
             end
         end
     end
-    return (xbest, fbest)
+    if abs(xbest - x1) ≥ abs(period)
+        # Unwrap position of the solution.
+        xbest -= period
+    end
+    return (xbest, fbest, eval)
 end
 
-function _check_coordinates(x::AbstractVector{<:Real})
-    len = length(x)
-    len ≥ 2 || throw(ArgumentError("insufficient number of coordinates"))
-    if len ≥ 2
-        i_first = firstindex(x)
-        i_last = lastindex(x)
-        span = x[i_last] - x[i_first]
-        if span > 0
-            flag = true
-            if len > 2
-                @inbounds @simd for i in i_first:i_last-1
-                    flag &= (x[i] < x[i+1])
-                end
-            end
-            if flag
-                return span
-            end
-        elseif span < 0
-            flag = true
-            if len > 2
-                @inbounds @simd for i in i_first:i_last-1
-                    flag &= (x[i] > x[i+1])
-                end
-            end
-            if flag
-                return span
-            end
-        end
-    end
-    throw(ArgumentError("coordinates are not strictly decreasing or increasing"))
-end
+default_float(x::AbstractVector) = floating_point_type(eltype(x))
+
+maybe_convert(::Type{T}, x::T) where {T} = x
+maybe_convert(::Type{T}, x) where {T} = convert(T, x)
+maybe_convert(::Type{T}, x::Nothing) where {T} = nothing
 
 end # module
