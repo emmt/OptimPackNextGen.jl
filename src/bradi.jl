@@ -118,20 +118,20 @@ minimize(f, x::AbstractVector{<:Number}; kdws...) =
 function minimize(::Type{T}, f, x::AbstractVector{<:Number};
                   period::Union{Number,Nothing} = nothing,
                   kwds...) where {T<:AbstractFloat}
-    # Check x in increasing or decreasing.
+    # Check that x is in strict increasing or decreasing order.
     i_first, i_last = firstindex(x), lastindex(x)
-    len = i_last - i_first + 1
-    len ≥ 2 || bad_argument("insufficient number of coordinates")
-    if len > 2
+    if i_first < i_last
         flag = true
         if x[i_first] < x[i_last]
             @inbounds @simd for i in i_first:i_last-1
                 flag &= (x[i] < x[i+1])
             end
-        elseif span < zero(span)
+        elseif x[i_first] > x[i_last]
             @inbounds @simd for i in i_first:i_last-1
                 flag &= (x[i] > x[i+1])
             end
+        else
+            flag = false
         end
         flag || bad_argument("values of `x` are not strictly decreasing or increasing")
     end
@@ -142,24 +142,28 @@ function minimize(::Type{T}, f, x::AbstractVector{<:Number};
         (isfinite(period) && period != zero(period)) ||
             bad_argument("invalid period")
         span = x[i_last] - x[i_first]
-        (abs(period) > abs(span)) ||
-            bad_argument("period too small or spanned interval too large")
+        if abs(period) ≤ abs(span)
+            abs(period) < abs(span) &&
+                bad_argument("period too small or spanned interval too large")
+            i_last -= 1 # discard last point
+        end
         period = copysign(period, span)
     end
+
+    length(i_first:i_last) ≥ 2 || bad_argument("insufficient number of coordinates")
 
     # Extract first point and compute corresponding function value to determine
     # types and then call private method with converted arguments.
     Tx = convert_real_type(T, eltype(x))
     x1 = convert(Tx, first(x))
     f1 = convert_real_type(T, f(x1))
-    return _minimize(f, x, x1, f1, maybe_convert(Tx, period); kwds...)
+    return _minimize(f, x, i_first, i_last, x1, f1, maybe_convert(Tx, period); kwds...)
 end
 
 # Aperiodic version.
-function _minimize(f, x::AbstractVector, x1::Tx, f1::Tf, ::Nothing;
-                   kwds...) where {Tx,Tf}
+function _minimize(f, x::AbstractVector, i_first::Int, i_last::Int,
+                   x1::Tx, f1::Tf, ::Nothing; kwds...) where {Tx,Tf}
     # Initialization.
-    i_first, i_last = firstindex(x), lastindex(x)
     eval = 1 # f(first(x))
     xbest = x1
     fbest = f1
@@ -194,11 +198,9 @@ function _minimize(f, x::AbstractVector, x1::Tx, f1::Tf, ::Nothing;
 end
 
 # Periodic version.
-function _minimize(f, x::AbstractVector, x1::Tx, f1::Tf, period::Tx;
-                   kwds...) where {Tx,Tf}
-
+function _minimize(f, x::AbstractVector, i_first::Int, i_last::Int,
+                   x1::Tx, f1::Tf, period::Tx; kwds...) where {Tx,Tf}
     # Position of 2nd point and corresponding function value.
-    i_first, i_last = firstindex(x), lastindex(x)
     x2 = convert(Tx, x[i_first+1])
     f2 = convert(Tf, f(x2))
     eval = 2
