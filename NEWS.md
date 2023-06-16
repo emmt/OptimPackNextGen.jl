@@ -1,5 +1,15 @@
 # User visible changes in `OptimPackNextGen` package
 
+- Methods for univariate functions `Brent.fzero`, `Brent.fmin`,
+  `Brent.fminbrkt`, `BraDi.minimize`, and `BraDi.maximize` have changed as
+  follows:
+  - `x` and `f(x)` may have units.
+  - The floating-point type for computations is not `Float64` by default but
+    determined from the types of the specified numerical arguments.
+  - The number of function calls has been appended to the tuple returned by
+    these methods.
+
+
 ## Version 0.4.0
 
 - The STEP method for finding a global minimum or maximum of an univariate

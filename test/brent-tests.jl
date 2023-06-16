@@ -25,7 +25,7 @@ fzero_test1(x::Real) = (cnt[] += 1; exp(x)/2 - 5x + 2)
 params(::typeof(fzero_test1)) = (1, 4, NaN)
 
 fzero_test2(x::Real) = (cnt[] += 1;
-                                 -2x^4 + 2x^3 - 16x^2 - 60x + 100)
+                        -2x^4 + 2x^3 - 16x^2 - 60x + 100)
 params(::typeof(fzero_test2)) = (0, 4, NaN)
 
 fzero_test3(x::Real) = (cnt[] += 1; exp(x)*cos(x) - x*sin(x))
@@ -100,11 +100,12 @@ verb = true
             atol = (x0 == 0 ? eps(T) : Brent.fzero_atol(T))
             prec = sqrt(eps(T))
             cnt[] = 0
-            (x, fx) = if T === Float64
-                fzero(f, a, b; rtol = rtol, atol = atol)
+            (x, fx, n) = if T === Float64
+                @inferred fzero(f, a, b; rtol = rtol, atol = atol)
             else
-                fzero(T, f, a, b; rtol = rtol, atol = atol)
+                @inferred fzero(T, f, a, b; rtol = rtol, atol = atol)
             end
+            @test n == cnt[]
             if verb
                 if k ≤ 8
                     name = "fzero_test$k"
@@ -112,26 +113,28 @@ verb = true
                     name = "fzero_gsl$(k - 8)"
                 end
                 @printf("%-12s T = %s, n = %3d, x = % .15f, f(x) = % .15f\n",
-                        name, repr(T), cnt[], x, fx)
+                        name, repr(T), n, x, fx)
             end
             @test abs(fx) ≈ zero(T) rtol=zero(T) atol=prec
             if !isnan(x0)
                 @test x ≈ T(x0) rtol=rtol atol=atol
             end
             fa = f(a)
-            (x1, f1) =  if T === Float64
-                fzero(f, a, fa, b; rtol = rtol, atol = atol)
+            (x1, f1, n1) =  if T === Float64
+                @inferred fzero(f, a, fa, b; rtol = rtol, atol = atol)
             else
-                fzero(T, f, a, fa, b; rtol = rtol, atol = atol)
+                @inferred fzero(T, f, a, fa, b; rtol = rtol, atol = atol)
             end
             @test x1 == x
+            @test n1 == n - 1
             fb = f(b)
-            (x2, f2) =  if T === Float64
-                fzero(f, a, fa, b, fb; rtol = rtol, atol = atol)
+            (x2, f2, n2) =  if T === Float64
+                @inferred fzero(f, a, fa, b, fb; rtol = rtol, atol = atol)
             else
-                fzero(T, f, a, fa, b, fb; rtol = rtol, atol = atol)
+                @inferred fzero(T, f, a, fa, b, fb; rtol = rtol, atol = atol)
             end
             @test x2 == x
+            @test n2 == n - 2
         end
         k += 1
     end
@@ -148,15 +151,16 @@ end
             rtol = Brent.fmin_rtol(T)
 
             cnt[] = 0
-            (xm, fm, lo, hi) = if T === Float64
-                fmin(f, bounds(f)...)
+            (xm, fm, lo, hi, n) = if T === Float64
+                @inferred fmin(f, bounds(f)...)
             else
-                fmin(T, f, bounds(f)...)
+                @inferred fmin(T, f, bounds(f)...)
             end
+            @test cnt[] == n
             (xm_true, fm_true) = solution(f)
             if verb
                 println("Problem $id (T=$T):")
-                @printf(" ├─ nevals = %d\n", cnt[])
+                @printf(" ├─ nevals = %d\n", n)
                 @printf(" ├─ x_approx = %.15f ± %.3e\n", xm, (hi - lo)/2)
                 @printf(" ├─ x_true   = %.15f\n", xm_true)
                 @printf(" ├─ x_error  = %.3e\n", abs(xm - xm_true))
