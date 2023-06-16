@@ -25,6 +25,35 @@ function Problem(name::AbstractString,
     return Problem(name, f, range, period, xmin, xmax)
 end
 
+# Helper function for computing the solutions with a very high precision.
+solve(p::Problem; kwds...) = solve(BigFloat, p; kwds...)
+function solve(::Type{T}, p::Problem; atol=eps(T), rtol=sqrt(eps(T))) where {T<:AbstractFloat}
+    periodic = !isnan(p.period)
+    f = p.f
+    n = length(p.range)
+    if periodic
+        # Force drop last sample otherwise a wrong solution is found with
+        # T=BigFloat or an error may be thrown with T=Float32 due to rounding
+        # errors (the problems are initialized by Float64 values).
+        period = T(p.period)
+        a = -period/2
+        b =  period/2 - period/(n - 1)
+        n -= 1
+    else
+        period = T(NaN)
+        a = T(first(p.range))
+        b = T(last(p.range))
+    end
+    r = range(start = a, stop = b, length = n)
+    opts = (period = period, atol = T(atol), rtol = T(rtol))
+    println(p.name, ":")
+    s = BraDi.minimize(f, r; opts...)
+    println("xmin: ", s[1])
+    s = BraDi.maximize(f, r; opts...)
+    println("xmax: ", s[1])
+    nothing
+end
+
 # Simple parabola. To be minimized over [-1,2].
 const parabola = Problem(
     "x^2",
@@ -37,28 +66,31 @@ const brent5 = Problem(
     "Brent's 5th function",
     (x) -> (x - sin(x))*exp(-x*x),
     range(start=-10, stop=10, length=5),
-    xmin = -1.1951366418407416)
+    xmin = -1.1951366417566607,
+    xmax =  1.1951366417566607)
 
 # Michalewicz's 1st function.  To be minimized over [-1,2].
 const michalewicz1 = Problem(
     "Michalewicz's 1st function",
-    (x) -> x*sin(10.0*x),
+    (x) -> x*sin(10x),
     range(start=1, stop=2, length=21),
-    xmin = 1.7336377815999973)
+    xmin = 1.7336377923983361,
+    xmax = 2.0)
 
 # Michalewicz's 2nd function.  To be maximized over [0,pi].
 const michalewicz2 = Problem(
     "Michalewicz's 2nd function",
     (x) -> begin
-        s = 0.0
         a = sin(x)
         b = x*x/pi
+        s = zero(b)
         for i in 1:10
             s += a*(sin(b*i)^20)
         end
         return s
     end,
     range(start=0, stop=π, length=60),
+    xmin = 0.0,
     xmax = 2.2208651539586493)
 
 struct MultiFringe{T<:AbstractFloat} <: Function
@@ -79,8 +111,8 @@ const fringes1 = Problem(
     MultiFringe(1, 2, 50, 3),
     range(start=-π, stop=π, length=101),
     period = 2π,
-    xmax = 1.944966601611255,
-    xmin = 2.007785888040201)
+    xmin = 2.007785888040201,
+    xmax = 1.944966601611255)
 
 # This one has a global maximum a bit larger than -π and a global minimum a bit
 # smaller than π, so it is perfect to test behavior at the edges of the search
@@ -90,8 +122,8 @@ const fringes2 = Problem(
     MultiFringe(1, π, 50, 1//5),
     range(start=-π, stop=π, length=101),
     period = 2π,
-    xmax = -3.137593453430891,
-    xmin =  3.082772567926711)
+    xmin =  3.082772567926711,
+    xmax = -3.137593453430891)
 
 # This one has a global minimum a bit larger than -π and a global maximum a bit
 # smaller than π so perfect to test behavior at the edges of the search
@@ -101,8 +133,8 @@ const fringes3 = Problem(
     MultiFringe(1, π, 50, -1//5),
     range(start=-π, stop=π, length=101),
     period = 2π,
-    xmax =  3.137593453430891,
-    xmin = -3.082772567926711)
+    xmin = -3.082772567926711,
+    xmax =  3.137593453430891) # FIXME: yield wrong xmax with with BigFloat
 
 const problems = (parabola, brent5, michalewicz1, michalewicz2,
                   fringes1, fringes2, fringes3)
