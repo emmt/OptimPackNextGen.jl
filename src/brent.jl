@@ -438,7 +438,8 @@ Other variables need not be saved, notably:
 Thus the main loop of Brent's algorithm can be entered with any `x`, `w`, `v`
 (not necessarily distinct) which are in `[a,b]` and such that:
 
-    fx = f(x)  ≤  fw = f(w)  ≤  fv = f(v)
+    fx = f(x)  ≤  fw = f(w)
+    |x - w| ≤ |x - v|           (to avoid a tie)
 
 other internal variables are:
 
