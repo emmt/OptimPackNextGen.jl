@@ -35,8 +35,8 @@ calls.
 Optional argument `T` is the floating-point type used for the computations.
 If unspecified, `T` is guessed from the type of the elements of `X`.
 
-Keyword `period` may be used to specify the period of `f(x)` if it is a
-periodic function.
+Specify keyword `periodic = true` if `f(x)` is a periodic function of period
+`b - a` with `a = minimum(x)` and `b = maximum(x)`.
 
 Keywords `atol` and `rtol` may be used to specify the absolute and relative
 tolerances for the precision of the solution (see [`Brent.fmin`](@ref)).
@@ -88,8 +88,8 @@ calls.
 Optional argument `T` is the floating-point type used for the computations.
 If unspecified, `T` is guessed from the type of the elements of `X`.
 
-Keyword `period` may be used to specify the period of `f(x)` if it is a
-periodic function.
+Specify keyword `periodic = true` if `f(x)` is a periodic function of period
+`b - a` with `a = minimum(x)` and `b = maximum(x)`.
 
 Keywords `atol` and `rtol` may be used to specify the absolute and relative
 tolerances for the precision of the solution (see [`Brent.fmin`](@ref)).
@@ -116,66 +116,47 @@ minimize(f, x::AbstractVector{<:Number}; kdws...) =
     minimize(default_float(x), f, x; kdws...)
 
 function minimize(::Type{T}, f, x::AbstractVector{<:Number};
-                  period::Union{Number,Nothing} = nothing,
+                  periodic::Bool = false,
                   kwds...) where {T<:AbstractFloat}
-    # Check that x is in strict increasing or decreasing order.
-    i_first, i_last = firstindex(x), lastindex(x)
-    if i_first < i_last
-        flag = true
-        if x[i_first] < x[i_last]
-            @inbounds @simd for i in i_first:i_last-1
-                flag &= (x[i] < x[i+1])
-            end
-        elseif x[i_first] > x[i_last]
-            @inbounds @simd for i in i_first:i_last-1
-                flag &= (x[i] > x[i+1])
-            end
-        else
-            flag = false
-        end
-        flag || bad_argument("values of `x` are not strictly decreasing or increasing")
-    end
-
-    # If the function is periodic, check the period and set the sign of the
-    # period so that it can be used as and increment to move to next period.
-    if period !== nothing
-        (isfinite(period) && period != zero(period)) ||
-            bad_argument("invalid period")
-        span = x[i_last] - x[i_first]
-        if abs(period) ≤ abs(span)
-            abs(period) < abs(span) &&
-                bad_argument("period too small or spanned interval too large")
-            i_last -= 1 # discard last point
-        end
-        period = copysign(period, span)
-    end
-
-    length(i_first:i_last) ≥ 2 || bad_argument("insufficient number of coordinates")
+    # Check that x is in strict increasing or decreasing order and that enough
+    # points are given.
+    ismonotonic(x) || bad_argument("values of `x` are not strictly decreasing or increasing")
+    length(x) ≥ (periodic ? 3 : 2) || bad_argument("insufficient number of values in `x`")
 
     # Extract first point and compute corresponding function value to determine
     # types and then call private method with converted arguments.
     Tx = convert_real_type(T, eltype(x))
     x1 = convert(Tx, first(x))
     f1 = convert_real_type(T, f(x1))
-    return _minimize(f, x, i_first, i_last, x1, f1, maybe_convert(Tx, period); kwds...)
-end
-
-# Aperiodic version.
-function _minimize(f, x::AbstractVector, i_first::Int, i_last::Int,
-                   x1::Tx, f1::Tf, ::Nothing; kwds...) where {Tx,Tf}
-    # Initialization.
+    Tf = eltype(f1)
     eval = 1 # f(first(x))
     xbest = x1
     fbest = f1
+    i_first, i_last = firstindex(x), lastindex(x)
+    if periodic
+        # Position of 2nd point and corresponding function value.
+        x2 = convert(Tx, x[i_first+1])
+        f2 = convert(Tf, f(x2))
+        eval += 1
+        if f2 < f1
+            xbest = x2
+            fbest = f2
+        end
+        xb, xc = x1, x2
+        fb, fc = f1, f2
+        k = i_last - 1 # f(x[n]) = f(x[1]), so no needs to call f for the last point
+    else
+        xb = xc = x1
+        fb = fc = f1
+        k = i_last
+    end
 
     # Bracket and dig along given points.
-    xb = xc = x1
-    fb = fc = f1
-    for i in i_first+1:i_last+1
-        # Move to next triplet.
+    for i in i_first+eval:i_last+1
+        # Move to next triplet. Points a, b, and c are distinct.
         xa, xb = xb, xc
         fa, fb = fb, fc
-        if i ≤ i_last
+        if i ≤ k
             xc = convert(Tx, x[i])
             fc = convert(Tf, f(xc))
             eval += 1
@@ -183,59 +164,14 @@ function _minimize(f, x::AbstractVector, i_first::Int, i_last::Int,
                 xbest = xc
                 fbest = fc
             end
-        end
-        if fa ≥ fb ≤ fc
-            # A minimum is bracketed in `[xa,xc]`.
-            xm, fm, lo, hi, nf = fminbrkt(f, xb, fb, xa, fa, xc, fc; kwds...)
-            eval += nf
-            if fm < fbest
-                xbest = xm
-                fbest = fm
+        elseif periodic
+            if i == i_last
+                xc = x[i_last]
+                fc = f1
+            else
+                xc = x[i_last] + (x2 - x1)
+                fc = f2
             end
-        end
-    end
-    return (xbest, fbest, eval)
-end
-
-# Periodic version.
-function _minimize(f, x::AbstractVector, i_first::Int, i_last::Int,
-                   x1::Tx, f1::Tf, period::Tx; kwds...) where {Tx,Tf}
-    # Position of 2nd point and corresponding function value.
-    x2 = convert(Tx, x[i_first+1])
-    f2 = convert(Tf, f(x2))
-    eval = 2
-
-    # Best initial solution.
-    if f1 < f2
-        xbest = x1
-        fbest = f1
-    else
-        xbest = x2
-        fbest = f2
-    end
-
-    # Bracket and dig along given points plus 2 extra ones to overlap the next
-    # period.
-    xb, xc = x1, x2
-    fb, fc = f1, f2
-    for i in i_first+2:i_last+2
-        # Move to next triplet (periodically). Points a, b, and c are distinct.
-        xa, xb = xb, xc
-        fa, fb = fb, fc
-        if i ≤ i_last
-            xc = convert(Tx, x[i])
-            fc = convert(Tf, f(xc))
-            eval += 1
-            if fc < fbest
-                xbest = xc
-                fbest = fc
-            end
-        elseif i == i_last+1
-            xc = x1 + period
-            fc = f1
-        else
-            xc = x2 + period
-            fc = f2
         end
         if fa ≥ fb ≤ fc
             # A minimum is bracketed in `[xa,xc]`.
@@ -247,17 +183,38 @@ function _minimize(f, x::AbstractVector, i_first::Int, i_last::Int,
             end
         end
     end
-    if abs(xbest - x1) ≥ abs(period)
+    if periodic
         # Unwrap position of the solution.
-        xbest -= period
+        a, b = minmax(x1, x[i_last])
+        if xbest > b
+            xbest = a + mod(xbest - b, b - a)
+        end
     end
     return (xbest, fbest, eval)
 end
 
-default_float(x::AbstractVector) = floating_point_type(eltype(x))
 
-maybe_convert(::Type{T}, x::T) where {T} = x
-maybe_convert(::Type{T}, x) where {T} = convert(T, x)
-maybe_convert(::Type{T}, x::Nothing) where {T} = nothing
+ismonotonic(x::AbstractRange) = !iszero(step(x))
+
+function ismonotonic(x::AbstractVector)
+    flag = true
+    i_first, i_last = firstindex(x), lastindex(x)
+    if i_first < i_last
+        if x[i_first] < x[i_last]
+            @inbounds @simd for i in i_first:i_last-1
+                flag &= (x[i] < x[i+1])
+            end
+        elseif x[i_first] > x[i_last]
+            @inbounds @simd for i in i_first:i_last-1
+                flag &= (x[i] > x[i+1])
+            end
+        else
+            flag = false
+        end
+    end
+    return flag
+end
+
+default_float(x::AbstractVector) = floating_point_type(eltype(x))
 
 end # module

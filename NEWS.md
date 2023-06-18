@@ -8,6 +8,9 @@
     determined from the types of the specified numerical arguments.
   - The number of function calls has been appended to the tuple returned by
     these methods.
+  - The keyword `period` of `BraDi.minimize` and `BraDi.maximize` has been
+    replaced by `peridoc` which is a Boolean, the period being given by the
+    distance between the extreme values of `x`.
 
 
 ## Version 0.4.0
