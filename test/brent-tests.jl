@@ -9,7 +9,7 @@ using Test, Printf
 using OptimPackNextGen.Brent
 
 include("fzero-tests.jl")
-@testset "Brent fzero" FZeroTests.runtests(verb=false)
+@testset "Brent fzero" FzeroTests.runtests(verb=false)
 
 # Counter of function evaluations.
 const cnt = Ref{Int}(0)
