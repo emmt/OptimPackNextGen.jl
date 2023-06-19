@@ -20,7 +20,7 @@
 module BraDi
 
 using Unitless
-using ..Brent: fminbrkt, bad_argument
+using ..Brent: ChangeSign, fminbrkt, bad_argument
 
 """
     BraDi.maximize([T,] f, x; kwds...) -> (xm, fm, nf)
@@ -62,16 +62,9 @@ See also [`BraDi.minimize`](@ref), [`Brent.fmin`](@ref), and
 maximize(f, x::AbstractVector{<:Number}; kdws...) =
     maximize(default_float(x), f, x; kdws...)
 
-# Simple structure to negate a callable object.
-struct Negate{F}
-    func::F
-end
-
-@inline (obj::Negate)(args...; kwds...) = -obj.func(args...; kwds...)
-
 function maximize(::Type{T}, f, x::AbstractVector{<:Number};
                   kdws...) where {T<:AbstractFloat}
-    (xm, fm, nf) = minimize(T, Negate(f), x; kdws...)
+    (xm, fm, nf) = minimize(T, ChangeSign(f), x; kdws...)
     return (xm, -fm, nf)
 end
 

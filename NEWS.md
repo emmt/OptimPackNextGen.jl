@@ -1,5 +1,7 @@
 # User visible changes in `OptimPackNextGen` package
 
+- New methods `Brent.fmax` and `Brent.fmaxbrkt`.
+
 - Methods for univariate functions `Brent.fzero`, `Brent.fmin`,
   `Brent.fminbrkt`, `BraDi.minimize`, and `BraDi.maximize` have changed as
   follows:

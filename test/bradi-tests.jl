@@ -27,7 +27,7 @@ function Problem(name::AbstractString,
     return Problem(name, f, BigFloat(a), BigFloat(b), n, periodic, xmin, xmax)
 end
 
-# Helper function for computing the solutions with a very high precision.
+# Helper function for computing the solutions with a given (very high by default) precision.
 solve(p::Problem; kwds...) = solve(BigFloat, p; kwds...)
 function solve(::Type{T}, p::Problem; atol=eps(T), rtol=sqrt(eps(T))) where {T<:AbstractFloat}
     f = p.f

@@ -18,7 +18,7 @@
 
 module Brent
 
-export fzero, fmin, fminbrkt
+export fzero, fmin, fmax, fminbrkt, fmaxbrkt
 
 using Base: @pure
 using Unitless
@@ -294,123 +294,137 @@ a slightly modified translation of the Algol 60 procedure LOCALMIN given in:
 @inline fmin(f, a::Number, b::Number, args::Number...; kwds...) =
     fmin(fmin_float(a, b, args...), f, a, b, args...; kwds...)
 
-function fmin(::Type{T}, f, a::Number, b::Number; kwds...) where {T<:AbstractFloat}
-    # Determine suitable type for the variables in the computations.
-    Tx = convert_real_type(T, promote_typeof(a, b))
+"""
+    fmax([T,] f, a, b, args...; kwds...) -> (xm, fm, lo, hi, nf)
 
-    # Get tolerances.
-    atol, rtol = fmin_tolerances(Tx; kwds...)
+applies Brent's algorithm to find a local maximum of the function `f(x)` in the
+interval `[a,b]`. See [`fmin`](@ref) for details.
 
-    # Convert input values.
-    a = convert(Tx, a)
-    b = convert(Tx, b)
+"""
+@inline fmax(f, a::Number, b::Number, args::Number...; kwds...) =
+    fmax(fmin_float(a, b, args...), f, a, b, args...; kwds...)
 
-    # Order end points of search interval.
-    if a > b
-        a, b = b, a
+for (func, lt) in ((:fmin, :(<)), (:fmax, :(>)))
+
+    @eval function $func(::Type{T}, f, a::Number, b::Number; kwds...) where {T<:AbstractFloat}
+        # Determine suitable type for the variables in the computations.
+        Tx = convert_real_type(T, promote_typeof(a, b))
+
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(Tx; kwds...)
+
+        # Convert input values.
+        a = convert(Tx, a)
+        b = convert(Tx, b)
+
+        # Order end points of search interval.
+        if a > b
+            a, b = b, a
+        end
+
+        # Initialize the search with a point in the interval.
+        x = a + goldstep(T)*(b - a)
+        fx = convert_real_type(T, f(x))
+
+        # Run Brent's algorithm.
+        return $(Symbol(:_,func))(f, a, b, x, fx, x, fx, x, fx, atol, rtol, 1)
     end
 
-    # Initialize the search with a point in the interval.
-    x = a + goldstep(T)*(b - a)
-    fx = convert_real_type(T, f(x))
+    @eval function $func(::Type{T}, f, a::Number, b::Number,
+                         x::Number, fx::Number;
+                         kwds...) where {T<:AbstractFloat}
+        # Determine suitable types for the variables and for the function values in
+        # the computations.
+        Tx = convert_real_type(T, promote_typeof(a, b, x))
+        Tf = convert_real_type(T, promote_typeof(fx))
 
-    # Run Brent's algorithm.
-    return _fmin(f, a, b, x, fx, x, fx, x, fx, atol, rtol, 1)
-end
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(Tx; kwds...)
 
-function fmin(::Type{T}, f, a::Number, b::Number,
-              x::Number, fx::Number;
-              kwds...) where {T<:AbstractFloat}
-    # Determine suitable types for the variables and for the function values in
-    # the computations.
-    Tx = convert_real_type(T, promote_typeof(a, b, x))
-    Tf = convert_real_type(T, promote_typeof(fx))
+        # Convert input values.
+        a, b = convert(Tx, a), convert(Tx, b)
+        x, fx = convert(Tx, x), convert(Tf, fx)
 
-    # Get tolerances.
-    atol, rtol = fmin_tolerances(Tx; kwds...)
+        # Order end points of search interval and check initial x.
+        if a > b
+            a, b = b, a
+        end
+        (a ≤ x ≤ b) || bad_argument("given point `x` is not inside the search interval `[a,b]`")
 
-    # Convert input values.
-    a, b = convert(Tx, a), convert(Tx, b)
-    x, fx = convert(Tx, x), convert(Tf, fx)
-
-    # Order end points of search interval and check initial x.
-    if a > b
-        a, b = b, a
+        # Run Brent's algorithm.
+        return $(Symbol(:_,func))(f, a, b, x, fx, x, fx, x, fx, atol, rtol)
     end
-    (a ≤ x ≤ b) || bad_argument("given point `x` is not inside the search interval `[a,b]`")
 
-    # Run Brent's algorithm.
-    return _fmin(f, a, b, x, fx, x, fx, x, fx, atol, rtol)
-end
+    @eval function $func(::Type{T}, f, a::Number, b::Number,
+                         x::Number, fx::Number,
+                         w::Number, fw::Number; kwds...) where {T<:AbstractFloat}
+        # Determine suitable types for the variables and for the function values in
+        # the computations.
+        Tx = convert_real_type(T, promote_typeof(a, b, x, w))
+        Tf = convert_real_type(T, promote_typeof(fx, fw))
 
-function fmin(::Type{T}, f, a::Number, b::Number,
-              x::Number, fx::Number,
-              w::Number, fw::Number; kwds...) where {T<:AbstractFloat}
-    # Determine suitable types for the variables and for the function values in
-    # the computations.
-    Tx = convert_real_type(T, promote_typeof(a, b, x, w))
-    Tf = convert_real_type(T, promote_typeof(fx, fw))
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(Tx; kwds...)
 
-    # Get tolerances.
-    atol, rtol = fmin_tolerances(Tx; kwds...)
+        # Convert input values.
+        a, b = convert(Tx, a), convert(Tx, b)
+        x, fx = convert(Tx, x), convert(Tf, fx)
+        w, fw = convert(Tx, w), convert(Tf, fw)
 
-    # Convert input values.
-    a, b = convert(Tx, a), convert(Tx, b)
-    x, fx = convert(Tx, x), convert(Tf, fx)
-    w, fw = convert(Tx, w), convert(Tf, fw)
+        # Order end points of search interval and check initial x and w.
+        if a > b
+            a, b = b, a
+        end
+        (a ≤ x ≤ b) || bad_argument("given point `x` is not inside the search interval `[a,b]`")
+        (a ≤ w ≤ b) || bad_argument("given point `w` is not inside the search interval `[a,b]`")
 
-    # Order end points of search interval and check initial x and w.
-    if a > b
-        a, b = b, a
+        # Reorder the points as assumed by Brent's algorithm before running it.
+        if $lt(fw, fx)
+            x, fx, w, fw = w, fw, x, fx
+        end
+        return $(Symbol(:_,func))(f, a, b, x, fx, w, fw, w, fw, atol, rtol)
     end
-    (a ≤ x ≤ b) || bad_argument("given point `x` is not inside the search interval `[a,b]`")
-    (a ≤ w ≤ b) || bad_argument("given point `w` is not inside the search interval `[a,b]`")
 
-    # Reorder the points as assumed by Brent's algorithm before running it.
-    if fw < fx
-        x, fx, w, fw = w, fw, x, fx
+    @eval function $func(::Type{T}, f, a::Number, b::Number,
+                         x::Number, fx::Number,
+                         w::Number, fw::Number,
+                         v::Number, fv::Number;
+                         kwds...) where {T<:AbstractFloat}
+        # Determine suitable types for the variables and for the function
+        # values in the computations.
+        Tx = convert_real_type(T, promote_typeof(a, b, x, w, v))
+        Tf = convert_real_type(T, promote_typeof(fx, fw, fv))
+
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(Tx; kwds...)
+
+        # Convert input values.
+        a, b = convert(Tx, a), convert(Tx, b)
+        x, fx = convert(Tx, x), convert(Tf, fx)
+        w, fw = convert(Tx, w), convert(Tf, fw)
+        v, fv = convert(Tx, v), convert(Tf, fv)
+
+        # Order end points of search interval and check initial x, w, and v.
+        if a > b
+            a, b = b, a
+        end
+        (a ≤ x ≤ b) || bad_argument("given point `x` is not inside the search interval `[a,b]`")
+        (a ≤ w ≤ b) || bad_argument("given point `w` is not inside the search interval `[a,b]`")
+        (a ≤ v ≤ b) || bad_argument("given point `v` is not inside the search interval `[a,b]`")
+
+        # Reorder the points as assumed by Brent's algorithm before running it.
+        if $lt(fw, fx)
+            x, fx, w, fw = w, fw, x, fx
+        end
+        if $lt(fv, fx)
+            x, fx, v, fv = v, fv, x, fx
+        end
+        if abs(x - v) < abs(x - w)
+            v, fv, w, fw = w, fw, v, fv
+        end
+        return $(Symbol(:_,func))(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
     end
-    return _fmin(f, a, b, x, fx, w, fw, w, fw, atol, rtol)
-end
 
-function fmin(::Type{T}, f, a::Number, b::Number,
-              x::Number, fx::Number,
-              w::Number, fw::Number,
-              v::Number, fv::Number;
-              kwds...) where {T<:AbstractFloat}
-    # Determine suitable types for the variables and for the function values in
-    # the computations.
-    Tx = convert_real_type(T, promote_typeof(a, b, x, w, v))
-    Tf = convert_real_type(T, promote_typeof(fx, fw, fv))
-
-    # Get tolerances.
-    atol, rtol = fmin_tolerances(Tx; kwds...)
-
-    # Convert input values.
-    a, b = convert(Tx, a), convert(Tx, b)
-    x, fx = convert(Tx, x), convert(Tf, fx)
-    w, fw = convert(Tx, w), convert(Tf, fw)
-    v, fv = convert(Tx, v), convert(Tf, fv)
-
-    # Order end points of search interval and check initial x, w, and v.
-    if a > b
-        a, b = b, a
-    end
-    (a ≤ x ≤ b) || bad_argument("given point `x` is not inside the search interval `[a,b]`")
-    (a ≤ w ≤ b) || bad_argument("given point `w` is not inside the search interval `[a,b]`")
-    (a ≤ v ≤ b) || bad_argument("given point `v` is not inside the search interval `[a,b]`")
-
-    # Reorder the points as assumed by Brent's algorithm before running it.
-    if fw < fx
-        x, fx, w, fw = w, fw, x, fx
-    end
-    if fv < fx
-        x, fx, v, fv = v, fv, x, fx
-    end
-    if abs(x - v) < abs(x - w)
-        v, fv, w, fw = w, fw, v, fv
-    end
-    return _fmin(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
 end
 
 """
@@ -451,8 +465,8 @@ function _fmin(f, a::Tx, b::Tx,
                x::Tx, fx::Tf,
                w::Tx, fw::Tf,
                v::Tx, fv::Tf,
-               atol::Tx, rtol::T,
-               eval::Int = 0) where {T<:AbstractFloat,Tx<:Number,Tf<:Number}
+               atol::Tx, rtol::AbstractFloat,
+               eval::Int = 0) where {Tx<:Number,Tf<:Number}
     # Constant for golden step.
     c = goldstep(real_type(Tx))
 
@@ -538,49 +552,83 @@ function _fmin(f, a::Tx, b::Tx,
     end
 end
 
+# Simple structure to change the sign of the result returned by a callable object.
+struct ChangeSign{F}
+    func::F
+end
+ChangeSign(f::ChangeSign) = f.func
+@inline (obj::ChangeSign)(args...; kwds...) = -obj.func(args...; kwds...)
+
+function _fmax(f, a::Tx, b::Tx,
+               x::Tx, fx::Tf,
+               w::Tx, fw::Tf,
+               v::Tx, fv::Tf,
+               atol::Tx, rtol::AbstractFloat,
+               eval::Int = 0) where {Tx<:Number,Tf<:Number}
+    (xm, fm, lo, hi, nf) = _fmin(ChangeSign(f), a, b, x, -fx, w, -fw, v, -fv, atol, rtol, eval)
+    return (xm, -fm, lo, hi, nf)
+end
+
 """
     fminbrkt(f, x, fx, w, fw, v, fv; atol=..., rtol=...)
 
-runs Brent's algorithm to minimize function `f` with a bracket of the minimum
-defined by 3 points (`x`, `w`, and `v`) with known function values (`fx =
-f(x)`, `fw = f(w)`, and `fv = f(v)`) and such that the least function value is
-at `x` such that `x ∈ [v,w]`.
+runs Brent's algorithm to minimize function `f` given 3 points `x`, `w`, and
+`v` bracketting the minimum and the corresponding function values `fx = f(x)`,
+`fw = f(w)`, and `fv = f(v)` and such that `x ∈ [v,w]` and `fx ≤ min(fv, fw)`
+hold.
+
+""" fminbrkt
 
 """
-function fminbrkt(f,
-                  x::Number, fx::Number,
-                  w::Number, fw::Number,
-                  v::Number, fv::Number; kwds...)
-    # Determine types for computations.
-    Tx1 = promote_typeof(x, w, v)
-    Tf1 = promote_typeof(fx, fw, fv)
-    T = float(promote_type(real_type(Tx1), real_type(Tf1)))
-    Tx = convert_real_type(T, Tx1)
-    Tf = convert_real_type(T, Tf1)
+    fmaxbrkt(f, x, fx, w, fw, v, fv; atol=..., rtol=...)
 
-    # Get tolerances.
-    atol, rtol = fmin_tolerances(Tx; kwds...)
+runs Brent's algorithm to maximize function `f` given 3 points `x`, `w`, and
+`v` bracketting the maximum and the corresponding function values `fx = f(x)`,
+`fw = f(w)`, and `fv = f(v)` and such that `x ∈ [v,w]` and `fx ≥ max(fv, fw)`
+hold.
 
-    # Convert values.
-    x, fx = convert(Tx, x), convert(Tf, fx)
-    w, fw = convert(Tx, w), convert(Tf, fw)
-    v, fv = convert(Tx, v), convert(Tf, fv)
+""" fmaxbrkt
 
-    # Determine search interval `[a,b]`, reorder bracket end points, and check
-    # that `f(x) ≤ min(f(w),f(w))` and `x ∈ [a,b]` before calling Brent's
-    # algorithm.
-    a, b = minmax(w, v)
-    (a ≤ x ≤ b && fx ≤ min(fv, fw)) || bad_argument("illegal bracket")
-    if abs(x - v) < abs(x - w)
-        v, fv, w, fw = w, fw, v, fv
+for (min, le) in ((:min, :(≤)), (:max, :(≥)))
+
+    @eval function $(Symbol(:f,min,:brkt))(f,
+                                           x::Number, fx::Number,
+                                           w::Number, fw::Number,
+                                           v::Number, fv::Number; kwds...)
+        # Determine types for computations.
+        Tx1 = promote_typeof(x, w, v)
+        Tf1 = promote_typeof(fx, fw, fv)
+        T = float(promote_type(real_type(Tx1), real_type(Tf1)))
+        Tx = convert_real_type(T, Tx1)
+        Tf = convert_real_type(T, Tf1)
+
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(Tx; kwds...)
+
+        # Convert values.
+        x, fx = convert(Tx, x), convert(Tf, fx)
+        w, fw = convert(Tx, w), convert(Tf, fw)
+        v, fv = convert(Tx, v), convert(Tf, fv)
+
+        # Determine search interval `[a,b]`, reorder bracket end points, and
+        # check that `f(x) ≤ min(f(w),f(w))` for a minimum or that
+        # `f(x) ≥ max(f(w),f(w))` for a maximum, and `x ∈ [a,b]` before calling
+        # Brent's algorithm.
+        a, b = minmax(w, v)
+        (a ≤ x ≤ b && $le(fx, $min(fv, fw))) || bad_argument("illegal bracket")
+        if abs(x - v) < abs(x - w)
+            v, fv, w, fw = w, fw, v, fv
+        end
+        return $(Symbol(:_f,min))(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
     end
-    return _fmin(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
+
 end
 
 """
     Brent.fzero_float(a, fa, b, fb) -> T
 
-yields the default floating-point type for computations in `fzero` method.
+yields the default floating-point type for computations in `fzero` method. This
+also checks the compatibilty of the types of the arguments.
 
 """
 fzero_float(a::Number, fa::Undef, b::Number, fb::Undef) =
@@ -595,7 +643,8 @@ fzero_float(a::Number, fa::Undef, b::Number, fb::Number) =
 """
     Brent.fmin_float(a, b, [x, fx, [w, fw, [v, fv]]]) -> T
 
-yields the default floating-point type for computations in `fmin` method.
+yields the default floating-point type for computations in `fmin` method. This
+also checks the compatibilty of the types of the arguments.
 
 """
 @inline fmin_float(a, b) = floating_point_type(promote_typeof(a, b))
