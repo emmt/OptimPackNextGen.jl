@@ -23,20 +23,22 @@ using Unitless
 using ..Brent: ChangeSign, fminbrkt, bad_argument
 
 """
-    BraDi.maximize([T,] f, x; kwds...) -> (xm, fm, nf)
+    BraDi.maximize([T,] f, x; kwds...) -> (xm, fm, lo, hi, nf)
 
 finds the global maximum of the univariate function `f` over the interval
 `[first(x),last(x)]` with `x` an abstract vector of values in monotonic order
 such that it can be assumed that no more than a single local maximum lies in
-any sub-interval `[x[i],x[i+2]]`. The result is a 3-tuple with `xm` the
-position of the global maximum, `fm = f(xm)`, and `nf` the number of function
-calls.
+any sub-interval `[x[i],x[i+2]]`. The result is a 5-tuple with `xm` the
+position of the global maximum, `fm = f(xm)`, `lo` and `hi` lower and upper
+bounds for the exact solution, and `nf` the number of function calls.
 
 Optional argument `T` is the floating-point type used for the computations.
 If unspecified, `T` is guessed from the type of the elements of `X`.
 
-Specify keyword `periodic = true` if `f(x)` is a periodic function of period
-`b - a` with `a = minimum(x)` and `b = maximum(x)`.
+Specify keyword `periodic = true` if `f(x)` is a periodic function of period `b
+- a` with `a = minimum(x)` and `b = maximum(x)`. If `periodic` is true then `a
+≤ xm ≤ b` and ``lo ≤ xm ≤ hi` hold but it is possible that `lo < a` and that
+`hi > b`.
 
 Keywords `atol` and `rtol` may be used to specify the absolute and relative
 tolerances for the precision of the solution (see [`Brent.fmin`](@ref)).
@@ -64,25 +66,27 @@ maximize(f, x::AbstractVector{<:Number}; kdws...) =
 
 function maximize(::Type{T}, f, x::AbstractVector{<:Number};
                   kdws...) where {T<:AbstractFloat}
-    (xm, fm, nf) = minimize(T, ChangeSign(f), x; kdws...)
-    return (xm, -fm, nf)
+    (xm, fm, lo, hi, nf) = minimize(T, ChangeSign(f), x; kdws...)
+    return (xm, -fm, lo, hi, nf)
 end
 
 """
-    BraDi.minimize([T,] f, X; kwds...) -> (xm, fm, nf)
+    BraDi.minimize([T,] f, x; kwds...) -> (xm, fm, lo, hi, nf)
 
 finds the global minimum of the univariate function `f` over the interval
 `[first(x),last(x)]` with `x` an abstract vector of values in monotonic order
 such that it can be assumed that no more than a single local minimum lies in
-any sub-interval `[x[i],x[i+2]]`. The result is a 3-tuple with `xm` the
-position of the global minimum, `fm = f(xm)`, and `nf` the number of function
-calls.
+any sub-interval `[x[i],x[i+2]]`. The result is a 5-tuple with `xm` the
+position of the global minimum, `fm = f(xm)`, `lo` and `hi` lower and upper
+bounds for the exact solution, and `nf` the number of function calls.
 
 Optional argument `T` is the floating-point type used for the computations.
 If unspecified, `T` is guessed from the type of the elements of `X`.
 
-Specify keyword `periodic = true` if `f(x)` is a periodic function of period
-`b - a` with `a = minimum(x)` and `b = maximum(x)`.
+Specify keyword `periodic = true` if `f(x)` is a periodic function of period `b
+- a` with `a = minimum(x)` and `b = maximum(x)`. If `periodic` is true then `a
+≤ xm ≤ b` and ``lo ≤ xm ≤ hi` hold but it is possible that `lo < a` and that
+`hi > b`.
 
 Keywords `atol` and `rtol` may be used to specify the absolute and relative
 tolerances for the precision of the solution (see [`Brent.fmin`](@ref)).
@@ -116,31 +120,31 @@ function minimize(::Type{T}, f, x::AbstractVector{<:Number};
     ismonotonic(x) || bad_argument("values of `x` are not strictly decreasing or increasing")
     length(x) ≥ (periodic ? 3 : 2) || bad_argument("insufficient number of values in `x`")
 
-    # Extract first point and compute corresponding function value to determine
-    # types and then call private method with converted arguments.
-    Tx = convert_real_type(T, eltype(x))
-    x1 = convert(Tx, first(x))
-    f1 = convert_real_type(T, f(x1))
-    Tf = eltype(f1)
-    eval = 1 # f(first(x))
-    xbest = x1
-    fbest = f1
+    # Extract first point(s) and compute corresponding function value to
+    # determine types and then call private method with converted arguments.
     i_first, i_last = firstindex(x), lastindex(x)
+    Tx = convert_real_type(T, eltype(x))
+    x₁, xₙ = convert(Tx, x[i_first]), convert(Tx, x[i_last])
+    a, b = minmax(x₁, xₙ)
+    f₁ = convert_real_type(T, f(x₁))
+    Tf = eltype(f₁)
+    eval = 1
+    xₒₚₜ, fₒₚₜ, lₒₚₜ, uₒₚₜ = x₁, f₁, a, b
     if periodic
         # Position of 2nd point and corresponding function value.
-        x2 = convert(Tx, x[i_first+1])
-        f2 = convert(Tf, f(x2))
+        x₂ = convert(Tx, x[i_first+1])
+        f₂ = convert(Tf, f(x₂))
         eval += 1
-        if f2 < f1
-            xbest = x2
-            fbest = f2
+        if f₂ < f₁
+            xₒₚₜ = x₂
+            fₒₚₜ = f₂
         end
-        xb, xc = x1, x2
-        fb, fc = f1, f2
+        xb, xc = x₁, x₂
+        fb, fc = f₁, f₂
         k = i_last - 1 # f(x[n]) = f(x[1]), so no needs to call f for the last point
     else
-        xb = xc = x1
-        fb = fc = f1
+        xb = xc = x₁
+        fb = fc = f₁
         k = i_last
     end
 
@@ -153,37 +157,38 @@ function minimize(::Type{T}, f, x::AbstractVector{<:Number};
             xc = convert(Tx, x[i])
             fc = convert(Tf, f(xc))
             eval += 1
-            if fc < fbest
-                xbest = xc
-                fbest = fc
-            end
         elseif periodic
             if i == i_last
-                xc = x[i_last]
-                fc = f1
+                xc = xₙ
+                fc = f₁
             else
-                xc = x[i_last] + (x2 - x1)
-                fc = f2
+                xc = xₙ + (x₂ - x₁)
+                fc = f₂
             end
         end
         if fa ≥ fb ≤ fc
             # A minimum is bracketed in `[xa,xc]`.
-            xm, fm, hi, lo, nf = fminbrkt(f, xb, fb, xa, fa, xc, fc; kwds...)
+            xm, fm, l, u, nf = fminbrkt(f, xb, fb, xa, fa, xc, fc; kwds...)
             eval += nf
-            if fm < fbest
-                xbest = xm
-                fbest = fm
+            if fm < fₒₚₜ
+                xₒₚₜ = xm
+                fₒₚₜ = fm
+                lₒₚₜ = l
+                uₒₚₜ = u
             end
         end
     end
     if periodic
         # Unwrap position of the solution.
-        a, b = minmax(x1, x[i_last])
-        if xbest > b
-            xbest = a + mod(xbest - b, b - a)
+        if xₒₚₜ > b
+            lₒₚₜ -= xₒₚₜ
+            uₒₚₜ -= xₒₚₜ
+            xₒₚₜ = a + mod(xₒₚₜ - b, b - a)
+            lₒₚₜ += xₒₚₜ
+            uₒₚₜ += xₒₚₜ
         end
     end
-    return (xbest, fbest, eval)
+    return (xₒₚₜ, fₒₚₜ, lₒₚₜ, uₒₚₜ, eval)
 end
 
 

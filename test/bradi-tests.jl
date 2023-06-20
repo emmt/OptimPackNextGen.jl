@@ -134,13 +134,13 @@ function runtests(; quiet::Bool=false, tol=sqrt(eps(Float64)), T::Type{<:Abstrac
         periodic = p.periodic
         quiet || println("\n# $(p.name):")
         if !isnan(p.xmin)
-            (xbest, fbest) = BraDi.minimize(p.f, range(T, p); periodic)
+            (xbest, fbest, lo, hi, n) = BraDi.minimize(p.f, range(T, p); periodic)
             quiet || println("#   min: x = $xbest ($(p.xmin)), f(x) = $fbest ($(p.f(p.xmin)))")
             atol = iszero(p.xmin) ? tol : abs(p.xmin)*tol
             @test xbest ≈ p.xmin atol=atol rtol=0
         end
         if !isnan(p.xmax)
-            (xbest, fbest) = BraDi.maximize(p.f, range(T, p); periodic)
+            (xbest, fbest, lo, hi, n) = BraDi.maximize(p.f, range(T, p); periodic)
             quiet || println("#   max: x = $xbest ($(p.xmax)), f(x) = $fbest ($(p.f(p.xmax)))")
             atol = iszero(p.xmax) ? tol : abs(p.xmax)*tol
             @test xbest ≈ p.xmax atol=atol rtol=0

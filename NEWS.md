@@ -13,6 +13,10 @@
   - The keyword `period` of `BraDi.minimize` and `BraDi.maximize` has been
     replaced by `peridoc` which is a Boolean, the period being given by the
     distance between the extreme values of `x`.
+  - `BraDi.minimize` and `BraDi.maximize` return a 5-tuple `'xm,fm,lo,hi,nf)`
+    with `xm` the position of the global minimum, `fm = f(xm)`, `lo` and `hi`
+    lower and upper bounds for the exact solution, and `nf` the number of
+    function calls. This is similar to `fmin` and `fmax`.
 
 
 ## Version 0.4.0
