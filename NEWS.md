@@ -3,8 +3,8 @@
 - New methods `Brent.fmax` and `Brent.fmaxbrkt`.
 
 - Methods for univariate functions `Brent.fzero`, `Brent.fmin`,
-  `Brent.fminbrkt`, `BraDi.minimize`, and `BraDi.maximize` have changed as
-  follows:
+  `Brent.fminbrkt`, `BraDi.minimize`, `BraDi.maximize` `Step.minimize`,
+  `Step.maximize`, and `Step.search` have changed as follows:
   - `x` and `f(x)` may have units.
   - The floating-point type for computations is not `Float64` by default but
     determined from the types of the specified numerical arguments.
@@ -13,13 +13,17 @@
   - The keyword `period` of `BraDi.minimize` and `BraDi.maximize` has been
     replaced by `peridoc` which is a Boolean, the period being given by the
     distance between the extreme values of `x`.
-  - `BraDi.minimize` and `BraDi.maximize` return a 5-tuple `'xm,fm,lo,hi,nf)`
-    with `xm` the position of the global minimum, `fm = f(xm)`, `lo` and `hi`
-    lower and upper bounds for the exact solution, and `nf` the number of
-    function calls. This is similar to `fmin` and `fmax`.
   - `Brent.fzero` yields the 5-tuple `(x,fx,lo,hi,nf)` with `x` the estimated
-    solution, `fx = f(x)` the corresponding function value, `lo` and `hi` lower
-    and upper bounds for the solution, and `nf` number of calls to `f`.
+    solution, `fx = f(x)` the corresponding function value, `lo` and `hi` the lower
+    and upper bounds for the solution, and `nf` the number of calls to `f`.
+  - `Step.minimize`, `Step.maximize`, `Step.search`, `BraDi.minimize`, and
+    `BraDi.maximize` return a 5-tuple `(xm,fm,lo,hi,nf)` with `xm` the position
+    of the global optimum, `fm = f(xm)` the corresponding function value, `lo`
+    and `hi` the lower and upper bounds for the exact solution, and `nf` the number
+    of function calls. This is similar to `fmin` and `fmax`.
+  - `Step.minimize`, `Step.maximize`, and `Step.search` no longer have a
+    `maxeval` keyword. The number of function evaluations thus only depends on
+    the requested accuracy for the solution.
 
 ## Version 0.4.0
 
