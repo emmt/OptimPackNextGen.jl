@@ -715,9 +715,7 @@ type of the sought solution `x`.
 yields the promoted type of the types of arguments `args...`.
 
 """
-promote_typeof(a) = typeof(a)
-promote_typeof(a, b) = promote_type(typeof(a), typeof(b))
-@inline promote_typeof(a, b...) = promote_type(typeof(a), map(typeof, b)...)
+@inline promote_typeof(args...) = promote_type(map(typeof, args)...)
 
 bad_argument(msg::ArgumentError.types[1]) = throw(ArgumentError(msg))
 @noinline bad_argument(args...) = bad_argument(string(args...))
