@@ -153,14 +153,16 @@ const fzero_gsl5 = TestFunc(
     (x) -> tic((x - 1)^7),
     0, 3, 1) # (0.9995, 1.0002, 1)
 
-const fzero_funcs =  (fzero_test1, fzero_test2, fzero_test3, fzero_test4, fzero_test5,
-                      fzero_test6, fzero_test7, fzero_test8,
-                      fzero_prakash1, fzero_prakash2, fzero_prakash3, fzero_prakash4,
-                      fzero_prakash5, fzero_prakash6, fzero_prakash7, fzero_prakash8,
-                      fzero_gsl1, fzero_gsl2, fzero_gsl3, fzero_gsl4, fzero_gsl5)
+const test_funcs =  (fzero_test1, fzero_test2, fzero_test3, fzero_test4, fzero_test5,
+                     fzero_test6, fzero_test7, fzero_test8,
+                     fzero_prakash1, fzero_prakash2, fzero_prakash3, fzero_prakash4,
+                     fzero_prakash5, fzero_prakash6, fzero_prakash7, fzero_prakash8,
+                     fzero_gsl1, fzero_gsl2, fzero_gsl3, fzero_gsl4, fzero_gsl5)
+
+round_value(val; sigdigits=3, base=10) = round(unitless(val); sigdigits, base)*unit(val)
 
 function runtests(; verb::Bool = false)
-    @testset "$(f.name)" for f in fzero_funcs
+    @testset "$(f.name)" for f in test_funcs
         if f === fzero_test1
             (a, b, x0) = params(f)
             @test_throws ArgumentError fzero(f, a, b; rtol=0)
@@ -170,23 +172,30 @@ function runtests(; verb::Bool = false)
         for T in (Float32, Float64)
             (a, b, x0) = params(f)
             Tdef = float(promote_type(typeof(a), typeof(b)))
-            rtol = Brent.fzero_rtol(T)
-            atol = (x0 == 0 ? eps(T) : floatmin(T))*oneunit(typeof(x0))
+            rtol = eps(T)
+            atol = eps(T)*oneunit(typeof(x0))
+            xtol = 3*rtol*abs(x0) + 2*atol # see doc. of fzero
             ftol = sqrt(eps(T))*oneunit(f(x0))
             reset_nevals()
-            (x, fx, n) = if T === Tdef
-                @inferred fzero(f, a, b; rtol = rtol, atol = atol)
+            (x, fx, lo, hi, n) = if T === Tdef
+                @inferred fzero(f, a, b; rtol, atol)
             else
-                @inferred fzero(T, f, a, b; rtol = rtol, atol = atol)
+                @inferred fzero(T, f, a, b; rtol, atol)
             end
             if verb
-                println(rpad(f.name, 16), " T = ", repr(T), ", n = ", n, ", x = ", x, ", f(x) = ", fx)
+                println(rpad(f.name, 14), " T = ", repr(T), ", n =", lpad(n, 3),
+                        ", x = ", convert_real_type(Float64, x),
+                        " ± ", round_value(convert_real_type(Float64, abs(x - x0))),
+                        ", f(x) = ", convert_real_type(Float64, fx))
             end
             @test real_type(x) === T
             @test real_type(fx) === T
             @test n == get_nevals()
             @test abs(fx) ≤ ftol # fx ≈ zero(fx)
-            @test x ≈ x0 rtol=rtol atol=atol
+            @test x ≈ x0 rtol=0 atol=xtol
+            @test lo ≤ x ≤ hi
+            @test sign(f(lo))*sign(f(hi)) ≤ 0
+            @test hi - lo ≤ xtol
 
             if x0 != a && x0 != b
                 # Check with fa = f(a) and/or fb = f(b) specified.
@@ -194,70 +203,84 @@ function runtests(; verb::Bool = false)
                 fb = f(b)
                 #
                 reset_nevals()
-                (x1, f1, n1) =  if T === Tdef
+                (x1, f1, lo1, hi1, n1) =  if T === Tdef
                     @inferred fzero(f, a, undef, b; rtol = rtol, atol = atol)
                 else
                     @inferred fzero(T, f, a, undef, b; rtol = rtol, atol = atol)
                 end
                 @test x1 == x
+                @test lo1 == lo
+                @test hi1 == hi
                 @test n1 == n
                 #
                 reset_nevals()
-                (x1, f1, n1) =  if T === Tdef
+                (x1, f1, lo1, hi1, n1) =  if T === Tdef
                     @inferred fzero(f, a, undef, b, undef; rtol = rtol, atol = atol)
                 else
                     @inferred fzero(T, f, a, undef, b, undef; rtol = rtol, atol = atol)
                 end
                 @test x1 == x
+                @test lo1 == lo
+                @test hi1 == hi
                 @test n1 == n
                 #
                 reset_nevals()
-                (x1, f1, n1) =  if T === Tdef
+                (x1, f1, lo1, hi1, n1) =  if T === Tdef
                     @inferred fzero(f, a, fa, b; rtol = rtol, atol = atol)
                 else
                     @inferred fzero(T, f, a, fa, b; rtol = rtol, atol = atol)
                 end
                 @test x1 == x
+                @test lo1 == lo
+                @test hi1 == hi
                 @test n1 == n - 1
                 #
                 reset_nevals()
-                (x1, f1, n1) =  if T === Tdef
+                (x1, f1, lo1, hi1, n1) =  if T === Tdef
                     @inferred fzero(f, a, fa, b, undef; rtol = rtol, atol = atol)
                 else
                     @inferred fzero(T, f, a, fa, b, undef; rtol = rtol, atol = atol)
                 end
                 @test x1 == x
+                @test lo1 == lo
+                @test hi1 == hi
                 @test n1 == n - 1
                 #
                 reset_nevals()
-                (x1, f1, n1) =  if T === Tdef
+                (x1, f1, lo1, hi1, n1) =  if T === Tdef
                     @inferred fzero(f, a, undef, b, fb; rtol = rtol, atol = atol)
                 else
                     @inferred fzero(T, f, a, undef, b, fb; rtol = rtol, atol = atol)
                 end
                 @test x1 == x
+                @test lo1 == lo
+                @test hi1 == hi
                 @test n1 == n - 1
                 #
                 reset_nevals()
-                (x1, f1, n1) =  if T === Tdef
+                (x1, f1, lo1, hi1, n1) =  if T === Tdef
                     @inferred fzero(f, a, fa, b, fb; rtol = rtol, atol = atol)
                 else
                     @inferred fzero(T, f, a, fa, b, fb; rtol = rtol, atol = atol)
                 end
                 @test x1 == x
+                @test lo1 == lo
+                @test hi1 == hi
                 @test n1 == n - 2
             end
             if f === fzero_test5
                 # Check that algorithm makes a single evaluation if the first
-                # end-point is an exact zero.
+                # end-point is an exactly zero.
                 reset_nevals()
-                (x, fx, n) = fzero(f, x0, b; rtol = rtol, atol = atol)
+                (x, fx, lo, hi, n) = @inferred fzero(f, x0, b; rtol = rtol, atol = atol)
                 @test x == x0
+                @test lo == hi == x
                 @test iszero(fx)
                 @test n == 1
                 reset_nevals()
-                (x, fx, n) = fzero(f, a, x0; rtol = rtol, atol = atol)
+                (x, fx, lo, hi, n) = @inferred fzero(f, a, x0; rtol = rtol, atol = atol)
                 @test x == x0
+                @test lo == hi == x
                 @test iszero(fx)
                 @test n == 2
             end
