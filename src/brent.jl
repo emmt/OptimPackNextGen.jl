@@ -49,10 +49,9 @@ relative precision, the error is approximately bounded by:
 
     abs(x - z) ≤ 3*rtol*abs(z) + 2*atol
 
-with `z` the exact solution. The value of `rtol` should not be decreased below
-`eps(T)`, for then rounding errors might prevent convergence. By default, `rtol
-= eps(T)` and `atol` is the smallest representable positive value of the same
-type as `x`.
+with `z` the exact solution. To avoid that rounding errors prevent convergence,
+`rtol ≥ eps(T)` and `atol > 0` should hold. By default, `rtol = eps(T)` and
+`atol` is `eps(T)*abs(b - a)`.
 
 !!! warning
     If `fa` and/or `fb` are specified, they should have been computed with the
@@ -120,7 +119,7 @@ end
 # ends of the interval.
 function _fzero(f, a::Tx, fa::Tf, b::Tx, fb::Undef, eval::Int;
                 kwds...) where {Tx<:Number,Tf<:Number}
-    atol, rtol = fzero_tolerances(Tx; kwds...)
+    atol, rtol = fzero_tolerances(a, b; kwds...)
     iszero(fa) && return (a, fa, eval)
     if b == a
         fb = fa
@@ -136,7 +135,7 @@ end
 # ends of the interval.
 function _fzero(f, a::Tx, fa::Tf, b::Tx, fb::Tf, eval::Int;
                 kwds...) where {Tx<:Number,Tf<:Number}
-    atol, rtol = fzero_tolerances(Tx; kwds...)
+    atol, rtol = fzero_tolerances(a, b; kwds...)
     iszero(fa) && return (a, fa, eval)
     iszero(fb) && return (b, fb, eval)
     return _fzero(f, a, fa, b, fb, atol, rtol, eval)
@@ -310,12 +309,12 @@ for (func, lt) in ((:fmin, :(<)), (:fmax, :(>)))
         # Determine suitable type for the variables in the computations.
         Tx = convert_real_type(T, promote_typeof(a, b))
 
-        # Get tolerances.
-        atol, rtol = fmin_tolerances(Tx; kwds...)
-
         # Convert input values.
         a = convert(Tx, a)
         b = convert(Tx, b)
+
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(a, b; kwds...)
 
         # Order end points of search interval.
         if a > b
@@ -338,12 +337,12 @@ for (func, lt) in ((:fmin, :(<)), (:fmax, :(>)))
         Tx = convert_real_type(T, promote_typeof(a, b, x))
         Tf = convert_real_type(T, promote_typeof(fx))
 
-        # Get tolerances.
-        atol, rtol = fmin_tolerances(Tx; kwds...)
-
         # Convert input values.
         a, b = convert(Tx, a), convert(Tx, b)
         x, fx = convert(Tx, x), convert(Tf, fx)
+
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(a, b; kwds...)
 
         # Order end points of search interval and check initial x.
         if a > b
@@ -363,13 +362,13 @@ for (func, lt) in ((:fmin, :(<)), (:fmax, :(>)))
         Tx = convert_real_type(T, promote_typeof(a, b, x, w))
         Tf = convert_real_type(T, promote_typeof(fx, fw))
 
-        # Get tolerances.
-        atol, rtol = fmin_tolerances(Tx; kwds...)
-
         # Convert input values.
         a, b = convert(Tx, a), convert(Tx, b)
         x, fx = convert(Tx, x), convert(Tf, fx)
         w, fw = convert(Tx, w), convert(Tf, fw)
+
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(a, b; kwds...)
 
         # Order end points of search interval and check initial x and w.
         if a > b
@@ -395,14 +394,14 @@ for (func, lt) in ((:fmin, :(<)), (:fmax, :(>)))
         Tx = convert_real_type(T, promote_typeof(a, b, x, w, v))
         Tf = convert_real_type(T, promote_typeof(fx, fw, fv))
 
-        # Get tolerances.
-        atol, rtol = fmin_tolerances(Tx; kwds...)
-
         # Convert input values.
         a, b = convert(Tx, a), convert(Tx, b)
         x, fx = convert(Tx, x), convert(Tf, fx)
         w, fw = convert(Tx, w), convert(Tf, fw)
         v, fv = convert(Tx, v), convert(Tf, fv)
+
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(a, b; kwds...)
 
         # Order end points of search interval and check initial x, w, and v.
         if a > b
@@ -602,9 +601,6 @@ for (min, le) in ((:min, :(≤)), (:max, :(≥)))
         Tx = convert_real_type(T, Tx1)
         Tf = convert_real_type(T, Tf1)
 
-        # Get tolerances.
-        atol, rtol = fmin_tolerances(Tx; kwds...)
-
         # Convert values.
         x, fx = convert(Tx, x), convert(Tf, fx)
         w, fw = convert(Tx, w), convert(Tf, fw)
@@ -612,13 +608,17 @@ for (min, le) in ((:min, :(≤)), (:max, :(≥)))
 
         # Determine search interval `[a,b]`, reorder bracket end points, and
         # check that `f(x) ≤ min(f(w),f(w))` for a minimum or that
-        # `f(x) ≥ max(f(w),f(w))` for a maximum, and `x ∈ [a,b]` before calling
-        # Brent's algorithm.
+        # `f(x) ≥ max(f(w),f(w))` for a maximum, and `x ∈ [a,b]`.
         a, b = minmax(w, v)
         (a ≤ x ≤ b && $le(fx, $min(fv, fw))) || bad_argument("illegal bracket")
         if abs(x - v) < abs(x - w)
             v, fv, w, fw = w, fw, v, fv
         end
+
+        # Get tolerances.
+        atol, rtol = fmin_tolerances(a, b; kwds...)
+
+        # Call Brent's algorithm.
         return $(Symbol(:_f,min))(f, a, b, x, fx, w, fw, v, fv, atol, rtol)
     end
 
@@ -655,59 +655,65 @@ also checks the compatibilty of the types of the arguments.
 @inline fmin_float(a, b, x, fx, w, fw, v, fv) = floating_point_type(
     promote_typeof(a, b, x, w, v), promote_typeof(fx, fw, fv))
 
-function fzero_tolerances(::Type{Tx};
-                          atol = fzero_atol(Tx),
-                          rtol = fzero_rtol(Tx)) where {Tx<:Number}
-    atol > zero(atol) || bad_argument("absolute tolerance `atol = $atol` must be positive")
-    zero(rtol) < rtol < oneunit(rtol) || bad_argument("relative tolerance `rtol = $rtol` must be in (0,1)")
-    return (convert(Tx, atol), convert(real_type(Tx), rtol))
+"""
+    Brent.fzero_tolerances(a, b; atol=undef, rtol=undef) -> (atol, rtol)
+
+yields the absolute and relative tolerances for the solution sought by Brent's
+`fzero` method applied to interval `[a,b]`. Arguments `a` and `b` must have the
+same units and the same floating-point type as the solution sought by the
+algorithm.
+
+"""
+function fzero_tolerances(a::Tx, b::Tx;
+                          atol::Union{Number,Undef} = undef,
+                          rtol::Union{Number,Undef} = undef) where {Tx<:Number}
+    T = real_type(Tx)
+    T <: AbstractFloat || bad_argument("bounds `a` and `b` must be floating-point numbers")
+    if atol isa Number
+        atol ≥ zero(atol) || bad_argument("absolute tolerance `atol = $atol` must be non-negative")
+        atol = convert(Tx, atol)::Tx
+    else
+        atol = eps(T)*abs(b - a)
+    end
+    if rtol isa Number
+        zero(rtol) < rtol < oneunit(rtol) ||
+            bad_argument("relative tolerance `rtol = $rtol` must be in (0,1)")
+        rtol = convert(T, rtol)::T
+    else
+        rtol = eps(T)
+    end
+    return atol, rtol
 end
 
-function fmin_tolerances(::Type{Tx};
-                         atol = fmin_atol(Tx),
-                         rtol = fmin_rtol(Tx)) where {Tx<:Number}
-    atol ≥ zero(atol) || bad_argument("absolute tolerance `atol = $atol` must be nonnegative")
-    zero(rtol) < rtol < oneunit(rtol) || bad_argument("relative tolerance `rtol = $rtol` must be in (0,1)")
-    return (convert(Tx, atol), convert(real_type(Tx), rtol))
+"""
+    Brent.fmin_tolerances(a, b; atol=undef, rtol=undef) -> (atol, rtol)
+
+yields the absolute and relative tolerances for the solution sought by Brent's
+`fmin` method applied to interval `[a,b]`. Arguments `a` and `b` must have the
+same units and the same floating-point type as the solution sought by the
+algorithm.
+
+"""
+function fmin_tolerances(a::Tx, b::Tx;
+                          atol::Union{Number,Undef} = undef,
+                          rtol::Union{Number,Undef} = undef) where {Tx<:Number}
+    T = real_type(Tx)
+    T <: AbstractFloat || bad_argument("bounds `a` and `b` must be floating-point numbers")
+    if atol isa Number
+        atol ≥ zero(atol) || bad_argument("absolute tolerance `atol = $atol` must be non-negative")
+        atol = convert(Tx, atol)::Tx
+    else
+        atol = eps(T)*abs(b - a)
+    end
+    if rtol isa Number
+        zero(rtol) < rtol < oneunit(rtol) ||
+            bad_argument("relative tolerance `rtol = $rtol` must be in (0,1)")
+        rtol = convert(T, rtol)::T
+    else
+        rtol = sqrt(eps(T))
+    end
+    return atol, rtol
 end
-
-"""
-    Brent.fzero_atol(T) -> atol
-
-yields the default absolute tolerance for Brent's `fzero` method with `T` the
-type of the sought solution `x`.
-
-"""
-@pure fzero_atol(::Type{T}) where {T} =
-    nextfloat(zero(T)) # same as floatmin but works with units
-
-"""
-    Brent.fzero_rtol(T) -> rtol
-
-yields the default relative tolerance for Brent's `fzero` method with `T` the
-type of the sought solution `x`.
-
-"""
-@pure fzero_rtol(::Type{T}) where {T} = eps(real_type(T))
-
-"""
-    Brent.fmin_atol(T) -> atol
-
-yields the default absolute tolerance for Brent's `fmin` method with `T` the
-type of the sought solution `x`.
-
-"""
-@pure fmin_atol(::Type{T}) where {T} =
-    nextfloat(zero(T)) # same as floatmin but works with units
-
-"""
-    Brent.fmin_rtol(T) -> rtol
-
-yields the default relative tolerance for Brent's `fmin` method with `T` the
-type of the sought solution `x`.
-
-"""
-@pure fmin_rtol(::Type{T}) where {T} = sqrt(eps(real_type(T)))
 
 """
     Brent.promote_typeof(args...) -> T
