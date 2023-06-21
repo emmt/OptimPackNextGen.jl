@@ -679,20 +679,27 @@ algorithm.
 
 """
 function fmin_tolerances(a::Tx, b::Tx;
-                          atol::Union{Number,Undef} = undef,
-                          rtol::Union{Number,Undef} = undef) where {Tx<:Number}
+                         atol::Union{Number,Undef} = undef,
+                         rtol::Union{Number,Undef} = undef) where {Tx<:Number}
     T = real_type(Tx)
-    T <: AbstractFloat || bad_argument("bounds `a` and `b` must be floating-point numbers")
+    T <: AbstractFloat ||
+        bad_argument("bounds `a` and `b` must be floating-point numbers")
     if atol isa Number
-        atol ≥ zero(atol) || bad_argument("absolute tolerance `atol = $atol` must be non-negative")
+        atol ≥ zero(atol) ||
+            bad_argument("absolute tolerance `atol = $atol` must be non-negative")
         atol = convert(Tx, atol)::Tx
     else
         atol = eps(T)*abs(b - a)
     end
     if rtol isa Number
-        zero(rtol) < rtol < oneunit(rtol) ||
-            bad_argument("relative tolerance `rtol = $rtol` must be in (0,1)")
+        rtol ≥ zero(rtol) ||
+            bad_argument("relative tolerance `rtol = $rtol` must be non-negative")
+        rtol < oneunit(rtol) ||
+            bad_argument("relative tolerance `rtol = $rtol` must be less than $(oneunit(rtol))")
+        (iszero(atol) & iszero(rtol)) &&
+            bad_argument("absolute and relative tolerances must not be both zero")
         rtol = convert(T, rtol)::T
+
     else
         rtol = sqrt(eps(T))
     end
