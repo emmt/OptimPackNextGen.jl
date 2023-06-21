@@ -31,7 +31,7 @@ import Base.MathConstants: φ
 @pure goldstep(::Type{T}) where {T<:AbstractFloat} = one(T)/convert(T, φ)^2
 
 """
-    Brent.fzero([T,] f, a, fa=f(a), b, fb=f(b)) -> (x, fx, nf)
+    Brent.fzero([T,] f, a, fa=f(a), b, fb=f(b)) -> (x, fx, lo, hi, nf)
 
 applies the Van Wijngaarden–Dekker–Brent method for finding a zero of the
 function `f(x)` in the interval `[a,b]`. Optional arguments `fa = f(a)` and/or
@@ -41,11 +41,12 @@ argument `T` is to specify the floating-point type used for computations (by
 default, `T` is determined from the numeric type of `a`, `fa`, `b`, and `fb`).
 
 `f(a)` and `f(b)` must have opposite signs (an exception is thrown if this does
-not hold). The method returns a 3-tuple: a zero `x` in the given interval
+not hold). The method returns a 5-tuple: a zero `x` in the given interval
 `[a,b]` to within the tolerance `rtol*abs(x) + atol`, the corresponding
-function value `f(x)`, and the number `nf` of calls to `f`. Parameters `atol`
-and `rtol` can be specified by keywords. If `rtol = eps(T)`, the machine
-relative precision, the error is approximately bounded by:
+function value `f(x)`, `lo` and `hi` lower and upper bounds for the solution,
+and the number `nf` of calls to `f`. Parameters `atol` and `rtol` can be
+specified by keywords. If `rtol = eps(T)`, the machine relative precision, the
+error is approximately bounded by:
 
     abs(x - z) ≤ 3*rtol*abs(z) + 2*atol
 
@@ -82,70 +83,54 @@ fzero(::Type{T}, f, a::Number, b::Number; kwds...) where {T<:AbstractFloat} =
     fzero(T, f, a, undef, b, undef; kwds...)
 
 function fzero(::Type{T}, f,
-               a::Number, fa::Undef,
-               b::Number, fb::Undef = undef; kwds...) where {T<:AbstractFloat}
+               a::Number, fa::Union{Number,Undef},
+               b::Number, fb::Union{Number,Undef} = undef;
+               kwds...) where {T<:AbstractFloat}
+    # Convert bounds and get tolerances, then initialize search.
     Tx = convert_real_type(T, promote_typeof(a, b))
     a = convert(Tx, a)
     b = convert(Tx, b)
-    return _fzero(f, a, convert_real_type(T, f(a)), b, undef, 1; kwds...)
+    atol, rtol = fzero_tolerances(a, b; kwds...)
+    return _fzero_start(f, a, fa, b, fb, atol, rtol, 0)
 end
 
-function fzero(::Type{T}, f,
-               a::Number, fa::Number,
-               b::Number, fb::Undef = undef; kwds...) where {T<:AbstractFloat}
-    Tx = convert_real_type(T, promote_typeof(a, b))
-    Tf = convert_real_type(T, promote_typeof(fa))
-    return _fzero(f, convert(Tx, a), convert(Tf, fa), convert(Tx, b), undef, 0; kwds...)
+# Initialize search with no function value.
+function _fzero_start(f, a::Tx, fa::Undef, b::Tx, fb::Undef, atol::Tx, rtol::T,
+                      eval::Int) where {Tx<:Number,T<:AbstractFloat}
+    return _fzero_start(f, a, f(a), b, undef, atol, rtol, eval + 1)
 end
 
-function fzero(::Type{T}, f,
-               a::Number, fa::Undef,
-               b::Number, fb::Number; kwds...) where {T<:AbstractFloat}
-    # Juste change order of arguments.
-    return fzero(T, f, b, fb, a, fa; kwds...)
+# Initialize search with one function value.
+function _fzero_start(f, a::Tx, fa::Number, b::Tx, fb::Undef, atol::Tx, rtol::T,
+                      eval::Int) where {Tx<:Number,T<:AbstractFloat}
+    Tf = convert_real_type(T, typeof(fa))
+    fa = convert(Tf, fa)
+    iszero(fa) && return (a, fa, a, a, eval)
+    fb = convert(Tf, f(b))
+    eval += 1
+    iszero(fb) && return (b, fb, b, b, eval)
+    return _fzero_search(f, a, fa, b, fb, atol, rtol, eval)
+end
+function _fzero_start(f, a::Tx, fa::Undef, b::Tx, fb::Number, atol::Tx, rtol::T,
+                      eval::Int) where {Tx<:Number,T<:AbstractFloat}
+    return _fzero_start(f, b, fb, a, fa, atol, rtol, eval)
 end
 
-function fzero(::Type{T}, f,
-               a::Number, fa::Number,
-               b::Number, fb::Number; kwds...) where {T<:AbstractFloat}
-    Tx = convert_real_type(T, promote_typeof(a, b))
+# Initialize search with two function values.
+function _fzero_start(f, a::Tx, fa::Number, b::Tx, fb::Number, atol::Tx, rtol::T,
+                      eval::Int) where {Tx<:Number,T<:AbstractFloat}
     Tf = convert_real_type(T, promote_typeof(fa, fb))
-    return _fzero(f,
-                  convert(Tx, a), convert(Tf, fa),
-                  convert(Tx, b), convert(Tf, fb), 0; kwds...)
-end
-
-# Check tolerances and early return when the function value is known at one
-# ends of the interval.
-function _fzero(f, a::Tx, fa::Tf, b::Tx, fb::Undef, eval::Int;
-                kwds...) where {Tx<:Number,Tf<:Number}
-    atol, rtol = fzero_tolerances(a, b; kwds...)
-    iszero(fa) && return (a, fa, eval)
-    if b == a
-        fb = fa
-    else
-        fb = convert(Tf, f(b))
-        eval += 1
-        iszero(fb) && return (b, fb, eval)
-    end
-    return _fzero(f, a, fa, b, fb, atol, rtol, eval)
-end
-
-# Check tolerances and early return when the function value is known at both
-# ends of the interval.
-function _fzero(f, a::Tx, fa::Tf, b::Tx, fb::Tf, eval::Int;
-                kwds...) where {Tx<:Number,Tf<:Number}
-    atol, rtol = fzero_tolerances(a, b; kwds...)
-    iszero(fa) && return (a, fa, eval)
-    iszero(fb) && return (b, fb, eval)
-    return _fzero(f, a, fa, b, fb, atol, rtol, eval)
+    fa = convert(Tf, fa)
+    iszero(fa) && return (a, fa, a, a, eval)
+    fb = convert(Tf, fb)
+    iszero(fb) && return (b, fb, b, b, eval)
+    return _fzero_search(f, a, fa, b, fb, atol, rtol, eval)
 end
 
 # Brent's fzero method when f(a) and f(b) have been checked for early
 # termination and when all parameters have correct numeric types.
-function _fzero(f, a::Tx, fa::Tf, b::Tx, fb::Tf,
-                atol::Tx, rtol::T, eval::Int) where {T<:AbstractFloat,
-                                                     Tx<:Number,Tf<:Number}
+function _fzero_search(f, a::Tx, fa::Tf, b::Tx, fb::Tf, atol::Tx, rtol::T,
+                       eval::Int) where {T<:AbstractFloat,Tx<:Number,Tf<:Number}
     # Check the assumptions and the tolerance parameters.
     (fa > zero(fa)) == (fb > zero(fb)) && error("f(a) and f(b) must have different signs")
 
@@ -183,7 +168,7 @@ function _fzero(f, a::Tx, fa::Tf, b::Tx, fb::Tf,
 
         # Check for convergence.
         m = (c - b)/2
-        (abs(m) ≤ tol || iszero(fb)) && break
+        abs(m) ≤ tol && return (b, fb, minmax(b, c)..., eval)
 
         # See if a bisection is forced.
         if abs(e) < tol || abs(fa) ≤ abs(fb)
@@ -226,7 +211,7 @@ function _fzero(f, a::Tx, fa::Tf, b::Tx, fb::Tf,
         end
         fb = convert(Tf, f(b))
         eval += 1
-        iszero(fb) && break
+        iszero(fb) && return (b, fb, b, b, eval)
         if (fb > zero(fb)) == (fc > zero(fc))
             # Drop point C (make it coincident with point A) and adjust bounds
             # of interval.
@@ -234,11 +219,10 @@ function _fzero(f, a::Tx, fa::Tf, b::Tx, fb::Tf,
             e = d = b - a
         end
     end
-    return (b, fb, eval)
 end
 
 """
-    fmin([T,] f, a, b, args...; kwds...) -> (xm, fm, lo, hi, nf)
+    Brent.fmin([T,] f, a, b, args...; kwds...) -> (xm, fm, lo, hi, nf)
 
 applies Brent's algorithm to find a local minimum of the function `f(x)` in the
 interval `[a,b]`.

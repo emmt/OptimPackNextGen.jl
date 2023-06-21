@@ -17,7 +17,9 @@
     with `xm` the position of the global minimum, `fm = f(xm)`, `lo` and `hi`
     lower and upper bounds for the exact solution, and `nf` the number of
     function calls. This is similar to `fmin` and `fmax`.
-
+  - `Brent.fzero` yields the 5-tuple `(x,fx,lo,hi,nf)` with `x` the estimated
+    solution, `fx = f(x)` the corresponding function value, `lo` and `hi` lower
+    and upper bounds for the solution, and `nf` number of calls to `f`.
 
 ## Version 0.4.0
 
