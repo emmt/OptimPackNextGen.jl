@@ -191,22 +191,21 @@ function _search(sgn::T, f, a::Tx, fa::Tf, b::Tx, fb::Tf, eval::Int,
 
     # If the initial interval is larger than the required precision,
     # iteratively split the "easiest" sub-interval until the precision
-    # criterion is satisfied or the number of evaluations exceeds the limit.
-    fboost = fbest - max(aboost, rboost*abs(fbest))
+    # criterion is satisfied.
 
-    # Create initial chained list of nodes and manage to split the initial
-    # interval.
-    qnan = sqrt(zero(Tf))/zero(Tx)
-    Tq = typeof(qnan)
-    list = Node{Tx,Tf,Tq}(a, fa, qnan)
+    # Create initial chained list of nodes.
+    qnan = sqrt(zero(Tf))/zero(Tx) # so that any comparison with this value is false
+    list = Node(a, fa, qnan)
     append!(list, b, fb, qnan)
-    split = list
 
     # Iteration number of the last full update of the "difficulties" of the
     # sub-intervals.
-    last_rehash = -1
+    last_rehash = iter - 1 # force rehash
+    fboost = fbest # declare local variable with correct type, its value will
+                   # be computed at next rehash
 
     # Iterate until convergence.
+    split = list # manage to split the initial interval
     while true
         # Split the chosen interval.
         c = (a + b)/2
@@ -220,18 +219,18 @@ function _search(sgn::T, f, a::Tx, fa::Tf, b::Tx, fb::Tf, eval::Int,
             if has_converged(xbest, a, b, atol, rtol)
                 return (xbest, sgn*fbest, a, b, eval)
             end
-            fboost = fbest - max(aboost, rboost*abs(fbest))
         end
 
         # Insert node c in chained list, update "difficulties", and find next
         # sub-interval to split.
         append!(split, c, fc, qnan)
-        qmin = typemax(list.q)
+        qmin = typemax(qnan)
         if last_rehash < iter
             # Do not rehash until next iteration.
             last_rehash = iter
 
             # Recompute all "difficulties".
+            fboost = fbest - max(aboost, rboost*abs(fbest))
             this = list
             w = sqrt(this.fx - fboost)
             while true
@@ -268,10 +267,11 @@ function _search(sgn::T, f, a::Tx, fa::Tf, b::Tx, fb::Tf, eval::Int,
         end
 
         # Get ends of the chosen interval and corresponding function values.
+        next = split.next
         a = split.x
-        b = split.next.x
+        b = next.x
         fa = split.fx
-        fb = split.next.fx
+        fb = next.fx
     end
 end
 
@@ -308,10 +308,10 @@ mutable struct Node{Tx,Tf,Tq}
     fx::Tf # function value
     q::Tq  # "quality" factor of the interval
     next::Node{Tx,Tf,Tq}
-    function Node{Tx,Tf,Tq}(x, fx, q, next::Node{Tx,Tf,Tq}) where {Tx,Tf,Tq}
+    function Node(x::Tx, fx::Tf, q::Tq, next::Node{Tx,Tf,Tq}) where {Tx,Tf,Tq}
         return new{Tx,Tf,Tq}(x, fx, q, next)
     end
-    function Node{Tx,Tf,Tq}(x, fx, q) where {Tx,Tf,Tq}
+    function Node(x::Tx, fx::Tf, q::Tq) where {Tx,Tf,Tq}
         node = new{Tx,Tf,Tq}(x, fx, q)
         node.next = node
         return node
@@ -325,8 +325,8 @@ appends a new node with parameters `x`, `fx = f(x)`, and `q` to `node` and
 returns it.
 
 """
-function Base.append!(node::Node{Tx,Tf,Tq}, x, fx, q) where {Tx,Tf,Tq}
-    next = Node{Tx,Tf,Tq}(x, fx, q, node.next)
+function Base.append!(node::Node, x, fx, q)
+    next = Node(x, fx, q, node.next)
     node.next = next
     return next
 end
