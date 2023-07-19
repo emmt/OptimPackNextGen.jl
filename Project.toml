@@ -13,7 +13,7 @@ Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Unitless = "c904d999-9673-4878-a3dd-e3ef1851788a"
 
 [compat]
-ArrayTools = "0.2.3"
+ArrayTools = "0.2.3, 0.3"
 julia = "1.5"
 Requires = "1"
 Unitless = "2"
