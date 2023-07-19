@@ -232,7 +232,7 @@ orientation(::Type{T}, ::Backward) where {T<:AbstractFloat} = -oneunit(T)
                                              lo, hi,
                                              o::Orientation,
                                              d::AbstractArray,
-                                             i) where {T<:AbstractFloat}
+                                             i)
     return projdir(x[i], bound_value(lo, i), bound_value(hi, i), o, d[i])
 end
 
