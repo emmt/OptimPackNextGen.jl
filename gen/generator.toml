@@ -1,45 +1,34 @@
 [general]
-# it could also be an expression as long as `Meta.parse` can parse this string
-# successfully.  basically, it should be the `expression` in the following
-# code: ccall((function_name, expression), returntype, (argtype1, ...),
-# argvalue1, ...)
+# it could also be an expression as long as `Meta.parse` can parse this string successfully.
+# basically, it should be the `expression` in the following code:
+# ccall((function_name, expression), returntype, (argtype1, ...), argvalue1, ...)
 library_name = "libopk"
 
-# this entry allows you to specify different library names for different
-# headers.  in the following example:
-#
-#     library_names = {"config.h" = "libclang_config",
-#                      "libclang_p.*.h" = "libclang_patch"}
-#
+# this entry allows you to specify different library names for different headers.
+# in the following example:
+# library_names = {"config.h" = "libclang_config", "libclang_p.*.h" = "libclang_patch"}
 # those functions in the `config.h` will be generated as:
-#
-#     ccall((function_name, libclang_config), returntype,
-#           (argtype1, ...), argvalue1, ...)
+# ccall((function_name, libclang_config), returntype, (argtype1, ...), argvalue1, ...)
 library_names = {"bobyqa.h" = "libbobyqa", "cobyla.h" = "libcobyla", "newuoa.h" = "libnewuoa"}
 
 # output file path relative to the working directory
-output_file_path = "./deps.jl"
+output_file_path = "../src/wrappers.jl"
 
-# if these are set, common file (types and constants) and API file (functions)
-# will be seperated this is for compatibility, so prologue and epilogue are not
-# supported.
-#
+# if these are set, common file (types and constants) and API file (functions) will be separated
+# this is for compatibility, so prologue and epilogue are not supported.
 # output_api_file_path = "api.jl"
 # output_common_file_path = "common.jl"
 
-# if this entry is not empty, the generator will print the code below to the
-# `output_file_path`.
-#
+# if this entry is not empty, the generator will print the code below to the `output_file_path`.
 # module module_name
 #
 # end # module
 module_name = "Lib"
 
-# if this entry is not empty, the generator will print the code below to the
-# `output_file_path`.
+# if this entry is not empty, the generator will print the code below to the `output_file_path`.
 # using jll_pkg_name
 # export jll_pkg_name
-#jll_pkg_name = "Clang_jll"
+#jll_pkg_name = "OptimPack_jll"
 
 # for packages that have extra JLL package dependencies
 jll_pkg_extra = []
@@ -47,19 +36,16 @@ jll_pkg_extra = []
 # identifiers that starts with the string listed in this entry will be exported.
 export_symbol_prefixes = []
 
-# The code in the following file will be copy-pasted to `output_file_path`
-# before the generated code.
-#
-# This is often used for applying custom patches, e.g. adding missing
-# definitions.
+# the code in the following file will be copy-pasted to `output_file_path` before the generated code.
+# this is often used for applying custom patches, e.g. adding missing definitions.
 prologue_file_path = "./prologue.jl"
 
 # the code in the following file will be copy-pasted to `output_file_path` after the generated code.
 # this is often used for applying custom patches.
-epilogue_file_path = ""
+epilogue_file_path = "./epilogue.jl"
 
-# node with an id in the `output_ignorelist` will be ignored in the printing
-# passes.  this is very useful for custom editing.
+# node with an id in the `output_ignorelist` will be ignored in the printing passes.
+# this is very useful for custom editing.
 output_ignorelist = [
     "CINDEX_EXPORTS",
     "CINDEX_VERSION",
@@ -69,14 +55,13 @@ output_ignorelist = [
     "LLVM_CLANG_C_STRICT_PROTOTYPES_BEGIN",
     "LLVM_CLANG_C_STRICT_PROTOTYPES_END",
     "LLVM_CLANG_C_EXTERN_C_BEGIN",
-    "LLVM_CLANG_C_EXTERN_C_END"
+    "LLVM_CLANG_C_EXTERN_C_END",
+    "OPK_STATUS_LIST_"
 ]
 
-# Julia's `@enum` do not allow duplicated values, so by default, C enums are
-# translated to CEnum.jl's `@cenum`.
-#
-# If this entry is true, `@enum` is used and those duplicated enum constants
-# are just commented.
+# Julia's `@enum` do not allow duplicated values, so by default, C enums are translated to
+# CEnum.jl's `@cenum`.
+# if this entry is true, `@enum` is used and those duplicated enum constants are just commented.
 use_julia_native_enum_type = true
 
 # use `@cenum` but do not print `using CEnum`.
@@ -91,7 +76,7 @@ print_enum_as_integer = false
 use_deterministic_symbol = true
 
 # by default, only those declarations in the local header file are processed.
-# those declarations in the system headers will be treated sepcially and will be generated if necessary.
+# those declarations in the system headers will be treated specially and will be generated if necessary.
 # if you'd like to generate all of the symbols in the system headers, please set this option to false.
 is_local_header_only = true
 
