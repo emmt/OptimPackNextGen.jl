@@ -12,11 +12,18 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Unitless = "c904d999-9673-4878-a3dd-e3ef1851788a"
 
+[weakdeps]
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[extensions]
+OptimPackNextGenZygoteExt = "Zygote"
+
 [compat]
 ArrayTools = "0.2.3, 0.3"
-julia = "1.5"
 Requires = "1"
 Unitless = "2"
+Zygote = "0.6"
+julia = "1.5"
 
 [extras]
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"

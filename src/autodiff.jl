@@ -13,10 +13,8 @@ auto_differentiate!(arg...; kwds...) =
     error("`Zygote` package must be loaded first")
 
 function __init__()
-    @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" begin
-        function auto_differentiate!(f, x, g)
-            vcopy!(g, Zygote.gradient(f, x)[1]);
-            return f(x)
-        end
+    @static if !isdefined(Base, :get_extension)
+        @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" include(
+            "../ext/OptimPackNextGenZygoteExt.jl")
     end
 end

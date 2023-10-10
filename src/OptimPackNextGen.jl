@@ -29,7 +29,9 @@ export
     vmlmb!,
     vmlmb
 
-using Requires
+if !isdefined(Base, :get_extension)
+    using Requires
+end
 using LazyAlgebra
 import LazyAlgebra: conjgrad, conjgrad!
 
