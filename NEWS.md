@@ -1,5 +1,7 @@
 # User visible changes in `OptimPackNextGen` package
 
+## Version 0.4.0
+
 - New methods `Brent.fmax` and `Brent.fmaxbrkt`.
 
 - Methods for univariate functions `Brent.fzero`, `Brent.fmin`,
@@ -24,8 +26,6 @@
   - `Step.minimize`, `Step.maximize`, and `Step.search` no longer have a
     `maxeval` keyword. The number of function evaluations thus only depends on
     the requested accuracy for the solution.
-
-## Version 0.4.0
 
 - The STEP method for finding a global minimum or maximum of an univariate
   function `f(x)` has been improved in many respects:
