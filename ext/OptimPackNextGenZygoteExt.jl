@@ -3,9 +3,9 @@ module OptimPackNextGenZygoteExt
 using Zygote
 
 if isdefined(Base, :get_extension)
-    using OptimPackNextGen
+    using OptimPackNextGen: OptimPackNextGen, vcopy!
 else
-    using ..OptimPackNextGen
+    using ..OptimPackNextGen: OptimPackNextGen, vcopy!
 end
 
 function OptimPackNextGen.auto_differentiate!(f, x, g)
