@@ -16,45 +16,51 @@ with convex constraints, described in:
 module SPG
 
 export
+    issuccess,
     spg,
     spg!
 
 using Printf
 
-using LazyAlgebra
-using ...OptimPackNextGen
+using ..OptimPackNextGen
 
 import OptimPackNextGen: getreason
 using OptimPackNextGen: auto_differentiate!
 using OptimPackNextGen.QuasiNewton: verbose
+using OptimPackNextGen.VectOps
 
-const SEARCHING            =  0
-const INFNORM_CONVERGENCE  =  1
-const TWONORM_CONVERGENCE  =  2
-const FUNCTION_CONVERGENCE =  3
-const TOO_MANY_ITERATIONS  = -1
-const TOO_MANY_EVALUATIONS = -2
+using LinearAlgebra
+
+@enum Status begin
+    TOO_MANY_EVALUATIONS = -2
+    TOO_MANY_ITERATIONS  = -1
+    SEARCHING            =  0
+    INFNORM_CONVERGENCE  =  1
+    TWONORM_CONVERGENCE  =  2
+    FUNCTION_CONVERGENCE =  3
+end
+
+LinearAlgebra.issuccess(status::Status) = Integer(status) > 0
 
 mutable struct Info
     f::Float64      # The final/current function value.
     fbest::Float64  # The best function value so far.
     pginfn::Float64 # ||projected grad||_inf at the final/current iteration.
-    pgtwon::Float64 # ||projected grad||_2 at the final/current iteration.
+    pgtwon::Float64 # ||projected grad||₂ at the final/current iteration.
     iter::Int       # The number of iterations.
     fcnt::Int       # The number of function (and gradient) evaluations.
     pcnt::Int       # The number of projections.
-    status::Int     # Termination parameter.
+    status::Status  # Termination parameter.
+    Info() = new(NaN, NaN, NaN, NaN, 0, 0, 0, SEARCHING)
 end
 
-Info() = Info(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0)
 
 """
 # Spectral Projected Gradient Method
 
 The `spg` method implements the Spectral Projected Gradient Method (Version 2:
-"continuous projected gradient direction") to find the local minimizers of
- a
-given function with convex constraints, described in the references below.  A
+"continuous projected gradient direction") to find the local minimizers of a
+given function with convex constraints, described in the references below. A
 typical use is:
 
 ```julia
@@ -63,7 +69,7 @@ spg(fg!, prj!, x0, m) -> x
 
 The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
-region.  These functions must be defined as:
+region. These functions must be defined as:
 
 ```julia
 function fg!(x::T, g::T) where {T}
@@ -78,23 +84,23 @@ end
 ```
 
 Argument `x0` is the initial solution and argument `m` is the number of
-previous function values to be considered in the nonmonotone line search.  If
-`m ≤ 1`, then a monotone line search with Armijo-like stopping criterion will
-be used.
+previous function values to be considered in the nonmonotone line search. If `m
+≤ 1`, then a monotone line search with Armijo-like stopping criterion will be
+used.
 
 The following keywords are available:
 
 * `autodiff` is a boolean specifying whether to rely on automatic
-  differentiation by calling [`OptimPackNextGen.auto_differentiate!](@ref).
-  If not specified, this keyword is assumed to be `false`.
+  differentiation by calling [`OptimPackNextGen.auto_differentiate!](@ref). If
+  not specified, this keyword is assumed to be `false`.
 
 * `eps1` specifies the stopping criterion `‖pg‖_∞ ≤ eps1` with `pg` the
-  projected gradient.  By default, `eps1 = 1e-6`.
+  projected gradient. By default, `eps1 = 1e-6`.
 
-* `eps2` specifies the stopping criterion `‖pg‖_2 ≤ eps2` with `pg` the
-  projected gradient.  By default, `eps2 = 1e-6`.
+* `eps2` specifies the stopping criterion `‖pg‖₂ ≤ eps2` with `pg` the
+  projected gradient. By default, `eps2 = 1e-6`.
 
-* `eta` specifies a scaling parameter for the gradient.  The projected gradient
+* `eta` specifies a scaling parameter for the gradient. The projected gradient
   is computed as `(x - prj(x - eta*g))/eta` (with `g` the gradient at `x`)
   instead of `x - prj(x - g)` which corresponds to the default behavior (same
   as if `eta=1`) and is usually used in methodological publications although it
@@ -123,23 +129,25 @@ The following keywords are available:
 
 The `SPG.Info` type has the following members:
 
-* `f` is the function value.
+* `f` is the current function value.
 * `fbest` is the best function value so far.
 * `pginfn` is the infinite norm of the projected gradient.
 * `pgtwon` is the Eucliddean norm of the projected gradient.
 * `iter` is the number of iterations.
 * `fcnt` is the number of function (and gradient) evaluations.
 * `pcnt` is the number of projections.
-* `status` indicates the type of termination:
+* `status` indicates the type of termination.
 
-    Status                        Reason
-    ----------------------------------------------------------------------------------
-    SPG.SEARCHING             (0) Work in progress
-    SPG.INFNORM_CONVERGENCE   (1) Convergence with projected gradient infinite-norm
-    SPG.TWONORM_CONVERGENCE   (2) Convergence with projected gradient 2-norm
-    SPG.FUNCTION_CONVERGENCE  (3) Function does not change in the last `m` iterations
-    SPG.TOO_MANY_ITERATIONS  (-1) Too many iterations
-    SPG.TOO_MANY_EVALUATIONS (-2) Too many function evaluations
+Possible `status` values are:
+
+| Status                     | Reason                                              |
+|:---------------------------|:----------------------------------------------------|
+| `SPG.SEARCHING`            | Work in progress                                    |
+| `SPG.INFNORM_CONVERGENCE`  | Convergence with projected gradient infinite-norm   |
+| `SPG.TWONORM_CONVERGENCE`  | Convergence with projected gradient 2-norm          |
+| `SPG.FUNCTION_CONVERGENCE` | Function does not change in the last `m` iterations |
+| `SPG.TOO_MANY_ITERATIONS`  | Too many iterations                                 |
+| `SPG.TOO_MANY_EVALUATIONS` | Too many function evaluations                       |
 
 
 ## References
@@ -151,11 +159,21 @@ The `SPG.Info` type has the following members:
 * E. G. Birgin, J. M. Martinez, and M. Raydan, "SPG: software for
   convex-constrained optimization", ACM Transactions on Mathematical Software
   (TOMS) 27, pp. 340-349 (2001).
-"""
-spg(fg!, prj!, x0, m::Integer; kwds...) =
-    spg!(fg!, prj!, vcopy(x0), m; kwds...)
 
-REASON = Dict{Int,String}(
+"""
+spg(fg!, prj!, x0::AbstractArray{T,N}, m::Integer; kwds...) where {T,N} =
+    spg!(fg!, prj!, copy_variables(x0), m; kwds...)
+
+"""
+     copy_variables(x)
+
+yields a copy of the variables `x` having a *similar* array type but
+floating-point element type.
+
+"""
+copy_variables(x::AbstractArray) = copyto!(similar(x, float(eltype(x))), x)
+
+const REASON = Dict{Status,String}(
     SEARCHING => "Work in progress",
     INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
     TWONORM_CONVERGENCE => "Convergence with projected gradient 2-norm",
@@ -228,8 +246,8 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
 
     # Project initial guess.
     prj!(x, x)
-    vcopy!(x0, x) # FIXME: not necessary (idem for g0)
     pcnt += 1
+    vcopy!(x0, x) # FIXME: not necessary (idem for g0)
 
     # Evaluate function and gradient.
     local f::Float64
@@ -308,10 +326,10 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
         else
             vcombine!(s, 1, x, -1, x0)
             vcombine!(y, 1, g, -1, g0)
-            sty = vdot_dbl(s, y)
+            sty = vdot(s, y)
             if sty > 0
                 # Safeguarded Barzilai & Borwein spectral steplength.
-                sts = vdot_dbl(s, s)
+                sts = vdot(s, s)
                 lambda = clamp(sts/sty, lmin, lmax)
             else
                 lambda = lmax
@@ -327,7 +345,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
         prj!(x, vcombine!(x, 1, x0, -lambda, g0)) # x = prj(x0 - lambda*g0)
         pcnt += 1
         vcombine!(d, 1, x, -1, x0) # d = x - x0
-        delta = vdot_dbl(g0, d)
+        delta = vdot(g0, d)
 
         # Nonmonotone line search.
         stp = 1.0 # Step length for first trial.
@@ -390,7 +408,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
     ws.status = status
     if verbose(verb, 0) #always print last line if verb>0
         reason = getreason(ws)
-        if status < 0
+        if !issuccess(status)
             printstyled(stderr, "# WARNING: ", reason, "\n"; color=:red)
         else
             printstyled(io, "# SUCCESS: ", reason, "\n"; color=:green)
@@ -402,17 +420,15 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
     return x
 end
 
-function default_printer(io::IO, nfo::Info)
-    if nfo.iter == 0
+function default_printer(io::IO, info::Info)
+    if info.iter == 0
         @printf(io, "# %s\n# %s\n",
-                " ITER   EVAL   PROJ             F(x)              ‖PG(X)‖_2 ‖PG(X)‖_∞",
+                " ITER   EVAL   PROJ             F(x)              ‖PG(X)‖₂  ‖PG(X)‖_∞",
                 "---------------------------------------------------------------------")
     end
     @printf(io, " %6d %6d %6d %3s %24.17e %9.2e %9.2e\n",
-            nfo.iter, nfo.fcnt, nfo.pcnt, (nfo.f ≤ nfo.fbest ? "(*)" : "   "),
-            nfo.f, nfo.pgtwon, nfo.pginfn)
+            info.iter, info.fcnt, info.pcnt, (info.f ≤ info.fbest ? "(*)" : "   "),
+            info.f, info.pgtwon, info.pginfn)
 end
-
-vdot_dbl(x, y) = convert(Float64, vdot(x, y)) :: Float64
 
 end # module

@@ -15,8 +15,8 @@
 module OptimPackNextGen
 
 export
-    conjgrad!,
-    conjgrad,
+    # FIXME: conjgrad!,
+    # FIXME: conjgrad,
     fmin,
     fzero,
     getreason,
@@ -32,8 +32,6 @@ export
 if !isdefined(Base, :get_extension)
     using Requires
 end
-using LazyAlgebra
-import LazyAlgebra: conjgrad, conjgrad!
 
 """
 `Float` is the type of all floating point scalars, it is currently an alias to
@@ -45,7 +43,7 @@ include("wrappers.jl")
 
 include("autodiff.jl")
 
-include("bounds.jl")
+include("vops.jl")
 
 include("gqtpar.jl")
 import .MoreSorensen: gqtpar, gqtpar!

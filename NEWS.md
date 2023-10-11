@@ -1,5 +1,24 @@
 # User visible changes in `OptimPackNextGen` package
 
+## Version 0.5.0
+
+The main changes are to drop the dependency on
+[LazyAlgebra](https://github.com/emmt/LazyAlgebra.jl) and to rely on
+[NumOptBase](https://github.com/emmt/NumOptBase.jl) package for vectorized
+operations. This was motivated by the fact that *variables* in optimization
+problems and *vectors* in algebra have close but different meanings. For
+example, multi-variate optimization methods simply consider variables as
+collections of reals, in that respect, complexes are just pairs of reals and
+dimensions are mostly irrelevant (only the number of real values matters). A
+benefit of this major change is that the variables of the problem may be stored
+in GPU.
+
+Other changes:
+
+* SPG method uses an enumeration to represent the status of the algorithm. The
+  methods `issuccess(status)` and `getreason(status)` can be used to check
+  whether the algorithm was successful and to retrieve a textual explanation.
+
 ## Version 0.4.1
 
 - In Powell's methods (COBYLA, NEWUOA, and BOBYQA):

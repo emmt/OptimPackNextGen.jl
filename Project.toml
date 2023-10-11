@@ -5,8 +5,8 @@ version = "0.4.1"
 
 [deps]
 ArrayTools = "1dc0ca97-c5ce-4e77-ac6d-c576ac9d7f27"
-LazyAlgebra = "aeaa251e-9d76-11e9-311b-83636bf44738"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NumOptBase = "19474dce-faed-4c37-be94-3eba84df10eb"
 OptimPack_jll = "8115cc2e-fb29-5d71-b5cb-a4fb1c5dcd4c"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
@@ -20,6 +20,7 @@ OptimPackNextGenZygoteExt = "Zygote"
 
 [compat]
 ArrayTools = "0.2.3, 0.3"
+NumOptBase = "0.2"
 Requires = "1"
 Unitless = "2"
 Zygote = "0.6"
