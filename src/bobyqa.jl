@@ -24,12 +24,8 @@ using ...Lib: opk_index
 
 import
     ...Lib,
-    ..AbstractContext,
     ..getreason,
-    ..getstatus,
     ..grow!,
-    ..iterate,
-    ..restart,
     ..Scale,
     ..defaultscale,
     ..to_scale
@@ -53,6 +49,26 @@ function getreason(status::Status)
         error("unknown BOBYQA status: ", status)
     end
     unsafe_string(cstr)
+end
+
+
+# Allowed types for a lower/upper bound.
+const Bound = Union{Nothing,Real,AbstractVector{<:Real}}
+
+# Convert to lower bound.
+to_lower_bound(xl::Nothing, n::Integer) = to_lower_bound(-Inf, n)
+to_lower_bound(xl::Real, n::Integer) = fill!(Vector{Cdouble}(undef, n), xl)
+function to_lower_bound(xl::AbstractVector{<:Real}, n::Integer)
+    length(xl) == n || error("bad length for lower bound")
+    return xl isa DenseVector{Cdouble} ? xl : convert(Vector{Cdouble}, xl)
+end
+
+# Convert to upper bound.
+to_upper_bound(xu::Nothing, n::Integer) = to_upper_bound(+Inf, n)
+to_upper_bound(xu::Real, n::Integer) = fill!(Vector{Cdouble}(undef, n), xu)
+function to_upper_bound(xu::AbstractVector{<:Cdouble}, n::Integer)
+    length(xu) == n || error("bad length for upper bound")
+    return xu isa DenseVector{Cdouble} ? xu : convert(Vector{Cdouble}, xu)
 end
 
 """
@@ -213,11 +229,10 @@ attempts to minimize the objective function.
 
 """
 optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
-    optimize!(f, copyto!(Array{Cdouble}(undef, length(x0)), x0),
-              args...; kwds...)
+    optimize!(f, copyto!(Vector{Cdouble}(undef, length(x0)), x0), args...; kwds...)
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
-                   xl::DenseVector{Cdouble}, xu::DenseVector{Cdouble},
+                   xl::Bound, xu::Bound,
                    rhobeg::Real, rhoend::Real;
                    scale::Scale = defaultscale,
                    maximize::Bool = false,
@@ -227,8 +242,8 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
                    maxeval::Integer = 30*length(x),
                    work::Vector{Cdouble} = _work(x, scale, npt))
     n = length(x)
-    length(xl) == n || error("bad length for inferior bound")
-    length(xu) == n || error("bad length for superior bound")
+    xl = to_lower_bound(xl, n)
+    xu = to_upper_bound(xu, n)
     scl = to_scale(scale, n)
     grow!(work, _wrklen(x, scl, npt))
     status = Lib.bobyqa_optimize(
@@ -243,11 +258,11 @@ end
 @doc @doc(optimize) optimize!
 
 # Basic version similar to the FORTRAN version.
-bobyqa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
-    bobyqa!(f, copy(x0), args...; kwds...)
+bobyqa(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+    bobyqa!(f, copyto!(Vector{Cdouble}(undef, length(x0)), x0), args...; kwds...)
 
 function bobyqa!(f::Function, x::DenseVector{Cdouble},
-                 xl::DenseVector{Cdouble}, xu::DenseVector{Cdouble},
+                 xl::Bound, xu::Bound,
                  rhobeg::Real, rhoend::Real;
                  npt::Integer = 2*length(x) + 1,
                  verbose::Integer = 0,
@@ -255,8 +270,8 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
                  check::Bool = true,
                  work::Vector{Cdouble} = _work(x, npt))
     n = length(x)
-    length(xl) == n || error("bad length for inferior bound")
-    length(xu) == n || error("bad length for superior bound")
+    xl = to_lower_bound(xl, n)
+    xu = to_upper_bound(xu, n)
     grow!(work, _wrklen(x, npt))
     status = Lib.bobyqa(
         n, npt, _objfun(), f, x, xl, xu,

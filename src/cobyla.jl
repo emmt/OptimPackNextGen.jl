@@ -205,7 +205,7 @@ attempts to minimize the objective function.
 
 """
 optimize(fc::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
-    optimize!(fc, copyto!(Array{Cdouble}(undef, length(x0)), x0),
+    optimize!(fc, copyto!(Vector{Cdouble}(undef, length(x0)), x0),
               args...; kwds...)
 
 function optimize!(fc::Function, x::DenseVector{Cdouble},
@@ -252,31 +252,29 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
     return (status, x, work[1])
 end
 
-cobyla(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
-    cobyla!(f, copy(x0), args...; kwds...)
+cobyla(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+    cobyla!(f, copyto!(Vector{Cdouble}(undef, length(x0)), x0), args...; kwds...)
 
 """
     using OptimPackNextGen.Powell
     ctx = Cobyla.Context(n, m, rhobeg, rhoend; verbose=0, maxeval=500)
 
-creates a new reverse communication workspace for COBYLA algorithm.  A typical
+creates a new reverse communication context for COBYLA algorithm. A typical
 usage is:
 
-```julia
-x = Array{Cdouble}(undef, n)
-c = Array{Cdouble}(undef, m)
-x[...] = ... # initial solution
-ctx = Cobyla.Context(n, m, rhobeg, rhoend, verbose=1, maxeval=500)
-status = getstatus(ctx)
-while status == Cobyla.ITERATE
-    fx = ...       # compute function value at X
-    c[...] = ...   # compute constraints at X
-    status = iterate(ctx, fx, x, c)
-end
-if status != Cobyla.SUCCESS
-    println("Something wrong occured in COBYLA: ", getreason(status))
-end
-```
+    x = Vector{Cdouble}(undef, n)
+    c = Vector{Cdouble}(undef, m)
+    x[...] = ... # initial solution
+    ctx = Cobyla.Context(n, m, rhobeg, rhoend, verbose=1, maxeval=500)
+    status = getstatus(ctx)
+    while status == Cobyla.ITERATE
+        fx = ...       # compute function value at X
+        c[...] = ...   # compute constraints at X
+        status = iterate(ctx, fx, x, c)
+    end
+    if status != Cobyla.SUCCESS
+        println("Something wrong occured in COBYLA: ", getreason(status))
+    end
 
 """
 mutable struct Context <: AbstractContext
@@ -306,7 +304,7 @@ end
 function _finalize(ctx::Context)
     if ctx.ptr != C_NULL
         Lib.cobyla_delete(ctx.ptr)
-        ctx.ptr = C_NULL
+        ctx.ptr = C_NULL # do not delete twice
     end
 end
 

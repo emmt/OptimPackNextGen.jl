@@ -210,8 +210,7 @@ attempts to minimize the objective function.
 
 """
 optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
-    optimize!(f, copyto!(Array{Cdouble}(undef, length(x0)), x0),
-              args...; kwds...)
+    optimize!(f, copyto!(Vector{Cdouble}(undef, length(x0)), x0), args...; kwds...)
 
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;
@@ -237,8 +236,8 @@ end
 @doc @doc(optimize) optimize!
 
 # Basic version similar to the FORTRAN version.
-newuoa(f::Function, x0::DenseVector{Cdouble}, args...; kwds...) =
-    newuoa!(f, copy(x0), args...; kwds...)
+newuoa(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
+    newuoa!(f, copyto!(Vector{Cdouble}(undef, length(x0)), x0), args...; kwds...)
 
 function newuoa!(f::Function, x::DenseVector{Cdouble},
                  rhobeg::Real, rhoend::Real;
@@ -258,28 +257,23 @@ function newuoa!(f::Function, x::DenseVector{Cdouble},
 end
 
 """
+    using OptimPackNextGen.Powell
+    ctx = Newuoa.Context(n, rhobeg, rhoend; npt=..., verbose=..., maxeval=...)
 
-```julia
-using OptimPackNextGen.Powell
-ctx = Newuoa.create(n, rhobeg, rhoend; npt=..., verbose=..., maxeval=...)
-```
-
-creates a new reverse communication workspace for NEWUOA algorithm. A typical
+creates a new reverse communication context for NEWUOA algorithm. A typical
 usage is:
 
-```julia
-x = Array{Cdouble}(undef, n)
-x[...] = ... # initial solution
-ctx = Newuoa.Context(n, rhobeg, rhoend; verbose=1, maxeval=500)
-status = getstatus(ctx)
-while status == Newuoa.ITERATE
-    fx = ...       # compute function value at X
-    status = iterate(ctx, fx, x)
-end
-if status != Newuoa.SUCCESS
-    println("Something wrong occured in NEWUOA: ", getreason(status))
-end
-```
+    x = Vector{Cdouble}(undef, n)
+    x[...] = ... # initial solution
+    ctx = Newuoa.Context(n, rhobeg, rhoend; verbose=1, maxeval=500)
+    status = getstatus(ctx)
+    while status == Newuoa.ITERATE
+        fx = ...       # compute function value at X
+        status = iterate(ctx, fx, x)
+    end
+    if status != Newuoa.SUCCESS
+        println("Something wrong occured in NEWUOA: ", getreason(status))
+    end
 
 """ Context
 
@@ -309,7 +303,7 @@ end
 function _finalize(ctx::Context)
     if ctx.ptr != C_NULL
         Lib.newuoa_delete(ctx.ptr)
-        ctx.ptr = C_NULL
+        ctx.ptr = C_NULL # do not delete twice
     end
 end
 

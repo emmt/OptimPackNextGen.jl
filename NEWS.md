@@ -5,7 +5,8 @@
 - In Powell's methods (COBYLA, NEWUOA, and BOBYQA):
   - Preserve scaling factors from being garbage collected while calling the C
     code.
-  - Scaling factors can be specified in more flexible ways.
+  - Variables, bounds, and scaling factors can be specified in more flexible
+    ways than dense vector of C-double values.
 
 ## Version 0.4.0
 
