@@ -182,20 +182,15 @@ _work(::Type{T}, len::Integer) where {T} = Vector{T}(undef, len)
 # Wrapper for the objective function in COBYLA, the actual objective
 # function is provided by the client data as a `jl_value_t*` pointer.
 function _objfun(n::opk_index, m::opk_index, xptr::Ptr{Cdouble},
-                 _c::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
+                 cptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     x = unsafe_wrap(Array, xptr, n)
     f = unsafe_pointer_to_objref(fptr)
-    return (m > 0 ? Cdouble(f(x, unsafe_wrap(Array, _c, m))) : Cdouble(f(x)))
+    return (m > 0 ? Cdouble(f(x, unsafe_wrap(Array, cptr, m))) : Cdouble(f(x)))
 end
 
-# With precompilation, `__init__()` carries on initializations that must occur
-# at runtime like `@cfunction` which returns a raw pointer.
-const _objfun_c = Ref{Ptr{Cvoid}}()
-function __init__()
-    _objfun_c[] = @cfunction(_objfun, Cdouble,
-                             (opk_index, opk_index, Ptr{Cdouble},
-                              Ptr{Cdouble}, Ptr{Cvoid}))
-end
+# Without argument, yield the raw pointer that can be passed to C code.
+_objfun() = @cfunction(_objfun, Cdouble, (opk_index, opk_index, Ptr{Cdouble},
+                                          Ptr{Cdouble}, Ptr{Cvoid}))
 
 """
 The methods:
@@ -227,7 +222,7 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
     grow!(work, _wrklen(n, m))
     grow!(iact, m + 1)
     status = Lib.cobyla_optimize(
-        n, m, maximize, _objfun_c[], fc, x, scl, rhobeg, rhoend,
+        n, m, maximize, _objfun(), fc, x, scl, rhobeg, rhoend,
         verbose, maxeval, work, iact)
     if check && status != COBYLA_SUCCESS
         error(getreason(status))
@@ -250,7 +245,7 @@ function cobyla!(f::Function, x::DenseVector{Cdouble},
     grow!(work, _wrklen(n, m))
     grow!(iact, m + 1)
     status = Lib.cobyla(
-        n, m, _objfun_c[], f, x, rhobeg, rhoend, verbose, maxeval, work, iact)
+        n, m, _objfun(), f, x, rhobeg, rhoend, verbose, maxeval, work, iact)
     if check && status != SUCCESS
         error(getreason(status))
     end

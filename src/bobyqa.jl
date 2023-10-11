@@ -197,13 +197,8 @@ function _objfun(n::opk_index, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     return Cdouble(f(x))
 end
 
-# With precompilation, `__init__()` carries on initializations that must occur
-# at runtime like `@cfunction` which returns a raw pointer.
-const _objfun_c = Ref{Ptr{Cvoid}}()
-function __init__()
-    _objfun_c[] = @cfunction(_objfun, Cdouble,
-                             (opk_index, Ptr{Cdouble}, Ptr{Cvoid}))
-end
+# Without argument, yield the raw pointer that can be passed to C code.
+_objfun() = @cfunction(_objfun, Cdouble, (opk_index, Ptr{Cdouble}, Ptr{Cvoid}))
 
 """
 The methods:
@@ -237,7 +232,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     scl = to_scale(scale, n)
     grow!(work, _wrklen(x, scl, npt))
     status = Lib.bobyqa_optimize(
-        n, npt, (maximize ? Cint(1) : Cint(0)), _objfun_c[], f,
+        n, npt, (maximize ? Cint(1) : Cint(0)), _objfun(), f,
         x, xl, xu, scl, rhobeg, rhoend, verbose, maxeval, work)
     if check && status != SUCCESS
         error(getreason(status))
@@ -264,7 +259,7 @@ function bobyqa!(f::Function, x::DenseVector{Cdouble},
     length(xu) == n || error("bad length for superior bound")
     grow!(work, _wrklen(x, npt))
     status = Lib.bobyqa(
-        n, npt, _objfun_c[], f, x, xl, xu,
+        n, npt, _objfun(), f, x, xl, xu,
         rhobeg, rhoend, verbose, maxeval, work)
     if check && status != SUCCESS
         error(getreason(status))

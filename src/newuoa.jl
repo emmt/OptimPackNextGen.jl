@@ -194,13 +194,8 @@ function _objfun(n::opk_index, xptr::Ptr{Cdouble}, fptr::Ptr{Cvoid})::Cdouble
     return Cdouble(f(x))
 end
 
-# With precompilation, `__init__()` carries on initializations that must occur
-# at runtime like `@cfunction` which returns a raw pointer.
-const _objfun_c = Ref{Ptr{Cvoid}}()
-function __init__()
-    _objfun_c[] = @cfunction(_objfun, Cdouble,
-                             (opk_index, Ptr{Cdouble}, Ptr{Cvoid}))
-end
+# Without argument, yield the raw pointer that can be passed to C code.
+_objfun() = @cfunction(_objfun, Cdouble, (opk_index, Ptr{Cdouble}, Ptr{Cvoid}))
 
 """
 The methods:
@@ -231,7 +226,7 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     scl = to_scale(scale, n)
     grow!(work, _wrklen(x, scl, npt))
     status = Lib.newuoa_optimize(
-        n, npt, maximize, _objfun_c[], f, x,
+        n, npt, maximize, _objfun(), f, x,
         scl, rhobeg, rhoend, verbose, maxeval, work)
     if check && status != SUCCESS
         error(getreason(status))
@@ -255,7 +250,7 @@ function newuoa!(f::Function, x::DenseVector{Cdouble},
     n = length(x)
     grow!(work, _wrklen(x, npt))
     status = Lib.newuoa(
-        n, npt, _objfun_c[], f, x, rhobeg, rhoend, verbose, maxeval, work)
+        n, npt, _objfun(), f, x, rhobeg, rhoend, verbose, maxeval, work)
     if check && status != SUCCESS
         error(getreason(status))
     end
