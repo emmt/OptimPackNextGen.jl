@@ -308,8 +308,6 @@ function _finalize(ctx::Context)
     end
 end
 
-@deprecate create(args...; kwds...) Context(args...; kwds...)
-
 function iterate(ctx::Context, f::Real, x::DenseVector{Cdouble},
                  c::DenseVector{Cdouble})
     length(x) == ctx.n || error("bad number of variables")
