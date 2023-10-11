@@ -65,7 +65,7 @@ end
 Mike Powell's **COBYLA** algorithm attempts to find the variables `x` which
 solve the problem:
 
-    min f(x)    s.t.   c(x) <= 0
+    min f(x)    s.t.   c(x) ≤ 0
 
 where `x` is a vector of variables that has `n ≥ 1` components, `f(x)` is an
 objective function and `c(x)` implement `m` inequality constraints.  The
@@ -117,11 +117,12 @@ initial variables.
 
 The proper scaling of the variables is important for the success of the
 algorithm and the optional `scale` keyword should be specified if the typical
-precision is not the same for all variables.  If specified, `scale` is an array
-of strictly nonnegative values and of same size as the variables `x`, such that
-`scale[i]*rho` (with `rho` the trust region radius) is the size of the trust
-region for the `i`-th variable.  If keyword `scale` is not specified, a unit
-scaling for all the variables is assumed.
+precision is not the same for all variables. If `scale` is an array of strictly
+positive values and of same size as the variables `x`, then `scale[i]*rho`
+(with `rho` the trust region radius) is the size of the trust region for the
+`i`-th variable. Keyword `scale` may also be set with a strictly positive
+scalar to assume the same scaling factor for all variables. If keyword `scale`
+is not specified, a unit scaling for all the variables is assumed.
 
 
 ## Keywords
@@ -164,7 +165,7 @@ minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)
 are similar to `Cobyla.minimize` and `Cobyla.minimize!` respectively but
 solve the contrained maximization problem:
 
-    max f(x)    s.t.   c(x) <= 0
+    max f(x)    s.t.   c(x) ≤ 0
 
 """
 maximize(args...; kwds...) = optimize(args...; maximize=true, kwds...)

@@ -40,7 +40,7 @@ abstract type AbstractContext end
     iterate(ctx, ...) -> status
 
 performs the next iteration of the reverse communication algorithm associated
-with the context `ctx`.  Other arguments depend on the type of algorithm.
+with the context `ctx`. Other arguments depend on the type of algorithm.
 
 For **COBYLA** algorithm, the next iteration is performed by:
 
@@ -52,7 +52,7 @@ or
 
 on entry, the context status must be `COBYLA_ITERATE`, `f` and `c` are the
 function value and the constraints at `x`, the latter can be omitted if there
-are no constraints.  On exit, the returned value (the new context status) is:
+are no constraints. On exit, the returned value (the new context status) is:
 `COBYLA_ITERATE` if a new trial point has been stored in `x` and if user is
 requested to compute the function value and the constraints on the new point;
 `COBYLA_SUCCESS` if algorithm has converged and `x` has been set with the
@@ -65,7 +65,7 @@ For **NEWUOA** algorithm, the next iteration is performed by:
     iterate(ctx, f, x) -> status
 
 on entry, the context status must be `NEWUOA_ITERATE`, `f` is the function
-value at `x`.  On exit, the returned value (the new context status) is:
+value at `x`. On exit, the returned value (the new context status) is:
 `NEWUOA_ITERATE` if a new trial point has been stored in `x` and if user is
 requested to compute the function value for the new point; `NEWUOA_SUCCESS` if
 algorithm has converged; anything else indicates an error (see `getreason` for
@@ -78,8 +78,8 @@ function iterate end
     restart(ctx) -> status
 
 restarts the reverse communication algorithm associated with the context `ctx`
-using the same parameters.  The return value is the new status of the
-algorithm, see `getstatus` for details.
+using the same parameters. The return value is the new status of the algorithm,
+see `getstatus` for details.
 
 """
 function restart end
@@ -88,7 +88,7 @@ function restart end
     getstatus(ctx) -> status
 
 yields the current status of the reverse communication algorithm associated
-with the context `ctx`.  Possible values are:
+with the context `ctx`. Possible values are:
 
 * for **COBYLA**: `COBYLA_ITERATE`, if user is requested to compute `f(x)` and
   `c(x)`; `COBYLA_SUCCESS`, if algorithm has converged;
@@ -119,7 +119,7 @@ getreason(ctx::AbstractContext) = getreason(getstatus(ctx))
     getlastf(ctx) -> fx
 
 yields the last function value in the reverse communication algorithm
-associated with the context `ctx`.  Upon convergence of `iterate`, this value
+associated with the context `ctx`. Upon convergence of `iterate`, this value
 corresponds to the function at the solution; otherwise, this value corresponds
 to the previous set of variables.
 
@@ -130,7 +130,7 @@ function getlastf end
     getncalls(ctx) -> nevals
 
 yields the current number of function evaluations in the reverse communication
-algorithm associated with the context `ctx`.  Result is -1 if something is
+algorithm associated with the context `ctx`. Result is -1 if something is
 wrong, nonnegative otherwise.
 
 """
@@ -140,7 +140,7 @@ function getncalls end
     getradius(ctx) -> rho
 
 yields the current size of the trust region of the reverse communication
-algorithm associated with the context `ctx`.  Result is 0 if algorithm has not
+algorithm associated with the context `ctx`. Result is 0 if algorithm has not
 yet started (before first iteration), -1 if something is wrong, strictly
 positive otherwise.
 
@@ -151,7 +151,7 @@ function getradius end
     grow!(x, n) -> x
 
 grows vector `x` so that it has at least `n` elements, does nothing if `x` is
-large enough.  Argument `x` is returned.
+large enough. Argument `x` is returned.
 
 See also [`resize!`](@ref).
 

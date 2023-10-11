@@ -68,12 +68,12 @@ solve the problem:
 
     min f(x)
 
-where `x` is a vector of variables that has `n ≥ 2` components and `f(x)` is
-an objective function.  The algorithm employs quadratic approximations to the
-objective which interpolates the objective function at `m` points, the value
-`m = 2n + 1` being recommended.  The parameter `rho` controls the size of the
-trust region and it is reduced automatically from `rhobeg` to `rhoend` (such
-that `0 < rhoend ≤ rhobeg`).
+where `x` is a vector of variables that has `n ≥ 2` components and `f(x)` is an
+objective function. The algorithm employs quadratic approximations to the
+objective which interpolates the objective function at `m` points, the value `m
+= 2n + 1` being recommended. The parameter `rho` controls the size of the trust
+region and it is reduced automatically from `rhobeg` to `rhoend` (such that `0
+< rhoend ≤ rhobeg`).
 
 The in-place version of the algorithm is called as:
 
@@ -81,9 +81,9 @@ The in-place version of the algorithm is called as:
 
 where `f` is the objective function, `x` is a vector with the initial and final
 variables, `rhobeg` and `rhoend` are the initial and final sizes of the trust
-region.  The result is a tuple of 3 values: `status` indicates whether the
+region. The result is a tuple of 3 values: `status` indicates whether the
 algorithm was successful, `x` is the final value of the variables and `fx =
-f(x)` is the objective function at `x`.  Normally, `status` should be
+f(x)` is the objective function at `x`. Normally, `status` should be
 `Newuoa.SUCCESS`; otherwise, `getreason(status)` yields a textual explanation
 about the failure.
 
@@ -129,14 +129,14 @@ The following keywords are available:
   variables.
 
 * `npt` specifies the number of points to use for the quadratic approximation
-  of the objective function.  The default setting is the recommended value:
-  `npt = 2n + 1` with `n = length(x)` the number of variables.
+  of the objective function. The default setting is the recommended value: `npt
+  = 2n + 1` with `n = length(x)` the number of variables.
 
-* `work` specifies a workspace to (re)use.  It must be a vector of double
-  precision floating-point values.  If it is too small, its size is
-  automatically adjusted (by calling [`resize!`](@ref)).  This keyword is
-  useful to avoid any new allocation (and garbage colection) when several
-  similar optimizations are to be performed.
+* `work` specifies a workspace to (re)use. It must be a vector of double
+  precision floating-point values. If it is too small, its size is
+  automatically adjusted (by calling [`resize!`](@ref)). This keyword is useful
+  to avoid any new allocation (and garbage colection) when several similar
+  optimizations are to be performed.
 
 
 ## References
@@ -153,12 +153,11 @@ minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)
 @doc @doc(minimize) minimize!
 
 """
-
     Newuoa.maximize(f, x0, rhobeg, rhoend) -> (status, x, fx)
     Newuoa.maximize!(f, x, rhobeg, rhoend) -> (status, x, fx)
 
-are similar to `Newuoa.minimize` and `Newuoa.minimize!` respectively but
-solve the unconstrained maximization problem:
+are similar to `Newuoa.minimize` and `Newuoa.minimize!` respectively but solve
+the unconstrained maximization problem:
 
     max f(x)
 
@@ -270,7 +269,7 @@ using OptimPackNextGen.Powell
 ctx = Newuoa.create(n, rhobeg, rhoend; npt=..., verbose=..., maxeval=...)
 ```
 
-creates a new reverse communication workspace for NEWUOA algorithm.  A typical
+creates a new reverse communication workspace for NEWUOA algorithm. A typical
 usage is:
 
 ```julia

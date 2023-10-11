@@ -64,10 +64,10 @@ solve the bound constrained problem:
     min f(x)  s.t.  xl ≤ x ≤ xu
 
 where `x` is a vector of variables that has `n ≥ 2` components `f(x)` is an
-objective function, `xl` and `xu` are bounds on the variables.  The algorithm
+objective function, `xl` and `xu` are bounds on the variables. The algorithm
 employs quadratic approximations to the objective which interpolate the
-objective function at `m` points, the value `m = 2n + 1` being recommended.
-The parameter `rho` controls the size of the trust region and it is reduced
+objective function at `m` points, the value `m = 2n + 1` being recommended. The
+parameter `rho` controls the size of the trust region and it is reduced
 automatically from `rhobeg` to `rhoend` (such that `0 < rhoend ≤ rhobeg`).
 
 The in-place version of the algorithm is called as:
@@ -76,12 +76,12 @@ The in-place version of the algorithm is called as:
 
 where `f` is the objective function, `x` is a vector with the initial and final
 variables, `xl` and `xu` the lower and upper bounds for the variables, `rhobeg`
-and `rhoend` are the initial and final sizes of the trust region.  The result
-is a tuple of 3 values: `status` indicates whether the algorithm was
-successful, `x` is the final value of the variables and `fx = f(x)` is the
-objective function at `x`.  Normally, `status` should be `Bobyqa.SUCCESS`;
-otherwise, `getreason(status)` yields a textual explanation about the failure.
-The initial variables must be feasible, that is:
+and `rhoend` are the initial and final sizes of the trust region. The result is
+a tuple of 3 values: `status` indicates whether the algorithm was successful,
+`x` is the final value of the variables and `fx = f(x)` is the objective
+function at `x`. Normally, `status` should be `Bobyqa.SUCCESS`; otherwise,
+`getreason(status)` yields a textual explanation about the failure. The initial
+variables must be feasible, that is:
 
     xl ≤ x ≤ xu
 
@@ -132,14 +132,14 @@ The following keywords are available:
   variables.
 
 * `npt` specifies the number of points to use for the quadratic approximation
-  of the objective function.  The default setting is the recommended value:
-  `npt = 2n + 1` with `n = length(x)` the number of variables.
+  of the objective function. The default setting is the recommended value: `npt
+  = 2n + 1` with `n = length(x)` the number of variables.
 
-* `work` specifies a workspace to (re)use.  It must be a vector of double
-  precision floating-point values.  If it is too small, its size is
-  automatically adjusted (by calling [`resize!`](@ref)).  This keyword is
-  useful to avoid any new allocation (and garbage colection) when several
-  similar optimizations are to be performed.
+* `work` specifies a workspace to (re)use. It must be a vector of double
+  precision floating-point values. If it is too small, its size is
+  automatically adjusted (by calling [`resize!`](@ref)). This keyword is useful
+  to avoid any new allocation (and garbage colection) when several similar
+  optimizations are to be performed.
 
 
 ## References
@@ -156,7 +156,6 @@ minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)
 @doc @doc(minimize) minimize!
 
 """
-
     Bobyqa.maximize(f, x0, xl, xu, rhobeg, rhoend) -> (status, x, fx)
     Bobyqa.maximize!(f, x, xl, xu, rhobeg, rhoend) -> (status, x, fx)
 
