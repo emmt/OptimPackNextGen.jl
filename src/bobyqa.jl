@@ -29,7 +29,10 @@ import
     ..getstatus,
     ..grow!,
     ..iterate,
-    ..restart
+    ..restart,
+    ..Scale,
+    ..defaultscale,
+    ..to_scale
 
 # Aliases.
 const Status               = Lib.bobyqa_status
@@ -95,15 +98,16 @@ initial variables.
 ## Precision and scaling of variables
 
 Parameter `rhobeg` should be set to the typical size (in terms of Euclidean
-norm of the change of variables) of the region to explorate and `rhoend`
-should be set to the typical precision.  The proper scaling of the variables is
+norm of the change of variables) of the region to explorate and `rhoend` should
+be set to the typical precision. The proper scaling of the variables is
 important for the success of the algorithm and the optional `scale` keyword
 should be specified if the typical precision is not the same for all variables.
-If specified, `scale` is an array of strictly nonnegative values and of same
-size as the variables `x`, such that `scale[i]*rho` (with `rho` the trust
-region radius) is the size of the trust region for the `i`-th variable.  If
-keyword `scale` is not specified, a unit scaling for all the variables is
-assumed.
+If `scale` is an array of strictly positive values and of same size as the
+variables `x`, then `scale[i]*rho` (with `rho` the trust region radius) is the
+size of the trust region for the `i`-th variable. Keyword `scale` may also be
+set with a strictly positive scalar to assume the same scaling factor for all
+variables. If keyword `scale` is not specified, a unit scaling for all the
+variables is assumed.
 
 An error occurs if any of the differences `xu[i] - xl[i]` is less than
 `2*rhobeg*scale[i]`.
@@ -113,9 +117,10 @@ An error occurs if any of the differences `xu[i] - xl[i]` is less than
 
 The following keywords are available:
 
-* `scale` specifies the typical magnitudes of the variables.  If specified, it
-  must have as many elements as `x`, all strictly positive.  If not specified,
-  `scale[i] = 1` is assumed for any `i ∈ 1:n`.
+* `scale` specifies the typical magnitudes of the variables. If specified, it
+  must be a vector with as many elements as `x`, all strictly positive, or a
+  strictly positive scalar to assume the same scaling factor for all variables.
+  If not specified, `scale[i] = 1` is assumed for any `i ∈ 1:n`.
 
 * `check` (`true` by default) specifies whether to throw an exception if the
   algorithm is not fully successful.
@@ -220,7 +225,7 @@ optimize(f::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
 function optimize!(f::Function, x::DenseVector{Cdouble},
                    xl::DenseVector{Cdouble}, xu::DenseVector{Cdouble},
                    rhobeg::Real, rhoend::Real;
-                   scale::DenseVector{Cdouble}=Array{Cdouble}(undef, 0),
+                   scale::Scale = defaultscale,
                    maximize::Bool = false,
                    npt::Integer = 2*length(x) + 1,
                    check::Bool = false,
@@ -230,18 +235,11 @@ function optimize!(f::Function, x::DenseVector{Cdouble},
     n = length(x)
     length(xl) == n || error("bad length for inferior bound")
     length(xu) == n || error("bad length for superior bound")
-    nscl = length(scale)
-    if nscl == 0
-        sclptr = Ptr{Cdouble}(0)
-    elseif nscl == n
-        sclptr = pointer(scale)
-    else
-        error("bad number of scaling factors")
-    end
-    grow!(work, _wrklen(x, scale, npt))
+    scl = to_scale(scale, n)
+    grow!(work, _wrklen(x, scl, npt))
     status = Lib.bobyqa_optimize(
         n, npt, (maximize ? Cint(1) : Cint(0)), _objfun_c[], f,
-        x, xl, xu, sclptr, rhobeg, rhoend, verbose, maxeval, work)
+        x, xl, xu, scl, rhobeg, rhoend, verbose, maxeval, work)
     if check && status != SUCCESS
         error(getreason(status))
     end

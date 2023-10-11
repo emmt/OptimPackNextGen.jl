@@ -31,7 +31,10 @@ import
     ..getstatus,
     ..grow!,
     ..iterate,
-    ..restart
+    ..restart,
+    ..Scale,
+    ..defaultscale,
+    ..to_scale
 
 # Aliases.
 const Status               = Lib.cobyla_status
@@ -211,7 +214,7 @@ optimize(fc::Function, x0::AbstractVector{<:Real}, args...; kwds...) =
 
 function optimize!(fc::Function, x::DenseVector{Cdouble},
                    m::Integer, rhobeg::Real, rhoend::Real;
-                   scale::DenseVector{Cdouble} = Array{Cdouble}(undef, 0),
+                   scale::Scale = defaultscale,
                    maximize::Bool = false,
                    check::Bool = false,
                    verbose::Integer = 0,
@@ -219,18 +222,11 @@ function optimize!(fc::Function, x::DenseVector{Cdouble},
                    work::Vector{Cdouble} = _work(Cdouble, _wrklen(length(x), m)),
                    iact::Vector{opk_index} = _work(opk_index, m + 1))
     n = length(x)
-    nscl = length(scale)
-    if nscl == 0
-        sclptr = Ptr{Cdouble}(0)
-    elseif nscl == n
-        sclptr = pointer(scale)
-    else
-        error("bad number of scaling factors")
-    end
+    scl = to_scale(scale, n)
     grow!(work, _wrklen(n, m))
     grow!(iact, m + 1)
     status = Lib.cobyla_optimize(
-        n, m, maximize, _objfun_c[], fc, x, sclptr, rhobeg, rhoend,
+        n, m, maximize, _objfun_c[], fc, x, scl, rhobeg, rhoend,
         verbose, maxeval, work, iact)
     if check && status != COBYLA_SUCCESS
         error(getreason(status))

@@ -161,6 +161,37 @@ function grow!(x::Vector, n::Integer)
     return x
 end
 
+# Null-array to represent missing argument. It is sufficient to implement the abstract
+# array API plus the Base.unsafe_convert method to return a null pointer.
+struct NullArray{T,N} <: AbstractArray{T,N} end
+const NullVector{T} = NullArray{T,1}
+const NullMatrix{T} = NullArray{T,2}
+Base.length(::NullArray{T,N}) where {T,N} = 0
+Base.size(::NullArray{T,N}) where {T,N} = ntuple(Returns(0), Val(N))
+Base.axes(::NullArray{T,N}) where {T,N} = ntuple(Returns(Base.OneTo(0)), Val(N))
+Base.unsafe_convert(::Type{Ptr{S}}, ::NullArray{T,N}) where {T,N,S<:Union{Cvoid,T}} = Ptr{S}(0)
+
+# Default scaling factors and allowed types for scaling factors.
+const defaultscale = NullVector{Cdouble}()
+const Scale = Union{Nothing,Real,AbstractVector{<:Real},typeof(defaultscale)}
+
+# Convert the scaling factors.
+function to_scale(scl::Union{Nothing,typeof(defaultscale)}, n::Integer)
+    return defaultscale
+end
+function to_scale(scl::Real, n::Integer)
+    (isfinite(scl) & (scl > zero(scl))) || throw(ArgumentError("invalid scaling factor"))
+    return fill(Cdouble(scl), n)
+end
+function to_scale(scl::AbstractVector{<:Real}, n::Integer)
+    length(scl) == n || throw(DimensionMismatch("bad number of scaling factors"))
+    @inbounds for i in eachindex(scl)
+        s = scl[i]
+        (isfinite(s) & (s > zero(s))) || throw(ArgumentError("invalid scaling factor(s)"))
+    end
+    return scl isa DenseVector{Cdouble} ? scl : convert(Vector{Cdouble}, scl)
+end
+
 include("newuoa.jl")
 import .Newuoa: newuoa, newuoa!
 

@@ -1,5 +1,12 @@
 # User visible changes in `OptimPackNextGen` package
 
+## Version 0.4.1
+
+- In Powell's methods (COBYLA, NEWUOA, and BOBYQA):
+  - Preserve scaling factors from being garbage collected while calling the C
+    code.
+  - Scaling factors can be specified in more flexible ways.
+
 ## Version 0.4.0
 
 - New methods `Brent.fmax` and `Brent.fmaxbrkt`.
