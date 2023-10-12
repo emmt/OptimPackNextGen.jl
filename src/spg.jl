@@ -22,6 +22,7 @@ export
 
 using Printf
 
+using NumOptBase
 using ..OptimPackNextGen
 
 import OptimPackNextGen: getreason
@@ -84,30 +85,33 @@ The `spg` method implements the Spectral Projected Gradient Method (Version 2:
 given function with convex constraints, described in the references below. A
 typical use is:
 
-```julia
-spg(fg!, prj!, x0, m) -> x
-```
+    spg(fg!, prj!, x0, m) -> x
 
 The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
 region. These functions must be defined as:
 
-```julia
-function fg!(x::T, g::T) where {T}
-   g[:] = gradient_at(x)
-   return function_value_at(x)
-end
+    function fg!(x::T, g::T) where {T}
+       g[:] = gradient_at(x)
+       return function_value_at(x)
+    end
 
-function prj!(dst::T, src::T) where {T}
-    dst[:] = projection_of(src)
-    return dst
-end
-```
+    function prj!(dst::T, src::T) where {T}
+        dst[:] = projection_of(src)
+        return dst
+    end
 
 Argument `x0` is the initial solution and argument `m` is the number of
 previous function values to be considered in the nonmonotone line search. If `m
 ≤ 1`, then a monotone line search with Armijo-like stopping criterion will be
 used.
+
+Another possibility is to call:
+
+    spg(fg!, Ω, x0, m) -> x
+
+with `Ω` a bounded set (of type `BoundedSet`) to specify the feasible subset
+for the variables `x`.
 
 The following keywords are available:
 
@@ -194,6 +198,12 @@ Possible `status` values are:
 """
 spg(fg!, prj!, x0::AbstractArray, m::Integer; kwds...) =
     spg!(fg!, prj!, copy_variables(x0), m; kwds...)
+
+spg!(fg!, Ω::BoundedSet{T,N}, x::AbstractArray{T,N}, m::Integer; kwds...) where {T,N} =
+    spg!(fg!, Projector(Ω), x, m; kwds...)
+
+spg!(fg!, Ω::BoundedSet, x::AbstractArray{T,N}, m::Integer; kwds...) where {T,N} =
+    spg!(fg!, BoundedSet{T,N}(Ω), x, m; kwds...)
 
 function spg!(fg!, prj!, x::AbstractArray, m::Integer;
               autodiff::Bool  = false,

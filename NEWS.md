@@ -25,6 +25,10 @@ Other changes:
   - The initial variables in `spg` are automatically converted to have
     floating-point elements.
 
+  - The projector `prj!` in `spg` and `spg!` may be replaced by an object of
+    type `BoundedSet`) to specify the feasible subset `Ω` for the variables
+    `x`.
+
   - All settings of the SPG method can be specified by keywords.
 
   - Floating-point type for scalar computations are done in at least double

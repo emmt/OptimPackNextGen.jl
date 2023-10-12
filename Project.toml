@@ -20,7 +20,7 @@ OptimPackNextGenZygoteExt = "Zygote"
 
 [compat]
 ArrayTools = "0.2.3, 0.3"
-NumOptBase = "0.2"
+NumOptBase = "0.2.1"
 Requires = "1"
 Unitless = "2"
 Zygote = "0.6"

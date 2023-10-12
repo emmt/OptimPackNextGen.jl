@@ -18,12 +18,18 @@ export
     # Linear Conjugate Gradient method:
     # FIXME: conjgrad!, conjgrad,
     #
+    # Separable bounds (re-exported from NumOptBase):
+    Projector, Bound, BoundedSet,
+
     # Spectral Projected Gradient (SPG) method:
     SPG, spg, spg!,
 
     # Brent's methods:
     fmin,
     fzero,
+
+    # Powell's methods:
+    Powell,
 
     # Non-Linear Least SQuares (NLLSQ):
     nllsq!, nllsq,
@@ -39,6 +45,7 @@ export
     issuccess
 
 using LinearAlgebra
+using NumOptBase
 
 if !isdefined(Base, :get_extension)
     using Requires
@@ -54,7 +61,7 @@ const Float = Cdouble
 
 include("wrappers.jl")
 
-include("autodiff.jl")
+include("utils.jl")
 
 include("vops.jl")
 
@@ -81,5 +88,12 @@ include("step.jl")
 
 include("spg.jl")
 import .SPG: spg, spg!
+
+function __init__()
+    @static if !isdefined(Base, :get_extension)
+        @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" include(
+            "../ext/OptimPackNextGenZygoteExt.jl")
+    end
+end
 
 end # module
