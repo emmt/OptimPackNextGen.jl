@@ -15,9 +15,20 @@ in GPU.
 
 Other changes:
 
-* SPG method uses an enumeration to represent the status of the algorithm. The
-  methods `issuccess(status)` and `getreason(status)` can be used to check
-  whether the algorithm was successful and to retrieve a textual explanation.
+* Spectral Projected Gradient (SPG) method:
+
+  - Methods `spg` and `spg!` uses an enumeration to represent the status of the
+    algorithm. The methods `issuccess(status)` and `getreason(status)` can be
+    used to check whether the algorithm was successful and to retrieve a
+    textual explanation.
+
+  - The initial variables in `spg` are automatically converted to have
+    floating-point elements.
+
+  - All settings of the SPG method can be specified by keywords.
+
+  - Floating-point type for scalar computations are done in at least double
+    precision.
 
 ## Version 0.4.1
 

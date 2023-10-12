@@ -40,8 +40,6 @@ using LinearAlgebra
     FUNCTION_CONVERGENCE =  3
 end
 
-LinearAlgebra.issuccess(status::Status) = Integer(status) > 0
-
 mutable struct Info
     f::Float64      # The final/current function value.
     fbest::Float64  # The best function value so far.
@@ -54,6 +52,29 @@ mutable struct Info
     Info() = new(NaN, NaN, NaN, NaN, 0, 0, 0, SEARCHING)
 end
 
+LinearAlgebra.issuccess(info::Info) = issuccess(info.status)
+LinearAlgebra.issuccess(status::Status) = Integer(status) > 0
+
+const REASON = Dict{Status,String}(
+    SEARCHING => "Work in progress",
+    INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
+    TWONORM_CONVERGENCE => "Convergence with projected gradient 2-norm",
+    FUNCTION_CONVERGENCE => "Function does not change in the last `m` iterations",
+    TOO_MANY_ITERATIONS => "Too many iterations",
+    TOO_MANY_EVALUATIONS => "Too many function evaluations")
+
+getreason(info::Info) = getreason(info.status)
+getreason(status::Status) = get(REASON, status, "unknown status")
+
+# Default settings.
+const default_eps1 = 1.0e-6
+const default_eps2 = 1.0e-6
+const default_eta  = 1.0
+const default_lmin = 1.0e-30
+const default_lmax = 1.0e+30
+const default_ftol = 1.0e-4
+const default_amin = 0.1
+const default_amax = 0.9
 
 """
 # Spectral Projected Gradient Method
@@ -95,10 +116,10 @@ The following keywords are available:
   not specified, this keyword is assumed to be `false`.
 
 * `eps1` specifies the stopping criterion `‖pg‖_∞ ≤ eps1` with `pg` the
-  projected gradient. By default, `eps1 = 1e-6`.
+  projected gradient. By default, `eps1 = $(default_eps1)`.
 
 * `eps2` specifies the stopping criterion `‖pg‖₂ ≤ eps2` with `pg` the
-  projected gradient. By default, `eps2 = 1e-6`.
+  projected gradient. By default, `eps2 = $(default_eps2)`.
 
 * `eta` specifies a scaling parameter for the gradient. The projected gradient
   is computed as `(x - prj(x - eta*g))/eta` (with `g` the gradient at `x`)
@@ -106,6 +127,16 @@ The following keywords are available:
   as if `eta=1`) and is usually used in methodological publications although it
   does not scale correctly (for instance, if you make a change of variables or
   simply multiply the function by some factor).
+
+* `lmin` and `lmax` specify the limits of the spectral steplength. By default,
+  `lmin = $(default_lmin)` and `lmax = $(default_lmax)`.
+
+* `amin` and `amax` specify the parameters for safeguarding the quadratic
+  interpolation step. By default, `amin = $(default_amin)` and `amax =
+  $(default_amax)`.
+
+* `ftol` specifies the relative function tolerance for the non-monotone
+  Armijo-like stopping criterion. By default, `ftol = $(default_ftol)`.
 
 * `maxit` specifies the maximum number of iterations.
 
@@ -161,72 +192,63 @@ Possible `status` values are:
   (TOMS) 27, pp. 340-349 (2001).
 
 """
-spg(fg!, prj!, x0::AbstractArray{T,N}, m::Integer; kwds...) where {T,N} =
+spg(fg!, prj!, x0::AbstractArray, m::Integer; kwds...) =
     spg!(fg!, prj!, copy_variables(x0), m; kwds...)
 
-"""
-     copy_variables(x)
+function spg!(fg!, prj!, x::AbstractArray, m::Integer;
+              autodiff::Bool  = false,
+              ws::Info        = Info(),
+              maxit::Integer  = typemax(Int),
+              maxfc::Integer  = typemax(Int),
+              eps1::Real      = default_eps1,
+              eps2::Real      = default_eps2,
+              eta::Real       = default_eta,
+              lmin::Real      = default_lmin,
+              lmax::Real      = default_lmax,
+              ftol::Real      = default_ftol,
+              amin::Real      = default_amin,
+              amax::Real      = default_amax,
+              printer         = default_printer,
+              verb::Integer   = false,
+              io::IO          = stdout)
+    # Check settings.
+    m ≥ one(m) || argument_error("`m ≥ 1` must hold")
+    eps1 ≥ zero(eps1) || argument_error("`eps1 ≥ 0` must hold")
+    eps2 ≥ zero(eps2) || argument_error("`eps2 ≥ 0` must hold")
+    eta > zero(eta) || argument_error("`eta ≥ 0` must hold")
+    lmin > zero(lmin) || argument_error("`lmin > 0` must hold")
+    lmax > zero(lmax) || argument_error("`lmax > 0` must hold")
+    lmin < lmax || argument_error("`lmin < lmax` must hold")
+    zero(ftol) < ftol < one(ftol) || argument_error("`0 < ftol < 1` must hold")
+    amin > zero(amin) || argument_error("`amin > 0` must hold")
+    amax > zero(amax) || argument_error("`amax > 0` must hold")
+    amin < amax || argument_error("`amin < amax` must hold")
 
-yields a copy of the variables `x` having a *similar* array type but
-floating-point element type.
-
-"""
-copy_variables(x::AbstractArray) = copyto!(similar(x, float(eltype(x))), x)
-
-const REASON = Dict{Status,String}(
-    SEARCHING => "Work in progress",
-    INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
-    TWONORM_CONVERGENCE => "Convergence with projected gradient 2-norm",
-    FUNCTION_CONVERGENCE => "Function does not change in the last `m` iterations",
-    TOO_MANY_ITERATIONS => "Too many iterations",
-    TOO_MANY_EVALUATIONS => "Too many function evaluations")
-
-getreason(ws::Info) = get(REASON, ws.status, "unknown status")
-
-function spg!(fg!, prj!, x, m::Integer;
-              autodiff::Bool = false,
-              ws::Info = Info(),
-              maxit::Integer = typemax(Int),
-              maxfc::Integer = typemax(Int),
-              eps1::Real = 1e-6,
-              eps2::Real = 1e-6,
-              eta::Real = 1.0,
-              printer::Function = default_printer,
-              verb::Integer = false,
-              io::IO = stdout)
+    # Determine floating-point type for scalar computations (using at least
+    # double-precision) and call private method with all arguments checked and
+    # converted to the correct type.
+    T = promote_type(Float64, eltype(x))
+    args = (prj!, x, Int(m), ws, Int(maxit), Int(maxfc), as(T, eps1), as(T, eps2),
+            as(T, eta), as(T, lmin), as(T, lmax), as(T, ftol), as(T, amin), as(T, amax),
+            printer, Int(verb), io)
     if autodiff
-        _spg!((x, g) -> auto_differentiate!(fg!, x, g),
-              prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
-              Float64(eps1), Float64(eps2), Float64(eta),
-              printer, Int(verb), io)
+        _spg!((x, g) -> auto_differentiate!(fg!, x, g), args...)
     else
-        _spg!(fg!,
-              prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
-              Float64(eps1), Float64(eps2), Float64(eta),
-              printer, Int(verb), io)
+        _spg!(fg!, args...)
     end
     return x
 end
 
-function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
-               eps1::Float64, eps2::Float64, eta::Float64,
-               printer::Function, verb::Int, io::IO) where {T}
+function _spg!(fg!, prj!, x::AbstractArray, m::Int, ws::Info, maxit::Int, maxfc::Int,
+               eps1::T, eps2::T, eta::T, lmin::T, lmax::T, ftol::T,
+               amin::T, amax::T, printer, verb::Int, io::IO) where {T<:AbstractFloat}
     # Initialization.
-    @assert m ≥ 1
-    @assert eps1 ≥ 0
-    @assert eps2 ≥ 0
-    @assert eta > 0
-    lmin = Float64(1e-30)
-    lmax = Float64(1e+30)
-    ftol = Float64(1e-4)
-    amin = Float64(0.1)
-    amax = Float64(0.9)
     iter = 0
     fcnt = 0
     pcnt = 0
     status = SEARCHING
-    pgtwon = Float64(Inf)
-    pginfn = Float64(Inf)
+    pgtwon = as(T, Inf)
+    pginfn = as(T, Inf)
 
     # Allocate workspaces making a few aliases to save memory.
     #
@@ -237,7 +259,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
     # 2. The projected gradient `pg` and the search direction can share the
     #    same workspace.
     #
-    lastfv = fill!(Array{Float64}(undef, m), -Inf)
+    lastfv = fill!(Array{T}(undef, m), -Inf)
     g = vcreate(x)
     d = pg = vcreate(x)
     s = x0 = vcreate(x)
@@ -247,11 +269,9 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
     # Project initial guess.
     prj!(x, x)
     pcnt += 1
-    vcopy!(x0, x) # FIXME: not necessary (idem for g0)
 
     # Evaluate function and gradient.
-    local f::Float64
-    f = fg!(x, g)
+    f = as(T, fg!(x, g))
     fcnt += 1
 
     # Initialize best solution and best function value.
@@ -276,8 +296,8 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
         # `pg = (x - prj(x - eta*g))/eta` and using `pg` as a workspace.
         vcombine!(pg, 1/eta, x, -1/eta, prj!(pg, vcombine!(pg, 1, x, -eta, g)))
         pcnt += 1
-        pgtwon = vnorm2(pg)
-        pginfn = vnorminf(pg)
+        pgtwon = vnorm2(T, pg)
+        pginfn = vnorminf(T, pg)
 
         # Print iteration information.
         if verbose(verb, iter)
@@ -326,10 +346,10 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
         else
             vcombine!(s, 1, x, -1, x0)
             vcombine!(y, 1, g, -1, g0)
-            sty = vdot(s, y)
-            if sty > 0
+            sty = vdot(T, s, y)
+            if sty > zero(sty)
                 # Safeguarded Barzilai & Borwein spectral steplength.
-                sts = vdot(s, s)
+                sts = vdot(T, s, s)
                 lambda = clamp(sts/sty, lmin, lmax)
             else
                 lambda = lmax
@@ -345,10 +365,10 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
         prj!(x, vcombine!(x, 1, x0, -lambda, g0)) # x = prj(x0 - lambda*g0)
         pcnt += 1
         vcombine!(d, 1, x, -1, x0) # d = x - x0
-        delta = vdot(g0, d)
+        delta = vdot(T, g0, d)
 
         # Nonmonotone line search.
-        stp = 1.0 # Step length for first trial.
+        stp = one(T) # Step length for first trial.
         while true
             # Evaluate function and gradient at trial point.
             f = fg!(x, g)
@@ -376,7 +396,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
             # Safeguarded quadratic interpolation.
             q = -delta*(stp*stp)
             r = (f - f0 - stp*delta)*2
-            if r > 0 && amin*r ≤ q ≤ amax*stp*r
+            if r > zero(r) && amin*r ≤ q ≤ amax*stp*r
                 stp = q/r
             else
                 stp /= 2
@@ -406,7 +426,7 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
     ws.fcnt = fcnt
     ws.pcnt = pcnt
     ws.status = status
-    if verbose(verb, 0) #always print last line if verb>0
+    if verbose(verb, 0) # always print last line if verb > 0
         reason = getreason(ws)
         if !issuccess(status)
             printstyled(stderr, "# WARNING: ", reason, "\n"; color=:red)
@@ -420,6 +440,15 @@ function _spg!(fg!, prj!, x::T, m::Int, ws::Info, maxit::Int, maxfc::Int,
     return x
 end
 
+"""
+     SPG.copy_variables(x)
+
+yields a copy of the variables `x` having a *similar* array type but
+floating-point element type.
+
+"""
+copy_variables(x::AbstractArray) = copyto!(similar(x, float(eltype(x))), x)
+
 function default_printer(io::IO, info::Info)
     if info.iter == 0
         @printf(io, "# %s\n# %s\n",
@@ -430,5 +459,8 @@ function default_printer(io::IO, info::Info)
             info.iter, info.fcnt, info.pcnt, (info.f ≤ info.fbest ? "(*)" : "   "),
             info.f, info.pgtwon, info.pginfn)
 end
+
+@noinline argument_error(args...) = argument_error(string(args...))
+argument_error(msg::AbstractString) = throw(ArgumentError(msg))
 
 end # module

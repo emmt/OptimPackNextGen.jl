@@ -15,27 +15,40 @@
 module OptimPackNextGen
 
 export
-    # FIXME: conjgrad!,
-    # FIXME: conjgrad,
+    # Linear Conjugate Gradient method:
+    # FIXME: conjgrad!, conjgrad,
+    #
+    # Spectral Projected Gradient (SPG) method:
+    SPG, spg, spg!,
+
+    # Brent's methods:
     fmin,
     fzero,
+
+    # Non-Linear Least SQuares (NLLSQ):
+    nllsq!, nllsq,
+
+    # Variable Metric with Limited Memory and Bounds (VMLMB) method:
+    vmlmb!, vmlmb,
+
+    # Trust region step:
+    gqtpar!, gqtpar,
+
+    # Miscellaneous:
     getreason,
-    gqtpar!,
-    gqtpar,
-    nllsq!,
-    nllsq,
-    spg!,
-    spg,
-    vmlmb!,
-    vmlmb
+    issuccess
+
+using LinearAlgebra
 
 if !isdefined(Base, :get_extension)
     using Requires
 end
 
 """
+
 `Float` is the type of all floating point scalars, it is currently an alias to
 `Cdouble` which is itself an alias to `Float64`.
+
 """
 const Float = Cdouble
 
