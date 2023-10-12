@@ -30,6 +30,10 @@ Other changes:
   - Floating-point type for scalar computations are done in at least double
     precision.
 
+## Version 0.4.2
+
+- Fix loading of `Zygote` extension with Julia ≤ 1.8.
+
 ## Version 0.4.1
 
 - In Powell's methods (COBYLA, NEWUOA, and BOBYQA):

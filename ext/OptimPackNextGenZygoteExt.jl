@@ -1,10 +1,10 @@
 module OptimPackNextGenZygoteExt
 
-using Zygote
-
 if isdefined(Base, :get_extension)
+    using Zygote
     using OptimPackNextGen
 else
+    using ..Zygote
     using ..OptimPackNextGen
 end
 
