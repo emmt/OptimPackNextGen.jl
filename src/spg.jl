@@ -155,9 +155,9 @@ The following keywords are available:
   `verb` is less or equal zero. The default is `verb = false`.
 
 * `printer` specifies a subroutine to print some information at each iteration.
-  This subroutine will be called as `printer(io, info)` with `io` the output
-  stream and `info` an instance of `SPG.Info` with information about the current
-  iterate.
+  This subroutine will be called as `printer(io, x, fx, info)` with `io` the
+  output stream, `x` the current variables, `fx = f(x)` the corresponding
+  objective function value, and `info` an instance of `SPGL.Info`.
 
 * `io` specifes the output stream for iteration information.  It is `stdout` by
   default.
@@ -311,7 +311,6 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxf
 
         # Print iteration information.
         if verbose(verb, iter)
-            info.f      = f
             info.fbest  = fbest
             info.pgtwon = pgtwon
             info.pginfn = pginfn
@@ -319,7 +318,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxf
             info.fcnt   = fcnt
             info.pcnt   = pcnt
             info.status = status
-            printer(io, info)
+            printer(io, x, f, info)
         end
 
         # Test stopping criteria.
@@ -428,7 +427,6 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxf
     end
 
     # Store information and report final status.
-    info.f      = fbest
     info.fbest  = fbest
     info.pgtwon = pgtwon
     info.pginfn = pginfn
@@ -459,15 +457,15 @@ floating-point element type.
 """
 copy_variables(x::AbstractArray) = copyto!(similar(x, float(eltype(x))), x)
 
-function default_printer(io::IO, info::Info)
+function default_printer(io::IO, x::AbstractArray, fx::Real, info::Info)
     if info.iter == 0
         @printf(io, "# %s\n# %s\n",
                 " ITER   EVAL   PROJ             F(x)              ‖PG(X)‖₂  ‖PG(X)‖_∞",
                 "---------------------------------------------------------------------")
     end
     @printf(io, " %6d %6d %6d %3s %24.17e %9.2e %9.2e\n",
-            info.iter, info.fcnt, info.pcnt, (info.f ≤ info.fbest ? "(*)" : "   "),
-            info.f, info.pgtwon, info.pginfn)
+            info.iter, info.fcnt, info.pcnt, (fx ≤ info.fbest ? "(*)" : "   "),
+            fx, info.pgtwon, info.pginfn)
 end
 
 @noinline argument_error(args...) = argument_error(string(args...))

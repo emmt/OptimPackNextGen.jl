@@ -32,6 +32,10 @@ Other changes:
   - All settings of the SPG method can be specified by keywords. Keyword `ws`
     has been renamed as `info`.
 
+  - Printer has a different signature: `printer(io, x, fx, info)` with `io` the
+    output stream, `x` the current variables, `fx = f(x)` the corresponding
+    objective function value, and `info` an instance of `SPGL.Info`.
+
   - Floating-point type for scalar computations are done in at least double
     precision.
 
