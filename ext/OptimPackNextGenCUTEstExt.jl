@@ -13,21 +13,37 @@ else
 end
 
 function spg_CUTEst(name::AbstractString, m::Integer; kwds...)
-    model = CUTEstModel(name)
+    nlp = CUTEstModel(name)
     try
-        return spg(model, m; kwds...)
+        return spg(nlp, m; kwds...)
     finally
-        finalize(model)
+        finalize(nlp)
     end
 end
 
-function spg(model::CUTEstModel, m::Integer; kwds...)
-    bound_constrained(model) || unconstrained(model) || error(
+"""
+    spg(nlp::CUTEstModel, m::Integer; kwds...) -> x
+
+yields the solution to the `CUTEst` problem `nlp` by the SPG method with a
+memory of `m` previous steps.
+
+"""
+function spg(nlp::CUTEstModel, m::Integer;
+             verb::Integer = false,
+             io::IO        = stdout,
+             kwds...)
+    bound_constrained(nlp) || unconstrained(nlp) || error(
         "SPG method can only solve bound constrained or unconstrained problems ($name)")
-    x0 = get_x0(model)
-    objfun = ObjectiveFunction(model)
-    proj = Projector(model)
-    return spg(objfun, proj, x0, m; kwds...)
+    x0 = get_x0(nlp)
+    objfun = ObjectiveFunction(nlp)
+    proj = Projector(nlp)
+    if verb > zero(verb)
+        println(io, "#\n# Solving CUTEst ",
+                (bound_constrained(nlp) ? "bound constrained" : "unconstrained"),
+                " problem $(get_name(nlp)) by SPG method\n",
+                "# with n = $(get_nvar(nlp)) variable(s) and m = $m memorized step(s).\n#")
+    end
+    return spg(objfun, proj, x0, m; verb, kwds...)
 end
 
 end # module
