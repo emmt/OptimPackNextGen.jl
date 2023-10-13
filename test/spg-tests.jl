@@ -83,7 +83,7 @@ function runtests(; floats = (Float64, Float32), n::Integer = 20)
         eps = sizeof(T)*8 < 64 ? 1e-4 : 1e-6
         x0 = rosenbrock_init!(Array{T}(undef, n))
         info = SPG.Info()
-        kwds = (ws=info, verb=VERBOSE, eps1=eps, eps2=eps)
+        kwds = (info=info, verb=VERBOSE, eps1=eps, eps2=eps)
         N = ndims(x0)
 
         println("\n# Testing SPG with $T floats and nonnegativity.")

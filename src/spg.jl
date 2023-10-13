@@ -146,7 +146,7 @@ The following keywords are available:
 
 * `maxfc` specifies the maximum number of function evaluations.
 
-* `ws` is an instance of `SPG.Info` to store information about the final
+* `info` is an instance of `SPG.Info` to store information about the final
   iterate.
 
 * `verb` specifies the verbosity level. It can be a boolean to specify
@@ -155,8 +155,8 @@ The following keywords are available:
   `verb` is less or equal zero. The default is `verb = false`.
 
 * `printer` specifies a subroutine to print some information at each iteration.
-  This subroutine will be called as `printer(io, ws)` with `io` the output
-  stream and `ws` an instance of `SPG.Info` with information about the current
+  This subroutine will be called as `printer(io, info)` with `io` the output
+  stream and `info` an instance of `SPG.Info` with information about the current
   iterate.
 
 * `io` specifes the output stream for iteration information.  It is `stdout` by
@@ -207,7 +207,7 @@ spg!(fg!, Ω::BoundedSet, x::AbstractArray{T,N}, m::Integer; kwds...) where {T,N
 
 function spg!(fg!, prj!, x::AbstractArray, m::Integer;
               autodiff::Bool  = false,
-              ws::Info        = Info(),
+              info::Info        = Info(),
               maxit::Integer  = typemax(Int),
               maxfc::Integer  = typemax(Int),
               eps1::Real      = default_eps1,
@@ -238,7 +238,7 @@ function spg!(fg!, prj!, x::AbstractArray, m::Integer;
     # double-precision) and call private method with all arguments checked and
     # converted to the correct type.
     T = promote_type(Float64, eltype(x))
-    args = (prj!, x, Int(m), ws, Int(maxit), Int(maxfc), as(T, eps1), as(T, eps2),
+    args = (prj!, x, Int(m), info, Int(maxit), Int(maxfc), as(T, eps1), as(T, eps2),
             as(T, eta), as(T, lmin), as(T, lmax), as(T, ftol), as(T, amin), as(T, amax),
             printer, Int(verb), io)
     if autodiff
@@ -249,7 +249,7 @@ function spg!(fg!, prj!, x::AbstractArray, m::Integer;
     return x
 end
 
-function _spg!(fg!, prj!, x::AbstractArray, m::Int, ws::Info, maxit::Int, maxfc::Int,
+function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxfc::Int,
                eps1::T, eps2::T, eta::T, lmin::T, lmax::T, ftol::T,
                amin::T, amax::T, printer, verb::Int, io::IO) where {T<:AbstractFloat}
     # Initialization.
@@ -311,15 +311,15 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, ws::Info, maxit::Int, maxfc:
 
         # Print iteration information.
         if verbose(verb, iter)
-            ws.f = f
-            ws.fbest = fbest
-            ws.pgtwon = pgtwon
-            ws.pginfn = pginfn
-            ws.iter = iter
-            ws.fcnt = fcnt
-            ws.pcnt = pcnt
-            ws.status = status
-            printer(io, ws)
+            info.f      = f
+            info.fbest  = fbest
+            info.pgtwon = pgtwon
+            info.pginfn = pginfn
+            info.iter   = iter
+            info.fcnt   = fcnt
+            info.pcnt   = pcnt
+            info.status = status
+            printer(io, info)
         end
 
         # Test stopping criteria.
@@ -428,16 +428,16 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, ws::Info, maxit::Int, maxfc:
     end
 
     # Store information and report final status.
-    ws.f = fbest
-    ws.fbest = fbest
-    ws.pgtwon = pgtwon
-    ws.pginfn = pginfn
-    ws.iter = iter
-    ws.fcnt = fcnt
-    ws.pcnt = pcnt
-    ws.status = status
+    info.f      = fbest
+    info.fbest  = fbest
+    info.pgtwon = pgtwon
+    info.pginfn = pginfn
+    info.iter   = iter
+    info.fcnt   = fcnt
+    info.pcnt   = pcnt
+    info.status = status
     if verbose(verb, 0) # always print last line if verb > 0
-        reason = getreason(ws)
+        reason = getreason(info)
         if !issuccess(status)
             printstyled(stderr, "# WARNING: ", reason, "\n"; color=:red)
         else

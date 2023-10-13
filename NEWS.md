@@ -29,7 +29,8 @@ Other changes:
     type `BoundedSet`) to specify the feasible subset `Ω` for the variables
     `x`.
 
-  - All settings of the SPG method can be specified by keywords.
+  - All settings of the SPG method can be specified by keywords. Keyword `ws`
+    has been renamed as `info`.
 
   - Floating-point type for scalar computations are done in at least double
     precision.
