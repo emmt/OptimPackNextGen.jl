@@ -43,7 +43,6 @@ using LinearAlgebra
 end
 
 mutable struct Info
-    f::Float64      # The final/current function value.
     fbest::Float64  # The best function value so far.
     pginfn::Float64 # ||projected grad||_inf at the final/current iteration.
     pgtwon::Float64 # ||projected grad||₂ at the final/current iteration.
@@ -51,7 +50,7 @@ mutable struct Info
     fcnt::Int       # The number of function (and gradient) evaluations.
     pcnt::Int       # The number of projections.
     status::Status  # Termination parameter.
-    Info() = new(NaN, NaN, NaN, NaN, 0, 0, 0, SEARCHING)
+    Info() = new(NaN, NaN, NaN, 0, 0, 0, SEARCHING)
 end
 
 LinearAlgebra.issuccess(info::Info) = issuccess(info.status)
