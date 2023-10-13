@@ -18,7 +18,8 @@ module SPG
 export
     issuccess,
     spg,
-    spg!
+    spg!,
+    spg_CUTEst
 
 using Printf
 
@@ -447,6 +448,17 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxf
     fbest < f && vcopy!(x, xbest)
     return x
 end
+
+
+"""
+    spg_CUTEst(name, m; kwds...) -> x
+
+yields the solution to the `CUTEst` problem `name` by the SPG method with a
+memory of `m` previous steps. This require to have loaded the `CUTest` package.
+
+"""
+spg_CUTEst(arg...; kwds...) =
+    error("invalid arguments or `CUTEst` package not yet loaded")
 
 """
      SPG.copy_variables(x)

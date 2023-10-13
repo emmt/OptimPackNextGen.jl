@@ -22,7 +22,7 @@ export
     Projector, Bound, BoundedSet,
 
     # Spectral Projected Gradient (SPG) method:
-    SPG, spg, spg!,
+    SPG, spg, spg!, spg_CUTEst,
 
     # Brent's methods:
     fmin,
@@ -41,15 +41,12 @@ export
     gqtpar!, gqtpar,
 
     # Miscellaneous:
+    ObjectiveFunction,
     getreason,
     issuccess
 
 using LinearAlgebra
 using NumOptBase
-
-if !isdefined(Base, :get_extension)
-    using Requires
-end
 
 """
 
@@ -87,12 +84,19 @@ include("bradi.jl")
 include("step.jl")
 
 include("spg.jl")
-import .SPG: spg, spg!
+import .SPG: spg, spg!, spg_CUTEst
 
-function __init__()
-    @static if !isdefined(Base, :get_extension)
-        @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" include(
-            "../ext/OptimPackNextGenZygoteExt.jl")
+@static if !isdefined(Base, :get_extension)
+    using Requires
+    function __init__()
+        if !isdefined(Base, :get_extension)
+            @require CUTEst = "1b53aba6-35b6-5f92-a507-53c67d53f819" include(
+                "../ext/OptimPackNextGenCUTEstExt.jl")
+            @require NLPModels = "a4795742-8479-5a88-8948-cc11e1c8c1a6" include(
+                "../ext/OptimPackNextGenNLPModelsExt.jl")
+            @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" include(
+                "../ext/OptimPackNextGenZygoteExt.jl")
+        end
     end
 end
 

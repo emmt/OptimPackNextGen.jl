@@ -1,0 +1,31 @@
+"""
+    objfun = ObjectiveFunction(args...)
+
+yields a callable object built from arguments `args...` and suitable for
+optimizers in `OptimPackNextGen` and it can be used as:
+
+    fx = objfun(x)
+    fx = objfun(x, gx)
+
+to compute the value `fx` of the objective function and, possibly, overwrite
+`gx` with gradient of the objective function.
+
+"""
+struct ObjectiveFunction{T}
+    parent::T
+end
+Base.parent(objfun::ObjectiveFunction) = getfield(objfun, :parent)
+
+"""
+    OptimPackNextGen.auto_differentiate!(f, x, g) -> fx
+
+yields `fx = f(x)` for a given function `f` and variables `x` and overwrites
+the contents of `g` with the gradient of the function at `x`.
+
+This method may be extended to compute the gradient and function value for
+specific `typeof(f)` or to automatically compute the gradient as can be done by
+the `Zygote` package if it is loaded.
+
+"""
+auto_differentiate!(arg...; kwds...) =
+    error("invalid arguments or `Zygote` package not yet loaded")

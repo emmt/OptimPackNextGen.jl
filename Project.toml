@@ -13,13 +13,19 @@ Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Unitless = "c904d999-9673-4878-a3dd-e3ef1851788a"
 
 [weakdeps]
+CUTEst = "1b53aba6-35b6-5f92-a507-53c67d53f819"
+NLPModels = "a4795742-8479-5a88-8948-cc11e1c8c1a6"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [extensions]
+OptimPackNextGenCUTEstExt = "CUTEst"
+OptimPackNextGenNLPModelsExt = "NLPModels"
 OptimPackNextGenZygoteExt = "Zygote"
 
 [compat]
 ArrayTools = "0.2.3, 0.3"
+CUTEst = "0.13"
+NLPModels = "0.20"
 NumOptBase = "0.2.1"
 Requires = "1"
 Unitless = "2"

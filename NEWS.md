@@ -15,6 +15,11 @@ in GPU.
 
 Other changes:
 
+* Support for
+  [NLPModels](https://github.com/JuliaSmoothOptimizers/NLPModels.jl) and
+  [CUTEst](https://github.com/JuliaSmoothOptimizers/CUTEst.jl) optimization
+  problems.
+
 * Spectral Projected Gradient (SPG) method:
 
   - Methods `spg` and `spg!` uses an enumeration to represent the status of the
