@@ -380,7 +380,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxf
         stp = one(T) # Step length for first trial.
         while true
             # Evaluate function and gradient at trial point.
-            f = fg!(x, g)
+            f = as(T, fg!(x, g))
             fcnt += 1
 
             # Compare the new function value against the best function value
