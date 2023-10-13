@@ -29,3 +29,12 @@ the `Zygote` package if it is loaded.
 """
 auto_differentiate!(arg...; kwds...) =
     error("invalid arguments or `Zygote` package not yet loaded")
+
+"""
+     OptimPackNextGen.copy_variables(x)
+
+yields a copy of the variables `x`. The result is an array *similar* to `x` but
+with guaranteed floating-point element type.
+
+"""
+copy_variables(x::AbstractArray) = copyto!(similar(x, float(eltype(x))), x)

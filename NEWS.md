@@ -20,15 +20,15 @@ Other changes:
   [CUTEst](https://github.com/JuliaSmoothOptimizers/CUTEst.jl) optimization
   problems.
 
+* Initial variables of a multi-variate problem in `spg` and `vmlmb` are
+  converted to have floating-point element type.
+
 * Spectral Projected Gradient (SPG) method:
 
   - Methods `spg` and `spg!` uses an enumeration to represent the status of the
     algorithm. The methods `issuccess(status)` and `getreason(status)` can be
     used to check whether the algorithm was successful and to retrieve a
     textual explanation.
-
-  - The initial variables in `spg` are automatically converted to have
-    floating-point elements.
 
   - The projector `prj!` in `spg` and `spg!` may be replaced by an object of
     type `BoundedSet`) to specify the feasible subset `Ω` for the variables

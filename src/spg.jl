@@ -27,7 +27,7 @@ using NumOptBase
 using ..OptimPackNextGen
 
 import OptimPackNextGen: getreason
-using OptimPackNextGen: auto_differentiate!
+using OptimPackNextGen: auto_differentiate!, copy_variables
 using OptimPackNextGen.QuasiNewton: verbose
 using OptimPackNextGen.VectOps
 
@@ -458,15 +458,6 @@ memory of `m` previous steps. This require to have loaded the `CUTest` package.
 """
 spg_CUTEst(arg...; kwds...) =
     error("invalid arguments or `CUTEst` package not yet loaded")
-
-"""
-     SPG.copy_variables(x)
-
-yields a copy of the variables `x` having a *similar* array type but
-floating-point element type.
-
-"""
-copy_variables(x::AbstractArray) = copyto!(similar(x, float(eltype(x))), x)
 
 function default_printer(io::IO, x::AbstractArray, fx::Real, info::Info)
     if info.iter == 0

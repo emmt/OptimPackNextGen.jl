@@ -39,7 +39,7 @@ using NumOptBase:
 using ...OptimPackNextGen
 using OptimPackNextGen.LineSearches
 using OptimPackNextGen.VectOps
-using OptimPackNextGen: auto_differentiate!
+using OptimPackNextGen: auto_differentiate!, copy_variables
 
 # Use the same floating point type for scalars as in OptimPackNextGen.
 import OptimPackNextGen.Float
@@ -193,7 +193,7 @@ by Byrd at al. (1995) which has more overheads and is slower.
   Astronomical Data Analysis II, Proc. SPIE 4847, pp. 174-183 (2002).
 
 """
-vmlmb(fg!, x0; kwds...) = vmlmb!(fg!, vcopy(x0); kwds...)
+vmlmb(fg!, x0; kwds...) = vmlmb!(fg!, copy_variables(x0); kwds...)
 
 """
 `vmlmb!` is the in-place version of `vmlmb` (which to see):
