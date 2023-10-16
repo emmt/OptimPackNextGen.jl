@@ -38,3 +38,20 @@ with guaranteed floating-point element type.
 
 """
 copy_variables(x::AbstractArray) = copyto!(similar(x, float(eltype(x))), x)
+
+"""
+    OptimPackNextGen.get_tolerances(T, name, atol, rtol) -> atol, rtol
+
+yields absolute and relative tolerances `atol` and `rtol` for a parameter named
+`name` converted to floating-point type `T` throwing an `ArgumentError`
+exception if these settings have invalid values.
+
+"""
+function get_tolerances(::Type{T}, name::AbstractString,
+                        atol::Real, rtol::Real) where {T<:AbstractFloat}
+    atol ≥ zero(atol) ||
+        throw(ArgumentError("absolute tolerance for $name must be nonnegative"))
+    zero(rtol) ≤ rtol ≤ one(rtol) ||
+        throw(ArgumentError("relative tolerance for $name must be in [0,1]"))
+    return as(T, atol), as(T, rtol)
+end

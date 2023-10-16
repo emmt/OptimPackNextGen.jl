@@ -35,7 +35,7 @@ export
     nllsq!, nllsq,
 
     # Variable Metric with Limited Memory and Bounds (VMLMB) method:
-    vmlmb!, vmlmb,
+    vmlmb, vmlmb!, vmlmb_CUTEst,
 
     # Trust region step:
     gqtpar!, gqtpar,
@@ -47,6 +47,7 @@ export
 
 using LinearAlgebra
 using NumOptBase
+using TypeUtils
 
 """
 
@@ -69,7 +70,7 @@ include("linesearches.jl")
 import .LineSearches: getreason
 
 include("quasinewton.jl")
-import .QuasiNewton: vmlmb!, vmlmb, EMULATE_BLMVM
+import .QuasiNewton: vmlmb, vmlmb!, vmlmb_CUTEst
 
 include("brent.jl")
 import .Brent: fmin, fzero

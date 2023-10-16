@@ -24,11 +24,13 @@ module QuasiNewton
 export
     vmlmb,
     vmlmb!,
-    EMULATE_BLMVM
+    vmlmb_CUTEst
 
+# Imports from other packages.
 using Printf
-
+using TypeUtils
 using NumOptBase:
+    NumOptBase,
     Bound,
     BoundedSet,
     linesearch_stepmax,
@@ -36,16 +38,37 @@ using NumOptBase:
     project_variables!,
     unblocked_variables!
 
-using ...OptimPackNextGen
-using OptimPackNextGen.LineSearches
-using OptimPackNextGen.VectOps
-using OptimPackNextGen: auto_differentiate!, copy_variables
+# Imports from parent module.
+using ..OptimPackNextGen
+using ..OptimPackNextGen.LineSearches
+using ..OptimPackNextGen.VectOps
+using ..OptimPackNextGen: auto_differentiate!, copy_variables, get_tolerances
 
 # Use the same floating point type for scalars as in OptimPackNextGen.
 import OptimPackNextGen.Float
 
-const EMULATE_BLMVM = UInt(1)
+struct VMLMBConfig{FP<:AbstractFloat}
+    method::Symbol # one of `:LBFGS`, `:BLMVM`, or `:VMLMB`
+    mem::Int
+    maxiter::Int
+    maxeval::Int
+    verb::Int
+    fmin::FP
+    epsilon::FP
+    xatol::FP
+    xrtol::FP
+    fatol::FP
+    frtol::FP
+    gatol::FP
+    grtol::FP
+    autodiff::Bool
+end
 
+is_lbfgs(cfg::VMLMBConfig) = cfg.method === :LBFGS
+is_blmvm(cfg::VMLMBConfig) = cfg.method === :BLMVM
+is_vmlmb(cfg::VMLMBConfig) = cfg.method === :VMLMB
+is_unconstrained(cfg::VMLMBConfig) = is_lbfgs(cfg)
+is_bounded(cfg::VMLMBConfig) = ! is_unconstrained(cfg)
 is_bounded(Ω::BoundedSet) = (NumOptBase.is_bounded_below(Ω.lower) |
                              NumOptBase.is_bounded_above(Ω.upper))
 
@@ -196,12 +219,20 @@ by Byrd at al. (1995) which has more overheads and is slower.
 vmlmb(fg!, x0; kwds...) = vmlmb!(fg!, copy_variables(x0); kwds...)
 
 """
-`vmlmb!` is the in-place version of `vmlmb` (which to see):
+    vmlmb_CUTEst(name; kwds...) -> x
 
+yields the solution to the `CUTEst` problem `name` by the VMLMB method. This
+require to have loaded the `CUTest` package.
+
+"""
+vmlmb_CUTEst(arg...; kwds...) =
+    error("invalid arguments or `CUTEst` package not yet loaded")
+
+"""
      vmlmb!(fg!, x; mem=..., lower=..., upper=..., ftol=..., fmin=...) -> x
 
 finds a local minimizer of `f(x)` starting at `x` and stores the best solution
-in `x`.
+in `x`. Method `vmlmb!` is the in-place version of `vmlmb` (which to see).
 
 """
 function vmlmb!(fg!, x::AbstractArray{T,N};
@@ -221,109 +252,89 @@ function vmlmb!(fg!, x::AbstractArray{T,N};
                 printer::Function = print_iteration,
                 output::IO = stdout,
                 lnsrch::Union{LineSearch{Float},Nothing} = nothing) where {T<:AbstractFloat,N}
-    # Determine which options are used.
-    flags::UInt = (blmvm ? EMULATE_BLMVM : 0)
-
-    # Determine the type of bounds.
-    Ω = BoundedSet{T,N}(lower, upper)
-
-
-    # Determine the optimization method (0 for L-BFGS, 1 for BLMVM or 2 for
-    # VMLMB).
-    method = (is_bounded(Ω) ? 0 : (flags & EMULATE_BLMVM) != 0 ? 1 : 2)
-
-    # Provide a default line search method if needed.
-    if isa(lnsrch, Nothing)
-        if method == 0
-            ls = MoreThuenteLineSearch(Float; ftol=1e-3, gtol=0.9, xtol=0.1)
-        else
-            ls = MoreToraldoLineSearch(Float; ftol=1e-3, gamma=(0.1,0.5))
-        end
-    else
-        ls = lnsrch
-    end
-
-    # Call the real method.
-    xatol, xrtol = get_tolerances(Float, "`xtol`", xtol...)
-    fatol, frtol = get_tolerances(Float, "`ftol`", ftol...)
-    gatol, grtol = get_tolerances(Float, "`gtol`", gtol...)
-    _vmlmb!(fg!, x, Int(mem), flags, Ω, autodiff, method,
-            Float(fmin), Int(maxiter), Int(maxeval),
-            xatol, xrtol,
-            fatol, frtol,
-            gatol, grtol,
-            Float(epsilon), Int(verb), printer, output, ls)
-end
-
-function get_tolerances(::Type{T}, name::AbstractString,
-                        atol::Real, rtol::Real) where {T<:AbstractFloat}
-    atol ≥ zero(atol) ||
-        throw(ArgumentError("absolute tolerance for $name must be nonnegative"))
-    zero(rtol) ≤ rtol ≤ one(rtol) ||
-        throw(ArgumentError("relative tolerance for $name must be in [0,1]"))
-    return as(T, atol), as(T, rtol)
-end
-
-# The real worker.
-function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
-                 Ω::BoundedSet{T,N},
-                 autodiff::Bool,
-                 method::Int,
-                 fmin::Float, maxiter::Int, maxeval::Int,
-                 xatol::Float, xrtol::Float,
-                 fatol::Float, frtol::Float,
-                 gatol::Float, grtol::Float,
-                 epsilon::Float,
-                 verb::Int, printer::Function, output::IO,
-                 lnsrch::LineSearch{Float}) where {T<:AbstractFloat,N}
-
+    # Check settings.
     @assert mem ≥ 1
     @assert maxiter ≥ 0
     @assert maxeval ≥ 1
-    @assert xatol ≥ 0
-    @assert xrtol ≥ 0
-    @assert fatol ≥ 0
-    @assert frtol ≥ 0
-    @assert gatol ≥ 0
-    @assert grtol ≥ 0
     @assert 0 ≤ epsilon < 1
 
-    STPMIN = Float(1e-20)
-    STPMAX = Float(1e+20)
+    # Build a bounded set.
+    Ω = BoundedSet{T,N}(lower, upper)
 
-    sel = similar(x) # FIXME: not used if not bounded
-    mem = min(mem, length(x))
-    reason::AbstractString = ""
-    fminset::Bool = (! isnan(fmin) && fmin > -Inf)
+    # Determine the optimization method to emulate.
+    method = if ! is_bounded(Ω)
+        :LBFGS
+    elseif blmvm
+        :BLMVM
+    else
+        :VMLMB
+    end
 
-    mark::Int = 1    # index of most recent step and gradient difference
-    m::Int = 0       # number of memorized steps
-    iter::Int = 0    # number of algorithm iterations
-    eval::Int = 0    # number of objective function and gradient evaluations
-    rejects::Int = 0 # number of rejected search directions
+    cfg = VMLMBConfig{Float}(
+        method, mem, maxiter, maxeval, verb, fmin, epsilon,
+        get_tolerances(Float, "`xtol`", xtol...)...,
+        get_tolerances(Float, "`ftol`", ftol...)...,
+        get_tolerances(Float, "`gtol`", gtol...)...,
+        autodiff)
 
-    f::Float = 0
-    f0::Float = 0
-    gd::Float = 0
-    gd0::Float = 0
-    stp::Float = 0
-    stpmin::Float = 0
-    stpmax::Float = 0
-    smin::Float = 0
-    smax::Float = 0
-    gamma::Float = 1
-    gnorm::Float = 0
-    gtest::Float = 0
+    # Call the real method.
+    _vmlmb!(fg!, x, Ω, cfg, lnsrch, printer, output)
+end
+
+# Provide a default line search method if needed.
+function _vmlmb!(fg!, x::AbstractArray, Ω::BoundedSet, cfg::VMLMBConfig,
+                 lnsrch::Nothing, printer::Function, output::IO)
+    if is_unconstrained(cfg)
+        ls = MoreThuenteLineSearch(Float; ftol=1e-3, gtol=0.9, xtol=0.1)
+        return _vmlmb!(fg!, x, Ω, cfg, ls, printer, output)
+    else
+        ls = MoreToraldoLineSearch(Float; ftol=1e-3, gamma=(0.1,0.5))
+        return _vmlmb!(fg!, x, Ω, cfg, ls, printer, output)
+    end
+end
+
+# The real worker.
+function _vmlmb!(fg!, x::T, Ω::BoundedSet,
+                 cfg::VMLMBConfig, lnsrch::LineSearch{FP},
+                 printer::Function, output::IO) where {T<:AbstractArray,
+                                                       FP<:AbstractFloat}
+
+    STPMIN = FP(1e-20) # FIXME: should be in config
+    STPMAX = FP(1e+20) # FIXME: should be in config
+
+    act = similar(x) # FIXME: not used if not bounded
+    mem = min(cfg.mem, length(x))
+    reason = "" # FIXME: use enumeration
+    fminset::Bool = (! isnan(cfg.fmin) && cfg.fmin > -Inf) # FIXME: simplify
+
+    mark = 1    # index of most recent step and gradient difference
+    m = 0       # number of memorized steps
+    iter = 0    # number of algorithm iterations
+    eval = 0    # number of objective function and gradient evaluations
+    rejects = 0 # number of rejected search directions
+
+    f = zero(FP)
+    f0 = zero(FP)
+    gd = zero(FP)
+    gd0 = zero(FP)
+    stp = zero(FP)
+    stpmin = zero(FP)
+    stpmax = zero(FP)
+    smin = zero(FP)
+    smax = zero(FP)
+    gamma = one(FP)
+    gnorm = zero(FP)
+    gtest = zero(FP)
 
     # Variables for saving information about best point so far.
-    beststp::Float = 0
-    bestf::Float = 0
-    bestgnorm::Float = 0
+    beststp = zero(FP)
+    bestf = zero(FP)
+    bestgnorm = zero(FP)
 
     # Allocate memory for the limited memory BFGS approximation of the inverse
     # Hessian.
     g = vcreate(x) # ------------> gradient
-    if method > 0
+    if is_bounded(cfg)
         p = vcreate(x) # --------> projected gradient
     end
     d = vcreate(x) # ------------> search direction
@@ -334,8 +345,8 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
         S[k] = vcreate(x)
         Y[k] = vcreate(x)
     end
-    rho = Array{Float}(undef, mem)
-    alpha = Array{Float}(undef, mem)
+    rho = Array{FP}(undef, mem)
+    alpha = Array{FP}(undef, mem)
 
     # Variable used to control the stage of the algorithm:
     #   * stage = 0 at start or restart;
@@ -343,38 +354,38 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
     #   * stage = 2 if line search has converged;
     #   * stage = 3 if algorithm has converged;
     #   * stage = 4 if algorithm is terminated with a warning.
-    stage::Int = 0
+    stage = 0
 
+    bounded = is_bounded(cfg)
     while true
 
         # Compute value of function and gradient, register best solution so far
         # and check for convergence based on the gradient norm.
-        if method > 0
+        if bounded
             project_variables!(x, x, Ω)
         end
-        if autodiff
-            f = auto_differentiate!(fg!, x, g)
+        if cfg.autodiff
+            f = as(FP, auto_differentiate!(fg!, x, g))
         else
-            f = fg!(x, g)
+            f = as(FP, fg!(x, g))
         end
-
         eval += 1
-        if method > 0
+        if bounded
             project_direction!(p, x, -, g, Ω)
         end
         if eval == 1 || f < bestf
-            gnorm = vnorm2((method > 0 ? p : g))
+            gnorm = vnorm2(FP, is_bounded(cfg) ? p : g)
             beststp = stp
             bestf = f
             bestgnorm = gnorm
             if eval == 1
-                gtest = max(gatol, grtol*gnorm)
+                gtest = max(cfg.gatol, cfg.grtol*gnorm)
             end
             if gnorm ≤ gtest
                 stage = 3
                 if gnorm == 0
                     reason = "a stationary point has been found"
-                elseif method > 0
+                elseif is_bounded(cfg)
                     reason = "projected gradient norm sufficiently small"
                 else
                     reason = "gradient norm sufficiently small"
@@ -384,7 +395,7 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
                 end
             end
         end
-        if fminset && f < fmin # FIXME: do not do that
+        if fminset && f < cfg.fmin # FIXME: do not do that and use ≤
             stage = 4
             reason = "f < fmin"
         end
@@ -395,10 +406,10 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
 
             # Line search is in progress.
             if usederivatives(lnsrch)
-                if method > 0
-                    gd = vdot(g, s)/stp
+                if is_bounded(cfg)
+                    gd = vdot(FP, g, s)/stp
                 else
-                    gd = -vdot(g, d)
+                    gd = -vdot(FP, g, d)
                 end
             end
             task = iterate!(lnsrch, stp, f, gd)
@@ -408,25 +419,25 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
                 # Line search has converged.  Increment iteration counter
                 # and check for stopping conditions.
                 iter += 1
-                xtest = max(xatol, zero(Float))
-                if xrtol > 0
-                    xtest = max(xtest, xrtol*vnorm2(x))
+                xtest = max(cfg.xatol, zero(FP))
+                if cfg.xrtol > 0
+                    xtest = max(xtest, cfg.xrtol*vnorm2(FP, x))
                 end
-                if vnorm2(s) ≤ xtest
+                if vnorm2(FP, s) ≤ xtest
                     stage = 3
                     reason = "X test satisfied"
                 else
                     delta = max(abs(f - f0), stp*abs(gd0))
-                    if delta ≤ fatol
+                    if delta ≤ cfg.fatol
                         stage = 3
                         reason = "fatol test satisfied"
-                    elseif delta ≤ frtol*abs(f0)
+                    elseif delta ≤ cfg.frtol*abs(f0)
                         stage = 3
                         reason = "frtol test satisfied"
-                    elseif iter ≥ maxiter
+                    elseif iter ≥ cfg.maxiter
                         stage = 4
                         reason = "too many iterations"
-                    elseif eval ≥ maxeval
+                    elseif eval ≥ cfg.maxeval
                         stage = 4
                         reason = "too many evaluations"
                     else
@@ -439,7 +450,7 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
                 reason = getreason(lnsrch)
             end
         end
-        if stage < 2 && eval ≥ maxeval
+        if stage < 2 && eval ≥ cfg.maxeval
             stage = 4
             reason = "too many evaluations"
         end
@@ -455,17 +466,17 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
                     f = bestf
                     gnorm = bestgnorm
                     vcombine!(x, 1, S[mark], -stp, d)
-                    if method > 0
+                    if bounded
                         project_variables!(x, x, Ω)
                     end
                 else
-                    gnorm = vnorm2((method > 0 ? p : g))
+                    gnorm = vnorm2(FP, is_bounded(cfg) ? p : g)
                 end
             end
 
             # Print some information if requested and terminate algorithm if
             # stage ≥ 3.
-            if verbose(verb, iter)
+            if verbose(cfg.verb, iter)
                 printer(output, iter, eval, rejects, f, gnorm, stp)
             end
             if stage ≥ 3
@@ -476,34 +487,36 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
             if stage == 2
                 # Update limited memory BFGS approximation of the inverse
                 # Hessian with the effective step and gradient change.
-                vupdate!(S[mark], -1, x) # FIXME: vcopy!(S[mark], s)?
-                vupdate!(Y[mark], -1, (method == 1 ? p : g))
-                if method < 2
-                    rho[mark] = vdot(Y[mark], S[mark])
+                vupdate!(S[mark], -1, x)
+                vupdate!(Y[mark], -1, is_blmvm(cfg) ? p : g)
+                if bounded
+                    rho[mark] = vdot(FP, Y[mark], S[mark])
                     if rho[mark] > 0
                         # The update is acceptable, compute the scale.
-                        gamma = rho[mark]/vdot(Y[mark], Y[mark])
+                        gamma = rho[mark]/vdot(FP, Y[mark], Y[mark])
                     end
                 end
                 m = min(m + 1, mem)
 
                 # Compute search direction.
-                if method < 2
-                    vcopy!(d, g)
-                    change = apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
-                else
+                if is_vmlmb(cfg)
+                    # VMLMB method.
                     vcopy!(d, p)
                     change = apply_lbfgs!(S, Y, rho, m, mark, d, alpha,
                                           # FIXME: speedup this?
-                                          unblocked_variables!(sel, x, -, d, Ω))
+                                          unblocked_variables!(act, x, -, d, Ω))
+                else
+                    # LBFGS or BLMVM method.
+                    vcopy!(d, g)
+                    change = apply_lbfgs!(S, Y, rho, gamma, m, mark, d, alpha)
                 end
                 if change
-                    if method > 0
+                    if bounded
                         # FIXME: speedup project_direction with the unblocked vars.?
                         project_direction!(d, x, -, d, Ω)
                     end
                     gd = -vdot(g, d)
-                    reject = ! sufficient_descent(gd, epsilon, gnorm, d)
+                    reject = ! sufficient_descent(gd, cfg.epsilon, gnorm, d)
                 else
                     reject = true
                 end
@@ -519,7 +532,7 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
             if stage == 0
                 # At the initial point or computed direction was rejected.  Use
                 # the steepest descent which is the projected gradient.
-                vcopy!(d, (method > 0 ? p : g))
+                vcopy!(d, is_lbfgs(cfg) ? g : p)
                 gd = -gnorm^2
             end
 
@@ -528,21 +541,19 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
             f0 = f
             gd0 = gd
             vcopy!(S[mark], x)
-            vcopy!(Y[mark], (method == 1 ? p : g))
+            vcopy!(Y[mark], is_blmvm(cfg) ? p : g)
 
             # Choose initial step length.
             if stage == 2
-                stp = 1
+                stp = one(FP)
+            elseif fminset && cfg.fmin < f0
+                stp = 2*(cfg.fmin - f0)/gd0
             else
-                if fminset && fmin < f0
-                    stp = 2*(fmin - f0)/gd0
-                else
-                    stp = 1/gnorm # FIXME: use a better scale
-                end
+                stp = inv(gnorm) # FIXME: use a better scale
             end
-            if method > 0
+            if bounded
                 # Make sure the step is not longer than necessary.
-                smax = linesearch_stepmax(x, -1, d, Ω)
+                smax = linesearch_stepmax(x, -, d, Ω)
                 stp = min(stp, smax)
                 stpmin = STPMIN*stp
                 stpmax = min(STPMAX*stp, smax)
@@ -569,7 +580,7 @@ function _vmlmb!(fg!, x::AbstractArray{T,N}, mem::Int, flags::UInt,
     end
 
     # Algorithm finished.
-    if verbose(verb, 0) #always print last line if verb>0
+    if verbose(cfg.verb, 0) #always print last line if verb>0
         color = (stage > 3 ? :red : :green)
         prefix = (stage > 3 ? "WARNING: " : "CONVERGENCE: ")
         printstyled(output, "# ", prefix, reason, "\n"; color=color)
@@ -668,32 +679,35 @@ ways:
   and stores the result in `u` (in-place operation).
 
 """
-function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
-                      gamma::Float, m::Int, mark::Int, v::T,
-                      alpha::Vector{Float}) where {T}
+function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{FP},
+                      gamma::FP, m::Int, mark::Int, v::T,
+                      alpha::Vector{FP}) where {T<:AbstractArray,
+                                                FP<:AbstractFloat}
     @assert gamma > 0
     apply_lbfgs!(S, Y, rho, u -> vscale!(u, gamma), m, mark, v, alpha)
 end
 
-function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{FP},
                       d::T, m::Int, mark::Int, v::T,
-                      alpha::Vector{Float}) where {T}
+                      alpha::Vector{FP}) where {T<:AbstractArray,
+                                                FP<:AbstractFloat}
     apply_lbfgs!(S, Y, rho, u -> vproduct!(u, d, u), m, mark, v, alpha)
 end
 
-function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{FP},
                       H0!::Function, m::Int, mark::Int, v::T,
-                      alpha::Vector{Float}) where {T}
+                      alpha::Vector{FP}) where {T<:AbstractArray,
+                                                FP<:AbstractFloat}
     mem = min(length(S), length(Y), length(rho), length(alpha))
     @assert 1 ≤ m ≤ mem
     @assert 1 ≤ mark ≤ mem
     modif::Bool = false
     @inbounds begin
-        k::Int = mark + 1
+        k = mark + 1
         for i in 1:m
             k = (k > 1 ? k - 1 : mem)
             if rho[k] > 0
-                alpha[k] = vdot(S[k], v)/rho[k]
+                alpha[k] = vdot(FP, S[k], v)/rho[k]
                 vupdate!(v, -alpha[k], Y[k])
                 modif = true
             end
@@ -702,7 +716,7 @@ function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             H0!(v)
             for i in 1:m
                 if rho[k] > 0
-                    beta::Float = vdot(Y[k], v)/rho[k]
+                    beta = vdot(FP, Y[k], v)/rho[k]
                     vupdate!(v, alpha[k] - beta, S[k])
                 end
                 k = (k < mem ? k + 1 : 1)
@@ -712,25 +726,24 @@ function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
     return modif
 end
 
-function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
+function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{FP},
                       m::Int, mark::Int, v::T,
-                      alpha::Vector{Float}, sel, wrk) where {T}
+                      alpha::Vector{FP}, act::T) where {T<:AbstractArray,
+                                                        FP<:AbstractFloat}
     mem = min(length(S), length(Y), length(rho), length(alpha))
     @assert 1 ≤ m ≤ mem
     @assert 1 ≤ mark ≤ mem
-    gamma::Float = 0
+    gamma = zero(FP)
     @inbounds begin
-        k::Int = mark + 1
+        k = mark + 1
         for i in 1:m
             k = (k > 1 ? k - 1 : mem)
-            let s = S[k], y = vproduct!(wrk, sel, Y[k])
-                rho[k] = vdot(y, s)
-                if rho[k] > zero(rho[k])
-                    alpha[k] = vdot(s, v)/rho[k] # FIXME: sum(sel.*s.*v)
-                    vupdate!(v, -alpha[k], y)
-                    if iszero(gamma)
-                        gamma = rho[k]/vdot(y, y)
-                    end
+            rho[k] = vdot(FP, act, Y[k], S[k])
+            if rho[k] > zero(rho[k])
+                alpha[k] = vdot(FP, act, S[k], v)/rho[k]
+                vupdate!(v, -alpha[k], act, Y[k])
+                if iszero(gamma)
+                    gamma = rho[k]/vdot(FP, act, Y[k], Y[k])
                 end
             end
         end
@@ -738,8 +751,8 @@ function apply_lbfgs!(S::Vector{T}, Y::Vector{T}, rho::Vector{Float},
             vscale!(v, gamma)
             for i in 1:m
                 if rho[k] > zero(rho[k])
-                    beta = vdot(Y[k], v)/rho[k] # FIXME: ok v is zero where sel is zero?
-                    vupdate!(v, alpha[k] - beta, sel, S[k]) # FIXME:
+                    beta = vdot(FP, act, Y[k], v)/rho[k]
+                    vupdate!(v, alpha[k] - beta, act, S[k])
                 end
                 k = (k < mem ? k + 1 : 1)
             end
