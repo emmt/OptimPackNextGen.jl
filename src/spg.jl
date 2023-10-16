@@ -21,17 +21,18 @@ export
     spg!,
     spg_CUTEst
 
-using Printf
-
-using NumOptBase
-using ..OptimPackNextGen
-
-import OptimPackNextGen: getreason
-using OptimPackNextGen: auto_differentiate!, copy_variables
-using OptimPackNextGen.QuasiNewton: verbose
-using OptimPackNextGen.VectOps
-
+# Imports from other packages.
 using LinearAlgebra
+using NumOptBase
+using Printf
+using TypeUtils
+
+# Imports from parent module.
+using  ..OptimPackNextGen
+using  ..OptimPackNextGen: auto_differentiate!, copy_variables
+using  ..OptimPackNextGen.QuasiNewton: verbose
+using  ..OptimPackNextGen.VectOps
+import ..OptimPackNextGen: getreason
 
 @enum Status begin
     TOO_MANY_EVALUATIONS = -2
@@ -447,7 +448,6 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxf
     fbest < f && vcopy!(x, xbest)
     return x
 end
-
 
 """
     spg_CUTEst(name, m; kwds...) -> x

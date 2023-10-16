@@ -1,7 +1,6 @@
 module VectOps
 
 export
-    as,
     vcombine!,
     vcopy!,
     vcopy,
@@ -14,6 +13,7 @@ export
     vscale!,
     vupdate!
 
+using TypeUtils
 import NumOptBase
 
 vcreate(x::AbstractArray) = similar(x)
@@ -61,9 +61,5 @@ for norm in (:norm1, :norm2, :norminf)
         $vnorm(::Type{T}, x::AbstractArray) where {T<:Number} = as(T, $vnorm(x))
     end
 end
-
-# FIXME: Use TypeUtils.
-as(::Type{T}, x::T) where {T} = x
-as(::Type{T}, x::Any) where {T} = convert(T, x)::T
 
 end # module
