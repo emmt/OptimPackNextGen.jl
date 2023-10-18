@@ -18,10 +18,17 @@ Other changes:
 * Support for
   [NLPModels](https://github.com/JuliaSmoothOptimizers/NLPModels.jl) and
   [CUTEst](https://github.com/JuliaSmoothOptimizers/CUTEst.jl) optimization
-  problems.
+  problems. At user level, it is sufficient to `using CUTEst` and then call
+  `vmlmb_CUTEst` or `spg_CUTEst`.
 
 * Initial variables of a multi-variate problem in `spg` and `vmlmb` are
   converted to have floating-point element type.
+
+* VMLMB and SPG algorithms both yield similar results: a 2-tuple `(stats,x)`
+  where `stats` provides information about how the algorithm worked (number of
+  iterations, final value of objective function, execution time, etc.) and `x`
+  is the best solution found by the algorithm. Call `issuccess(stats)` to check
+  whether algorithm has converged.
 
 * Spectral Projected Gradient (SPG) method:
 
@@ -31,8 +38,8 @@ Other changes:
     textual explanation.
 
   - The projector `prj!` in `spg` and `spg!` may be replaced by an object of
-    type `BoundedSet`) to specify the feasible subset `Ω` for the variables
-    `x`.
+    type `BoundedSet` provided by package `NumOptBase`) to specify the feasible
+    subset `Ω` for the variables `x` when simple bound constraints apply.
 
   - All settings of the SPG method can be specified by keywords. Keyword `ws`
     has been renamed as `info`.

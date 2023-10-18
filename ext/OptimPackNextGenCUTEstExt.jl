@@ -32,7 +32,7 @@ settings specified by keywords `kwds..`.
 """
 function vmlmb(nlp::CUTEstModel;
                mem::Integer  = 5,
-               blmvm::Bool = false,
+               blmvm::Bool   = false,
                verb::Integer = false,
                output::IO    = stdout,
                kwds...)
@@ -55,10 +55,10 @@ function vmlmb(nlp::CUTEstModel;
     end
 end
 
-function spg_CUTEst(name::AbstractString, m::Integer; kwds...)
+function spg_CUTEst(name::AbstractString; kwds...)
     nlp = CUTEstModel(name)
     try
-        return spg(nlp, m; kwds...)
+        return spg(nlp; kwds...)
     finally
         finalize(nlp)
     end
@@ -71,9 +71,10 @@ yields the solution to the `CUTEst` problem `nlp` by the SPG method with a
 memory of `m` previous steps.
 
 """
-function spg(nlp::CUTEstModel, m::Integer;
+function spg(nlp::CUTEstModel;
+             mem::Integer  = 10,
              verb::Integer = false,
-             io::IO        = stdout,
+             output::IO    = stdout,
              kwds...)
     bound_constrained(nlp) || unconstrained(nlp) || error(
         "SPG method can only solve bound constrained or unconstrained problems ($name)")
@@ -81,12 +82,12 @@ function spg(nlp::CUTEstModel, m::Integer;
     objfun = ObjectiveFunction(nlp)
     proj = Projector(nlp)
     if verb > zero(verb)
-        println(io, "#\n# Solving CUTEst ",
+        println(output, "#\n# Solving CUTEst ",
                 bound_constrained(nlp) ? "bound constrained" : "unconstrained",
                 " problem $(get_name(nlp)) by SPG method\n",
-                "# with n = $(get_nvar(nlp)) variable(s) and m = $m memorized step(s).\n#")
+                "# with n = $(get_nvar(nlp)) variable(s) and m = $mem memorized step(s).\n#")
     end
-    return spg(objfun, proj, x0, m; verb, io, kwds...)
+    return spg(objfun, proj, x0; mem, verb, output, kwds...)
 end
 
 end # module

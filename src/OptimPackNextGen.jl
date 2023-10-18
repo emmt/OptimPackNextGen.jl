@@ -42,7 +42,7 @@ export
 
     # Miscellaneous:
     ObjectiveFunction,
-    getreason,
+    get_reason,
     issuccess
 
 using LinearAlgebra
@@ -67,7 +67,6 @@ include("gqtpar.jl")
 import .MoreSorensen: gqtpar, gqtpar!
 
 include("linesearches.jl")
-import .LineSearches: getreason
 
 include("quasinewton.jl")
 import .QuasiNewton: vmlmb, vmlmb!, vmlmb_CUTEst

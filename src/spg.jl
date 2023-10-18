@@ -1,8 +1,8 @@
 """
 
-Implements the Spectral Projected Gradient Method (Version 2: "continuous
-projected gradient direction") to find the local minimizers of a given function
-with convex constraints, described in:
+Module `OptimPackNextGen.SPG` implements the Spectral Projected Gradient Method
+(Version 2: "continuous projected gradient direction") to find the local
+minimizers of a given function with convex constraints, described in:
 
 - E. G. Birgin, J. M. Martinez, and M. Raydan, "Nonmonotone spectral projected
   gradient methods on convex sets", SIAM Journal on Optimization 10,
@@ -32,8 +32,14 @@ using  ..OptimPackNextGen
 using  ..OptimPackNextGen: auto_differentiate!, copy_variables
 using  ..OptimPackNextGen.QuasiNewton: verbose
 using  ..OptimPackNextGen.VectOps
-import ..OptimPackNextGen: getreason
+import ..OptimPackNextGen: get_reason
 
+"""
+    SPG.Status
+
+is the enumeration for the algorithm status in SPG method.
+
+"""
 @enum Status begin
     TOO_MANY_EVALUATIONS = -2
     TOO_MANY_ITERATIONS  = -1
@@ -43,32 +49,44 @@ import ..OptimPackNextGen: getreason
     FUNCTION_CONVERGENCE =  3
 end
 
-mutable struct Info
-    fbest::Float64  # The best function value so far.
-    pginfn::Float64 # ||projected grad||_inf at the final/current iteration.
-    pgtwon::Float64 # ||projected grad||₂ at the final/current iteration.
-    iter::Int       # The number of iterations.
-    fcnt::Int       # The number of function (and gradient) evaluations.
-    pcnt::Int       # The number of projections.
-    status::Status  # Termination parameter.
-    Info() = new(NaN, NaN, NaN, 0, 0, 0, SEARCHING)
+"""
+    SPG.Stats(; fx::Real, pgtwon::Real, pginfn::Real, seconds::Real,
+                iter::Integer, fcnt::Integer, pcnt::Integer, status::Status)
+
+yields an immutable object collecting information returned by the SPG method.
+All members are mandatory and are specified by keyword.
+
+"""
+struct Stats
+    fx::Float64      # Objective function value.
+    pgtwon::Float64  # Euclidean norm of projected grad.
+    pginfn::Float64  # Infinite norm of projected grad.
+    seconds::Float64 # Execution time in seconds.
+    iter::Int        # Number of iterations.
+    fcnt::Int        # Number of function (and gradient) evaluations.
+    pcnt::Int        # Number of projections.
+    status::Status   # Algorithm status.
+    function Stats(; fx::Real, pgtwon::Real, pginfn::Real, seconds::Real,
+                   iter::Integer, fcnt::Integer, pcnt::Integer, status::Status)
+        return new(fx, pgtwon, pginfn, seconds, iter, fcnt, pcnt, status)
+    end
 end
 
-LinearAlgebra.issuccess(info::Info) = issuccess(info.status)
+LinearAlgebra.issuccess(stats::Stats) = issuccess(stats.status)
 LinearAlgebra.issuccess(status::Status) = Integer(status) > 0
 
-const REASON = Dict{Status,String}(
-    SEARCHING => "Work in progress",
-    INFNORM_CONVERGENCE => "Convergence with projected gradient infinite-norm",
-    TWONORM_CONVERGENCE => "Convergence with projected gradient 2-norm",
-    FUNCTION_CONVERGENCE => "Function does not change in the last `m` iterations",
-    TOO_MANY_ITERATIONS => "Too many iterations",
-    TOO_MANY_EVALUATIONS => "Too many function evaluations")
-
-getreason(info::Info) = getreason(info.status)
-getreason(status::Status) = get(REASON, status, "unknown status")
+get_reason(stats::Stats) = get_reason(stats.status)
+get_reason(status::Status) =
+    status == TOO_MANY_EVALUATIONS ? "Too many function evaluations" :
+    status == TOO_MANY_ITERATIONS  ? "Too many iterations" :
+    status == SEARCHING            ? "Work in progress" :
+    status == INFNORM_CONVERGENCE  ? "Convergence with projected gradient infinite-norm" :
+    status == TWONORM_CONVERGENCE  ? "Convergence with projected gradient 2-norm" :
+    status == FUNCTION_CONVERGENCE ? "Function does not change in the last `mem` iterations" :
+    "Unknown status"
 
 # Default settings.
+const default_mem  = 10
 const default_eps1 = 1.0e-6
 const default_eps2 = 1.0e-6
 const default_eta  = 1.0
@@ -79,14 +97,19 @@ const default_amin = 0.1
 const default_amax = 0.9
 
 """
-# Spectral Projected Gradient Method
+    spg(fg!, prj!, x0; kwds...) -> stats, x
 
-The `spg` method implements the Spectral Projected Gradient Method (Version 2:
-"continuous projected gradient direction") to find the local minimizers of a
-given function with convex constraints, described in the references below. A
-typical use is:
+attempts to solve the constrained problem:
 
-    spg(fg!, prj!, x0, m) -> x
+    min f(x)   subject to   x ∈ Ω ⊆ ℝⁿ
+
+by the Spectral Projected Gradient (SPG) method (Version 2: "continuous
+projected gradient direction" described in the references below). Arguments
+`fg!` and `prj!` implement the objective function `f(x)` and its gradient
+`∇f(x)`. Argument `x0 ∈ ℝⁿ` is the initial solution. The result is a 2-tuple
+`(stats, x)` with `stats` a structure with information about the algorithm
+computations and `x ∈ Ω` which, provided `issuccess(stats)` is true, is an
+approximate local minimizer of the objective function on the feasible set `Ω`.
 
 The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
@@ -102,19 +125,20 @@ region. These functions must be defined as:
         return dst
     end
 
-Argument `x0` is the initial solution and argument `m` is the number of
-previous function values to be considered in the nonmonotone line search. If `m
-≤ 1`, then a monotone line search with Armijo-like stopping criterion will be
-used.
+If the feasible set consists in simple separable bounds on the variables,
+another possibility is to call:
 
-Another possibility is to call:
+    spg(fg!, Ω, x0) -> x
 
-    spg(fg!, Ω, x0, m) -> x
-
-with `Ω` a bounded set (of type `BoundedSet`) to specify the feasible subset
-for the variables `x`.
+with `Ω` a bounded set (of type `BoundedSet` defined in package `NumOptBase`)
+to specify the feasible subset for the variables `x`.
 
 The following keywords are available:
+
+* `mem` is the number of previous function values to be considered in the
+  nonmonotone line search. If `mem ≤ 1`, then a monotone line search with
+  Armijo-like stopping criterion will be used. By default, `mem =
+  $default_mem`.
 
 * `autodiff` is a boolean specifying whether to rely on automatic
   differentiation by calling [`OptimPackNextGen.auto_differentiate!](@ref). If
@@ -147,44 +171,57 @@ The following keywords are available:
 
 * `maxfc` specifies the maximum number of function evaluations.
 
-* `info` is an instance of `SPG.Info` to store information about the final
+* `verb` specifies the verbosity level. It can be a boolean to specify whether
+  to call the observer at every iteration or an integer to call the observer
+  every `verb` iteration(s). The observer is never called if `verb` is less or
+  equal zero. The default is `verb = false`.
+
+* `observer` specifies a callable to inspect the solution and/or print some
+  information at each iteration. This subroutine will be called as
+  `observer(output, stats, x, best)` where `output` is the output stream,
+  `stats` collects information about the current iteration (see below), `x` is
+  the current iterate, and `best` is a boolean indicating whether `x` is the
+  best solution found so far.
+
+* `output` (`stdout` by default) specifes the output stream for iteration
+  information.
+
+The `stats` object has the following properties:
+
+* `stats.fx` is the objective function value `f(x)`.
+
+* `stats.pgtwon` is the Euclidean norm of the projected gradient of the last
   iterate.
 
-* `verb` specifies the verbosity level. It can be a boolean to specify
-  whether to print information at every iteration or an integer to print
-  information every `verb` iteration(s).  No information is printed if
-  `verb` is less or equal zero. The default is `verb = false`.
+* `stats.pginfn` is the infinite norm of the projected gradient of the last
+  iterate.
 
-* `printer` specifies a subroutine to print some information at each iteration.
-  This subroutine will be called as `printer(io, x, fx, info)` with `io` the
-  output stream, `x` the current variables, `fx = f(x)` the corresponding
-  objective function value, and `info` an instance of `SPGL.Info`.
+* `stats.seconds` is the execution time in seconds.
 
-* `io` specifes the output stream for iteration information.  It is `stdout` by
-  default.
+* `stats.iter` is the number of iterations, `0` for the starting point.
 
-The `SPG.Info` type has the following members:
+* `stats.fcnt` is the number of function (and gradient) evaluations.
 
-* `f` is the current function value.
-* `fbest` is the best function value so far.
-* `pginfn` is the infinite norm of the projected gradient.
-* `pgtwon` is the Eucliddean norm of the projected gradient.
-* `iter` is the number of iterations.
-* `fcnt` is the number of function (and gradient) evaluations.
-* `pcnt` is the number of projections.
-* `status` indicates the type of termination.
+* `stats.pcnt` is the number of projections.
+
+* `stats.status` indicates the final status of the algorithm (see below).
+
+* `stats.info` provides details about the state of the algorithm. Method
+  `get_reason` can be used to retrieve a descriptive message.
 
 Possible `status` values are:
 
-| Status                     | Reason                                              |
-|:---------------------------|:----------------------------------------------------|
-| `SPG.SEARCHING`            | Work in progress                                    |
-| `SPG.INFNORM_CONVERGENCE`  | Convergence with projected gradient infinite-norm   |
-| `SPG.TWONORM_CONVERGENCE`  | Convergence with projected gradient 2-norm          |
-| `SPG.FUNCTION_CONVERGENCE` | Function does not change in the last `m` iterations |
-| `SPG.TOO_MANY_ITERATIONS`  | Too many iterations                                 |
-| `SPG.TOO_MANY_EVALUATIONS` | Too many function evaluations                       |
+| Status                     | Reason                                                |
+|:---------------------------|:------------------------------------------------------|
+| `SPG.SEARCHING`            | Work in progress                                      |
+| `SPG.INFNORM_CONVERGENCE`  | Convergence with projected gradient infinite-norm     |
+| `SPG.TWONORM_CONVERGENCE`  | Convergence with projected gradient 2-norm            |
+| `SPG.FUNCTION_CONVERGENCE` | Function does not change in the last `mem` iterations |
+| `SPG.TOO_MANY_ITERATIONS`  | Too many iterations                                   |
+| `SPG.TOO_MANY_EVALUATIONS` | Too many function evaluations                         |
 
+Method `issuccess(stats)` yields whether the algorithm converged according to
+one of the convergence criteria.
 
 ## References
 
@@ -197,18 +234,20 @@ Possible `status` values are:
   (TOMS) 27, pp. 340-349 (2001).
 
 """
-spg(fg!, prj!, x0::AbstractArray, m::Integer; kwds...) =
-    spg!(fg!, prj!, copy_variables(x0), m; kwds...)
+function spg(fg!, prj!, x0::AbstractArray; kwds...)
+    x = copy_variables(x0)
+    return spg!(fg!, prj!, x; kwds...), x
+end
 
-spg!(fg!, Ω::BoundedSet{T,N}, x::AbstractArray{T,N}, m::Integer; kwds...) where {T,N} =
-    spg!(fg!, Projector(Ω), x, m; kwds...)
+spg!(fg!, Ω::BoundedSet{T,N}, x::AbstractArray{T,N}; kwds...) where {T,N} =
+    spg!(fg!, Projector(Ω), x; kwds...)
 
-spg!(fg!, Ω::BoundedSet, x::AbstractArray{T,N}, m::Integer; kwds...) where {T,N} =
-    spg!(fg!, BoundedSet{T,N}(Ω), x, m; kwds...)
+spg!(fg!, Ω::BoundedSet, x::AbstractArray{T,N}; kwds...) where {T,N} =
+    spg!(fg!, BoundedSet{T,N}(Ω), x; kwds...)
 
-function spg!(fg!, prj!, x::AbstractArray, m::Integer;
+function spg!(fg!, prj!, x::AbstractArray;
+              mem::Integer    = default_mem,
               autodiff::Bool  = false,
-              info::Info        = Info(),
               maxit::Integer  = typemax(Int),
               maxfc::Integer  = typemax(Int),
               eps1::Real      = default_eps1,
@@ -219,41 +258,41 @@ function spg!(fg!, prj!, x::AbstractArray, m::Integer;
               ftol::Real      = default_ftol,
               amin::Real      = default_amin,
               amax::Real      = default_amax,
-              printer         = default_printer,
+              observer        = default_observer,
               verb::Integer   = false,
-              io::IO          = stdout)
+              output::IO      = stdout)
     # Check settings.
-    m ≥ one(m) || argument_error("`m ≥ 1` must hold")
+    mem ≥ one(mem)    || argument_error("`mem ≥ 1` must hold")
     eps1 ≥ zero(eps1) || argument_error("`eps1 ≥ 0` must hold")
     eps2 ≥ zero(eps2) || argument_error("`eps2 ≥ 0` must hold")
-    eta > zero(eta) || argument_error("`eta ≥ 0` must hold")
+    eta > zero(eta)   || argument_error("`eta ≥ 0` must hold")
     lmin > zero(lmin) || argument_error("`lmin > 0` must hold")
     lmax > zero(lmax) || argument_error("`lmax > 0` must hold")
-    lmin < lmax || argument_error("`lmin < lmax` must hold")
+    lmin < lmax       || argument_error("`lmin < lmax` must hold")
     zero(ftol) < ftol < one(ftol) || argument_error("`0 < ftol < 1` must hold")
     amin > zero(amin) || argument_error("`amin > 0` must hold")
     amax > zero(amax) || argument_error("`amax > 0` must hold")
-    amin < amax || argument_error("`amin < amax` must hold")
+    amin < amax       || argument_error("`amin < amax` must hold")
 
     # Determine floating-point type for scalar computations (using at least
     # double-precision) and call private method with all arguments checked and
     # converted to the correct type.
     T = promote_type(Float64, eltype(x))
-    args = (prj!, x, Int(m), info, Int(maxit), Int(maxfc), as(T, eps1), as(T, eps2),
+    args = (prj!, x, Int(mem), Int(maxit), Int(maxfc), as(T, eps1), as(T, eps2),
             as(T, eta), as(T, lmin), as(T, lmax), as(T, ftol), as(T, amin), as(T, amax),
-            printer, Int(verb), io)
+            observer, Int(verb), output)
     if autodiff
-        _spg!((x, g) -> auto_differentiate!(fg!, x, g), args...)
+        return _spg!((x, g) -> auto_differentiate!(fg!, x, g), args...)
     else
-        _spg!(fg!, args...)
+        return _spg!(fg!, args...)
     end
-    return x
 end
 
-function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxfc::Int,
+function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
                eps1::T, eps2::T, eta::T, lmin::T, lmax::T, ftol::T,
-               amin::T, amax::T, printer, verb::Int, io::IO) where {T<:AbstractFloat}
+               amin::T, amax::T, observer, verb::Int, output::IO) where {T<:AbstractFloat}
     # Initialization.
+    t0 = time()
     iter = 0
     fcnt = 0
     pcnt = 0
@@ -312,14 +351,9 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxf
 
         # Print iteration information.
         if verbose(verb, iter)
-            info.fbest  = fbest
-            info.pgtwon = pgtwon
-            info.pginfn = pginfn
-            info.iter   = iter
-            info.fcnt   = fcnt
-            info.pcnt   = pcnt
-            info.status = status
-            printer(io, x, f, info)
+            stats = Stats(; fx = f, pgtwon, pginfn, seconds = time() - t0,
+                          iter, fcnt, pcnt, status)
+            observer(output, stats, x, f ≤ fbest)
         end
 
         # Test stopping criteria.
@@ -427,47 +461,43 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, info::Info, maxit::Int, maxf
 
     end
 
-    # Store information and report final status.
-    info.fbest  = fbest
-    info.pgtwon = pgtwon
-    info.pginfn = pginfn
-    info.iter   = iter
-    info.fcnt   = fcnt
-    info.pcnt   = pcnt
-    info.status = status
+    # Report final status.
     if verbose(verb, 0) # always print last line if verb > 0
-        reason = getreason(info)
+        reason = get_reason(status)
         if !issuccess(status)
             printstyled(stderr, "# WARNING: ", reason, "\n"; color=:red)
         else
-            printstyled(io, "# SUCCESS: ", reason, "\n"; color=:green)
+            printstyled(output, "# SUCCESS: ", reason, "\n"; color=:green)
         end
     end
 
-    # Make sure to return the best solution so far.
+    # Make sure to store the best solution so far.
     fbest < f && vcopy!(x, xbest)
-    return x
+
+    # Return algorithm statistics.
+    seconds = time() - t0
+    return Stats(; fx = fbest, pgtwon, pginfn, seconds, iter, fcnt, pcnt, status)
 end
 
 """
-    spg_CUTEst(name, m; kwds...) -> x
+    spg_CUTEst(name; kwds...) -> stats, x
 
-yields the solution to the `CUTEst` problem `name` by the SPG method with a
-memory of `m` previous steps. This require to have loaded the `CUTest` package.
+yields the solution to the `CUTEst` problem `name` by the SPG method. This
+require to have loaded the `CUTest` package.
 
 """
 spg_CUTEst(arg...; kwds...) =
     error("invalid arguments or `CUTEst` package not yet loaded")
 
-function default_printer(io::IO, x::AbstractArray, fx::Real, info::Info)
-    if info.iter == 0
-        @printf(io, "# %s\n# %s\n",
+function default_observer(output::IO, stats::Stats, x::AbstractArray, best::Bool)
+    if stats.iter == 0
+        @printf(output, "# %s\n# %s\n",
                 " ITER   EVAL   PROJ             F(x)              ‖PG(X)‖₂  ‖PG(X)‖_∞",
                 "---------------------------------------------------------------------")
     end
-    @printf(io, " %6d %6d %6d %3s %24.17e %9.2e %9.2e\n",
-            info.iter, info.fcnt, info.pcnt, (fx ≤ info.fbest ? "(*)" : "   "),
-            fx, info.pgtwon, info.pginfn)
+    @printf(output, " %6d %6d %6d %3s %24.17e %9.2e %9.2e\n",
+            stats.iter, stats.fcnt, stats.pcnt, (best ? "(*)" : "   "),
+            stats.fx, stats.pgtwon, stats.pginfn)
 end
 
 @noinline argument_error(args...) = argument_error(string(args...))
