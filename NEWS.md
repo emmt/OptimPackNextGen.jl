@@ -44,6 +44,26 @@ Other changes:
   - Floating-point type for scalar computations are done in at least double
     precision.
 
+* Line-search methods:
+
+  - When creating a line-search instance, optional floating-point type `T` is
+    specified as a type parameter in the constructor, not as an argument. For
+    example `MoreThuenteLineSearch(T; kwds...)` has been replaced by
+    `MoreThuenteLineSearch{T}(; kwds...)`.
+
+  - The current step must no longer be specified in the `iterate!` method.
+
+  - A new `configure!` method is provided to change line-search settings.
+
+  - Methods `getreason`, `getstep`, `gettask`, and `usederivatives` have been
+    respectively renamed `get_reason`, `get_step`, `get_state`, and
+    `use_derivatives`. Note that noun *task* has been replaced by *state*.
+
+  - New method `get_descr` can be called to get a more informative symbolic
+    description of the state of the line-search algorithm than the result of
+    `get_state`.
+
+
 ## Version 0.4.2
 
 - Fix loading of `Zygote` extension with Julia ≤ 1.8.

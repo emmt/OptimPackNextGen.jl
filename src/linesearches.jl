@@ -1,245 +1,319 @@
-#
-# linesearches.jl --
-#
-# Line search methods for OptimPackNextGen.
-#
-# -----------------------------------------------------------------------------
-#
-# This file is part of OptimPackNextGen.jl which is licensed under the MIT
-# "Expat" License.
-#
-# Copyright (C) 2015-2019, Éric Thiébaut.
-# <https://github.com/emmt/OptimPackNextGen.jl>.
-#
+"""
 
+Module `OptimPackNextGen.LineSearches` implements line-search methods.
+
+"""
 module LineSearches
 
-import ...OptimPackNextGen
-import OptimPackNextGen.Float
-
 export
-    start!,
-    iterate!,
-    getreason,
-    getstatus,
-    getstep,
-    gettask,
-    usederivatives,
-    LineSearch,
     ArmijoLineSearch,
+    LineSearch,
+    MoreThuenteLineSearch,
     MoreToraldoLineSearch,
-    MoreThuenteLineSearch
+    configure!,
+    get_descr,
+    get_reason,
+    get_state,
+    get_step,
+    iterate!,
+    start!,
+    use_derivatives
 
-const REASONS = Dict{Symbol,String}(
+# Imports from other packages.
+using TypeUtils
+
+# Imports from parent module.
+import ..OptimPackNextGen
+using OptimPackNextGen: Float, get_reason
+
+# Dictionary associating symbolic information about the state of an iterative
+# algorithm and a descriptive message.
+const DESCR = Dict{Symbol,String}(
     :NOT_STARTED => "Algorithm not yet started",
-    :F_LE_FMIN => "F(X) ≤ FMIN",
-    :COMPUTE_FG => "Caller must compute f(x) and g(x)",
+    :F_LE_FMIN => "`f(x) ≤ fmin`",
+    :COMPUTE_F => "Caller must compute `f(x)`",
+    :COMPUTE_FG => "Caller must compute `f(x)` and `g(x)`",
     :NEW_X => "A new iterate is available for examination",
     :FINAL_X => "A solution has been found within tolerances",
-    :FATOL_TEST_SATISFIED => "FATOL test satisfied",
-    :FRTOL_TEST_SATISFIED => "FRTOL test satisfied",
-    :GATOL_TEST_SATISFIED => "GATOL test satisfied",
-    :GRTOL_TEST_SATISFIED => "GRTOL test satisfied",
+    :FATOL_TEST_SATISFIED => "`fatol` test satisfied",
+    :FRTOL_TEST_SATISFIED => "`frtol` test satisfied",
+    :GATOL_TEST_SATISFIED => "`gatol` test satisfied",
+    :GRTOL_TEST_SATISFIED => "`grtol` test satisfied",
     :FIRST_WOLFE_SATISFIED =>"First Wolfe condition satisfied",
     :STRONG_WOLFE_SATISFIED => "Strong Wolfe conditions both satisfied",
     :STP_EQ_STPMIN => "Step at lower bound",
     :STP_EQ_STPMAX => "Step at upper bound",
-    :XTOL_TEST_SATISFIED => "XTOL test satisfied",
+    :XTOL_TEST_SATISFIED => "`xtol` test satisfied",
     :ROUNDING_ERRORS => "Rounding errors prevent progress",
     :NOT_DESCENT => "Search direction is not a descent direction",
     :INIT_STP_LE_ZERO => "Initial step ≤ 0"
 )
 
 """
-## Line search methods
+    LineSearch{T}
 
-Line search methods are instances of types derived from the abstract type
-`LineSearch{T}` which is parameterized by the floating point type `T` for the
-computations.  Assuming `SomeLineSearch` is a concrete line search type, a
-typical line search is performed as follows:
+is the super-type of objects implementing line-search methods. Type parameter
+`T` is the floating-point type for the computations.
 
-    # Create an instance of the line search method:
-    ls = SomeLineSearch(T)
+For an introduction to line-search methods, see ["*Line search methods*" by
+Lihe Cao, Zhengyi Sui, Jiaqi Zhang, Yuqing Yan, and Yuhui Gu
+(2021)](https://optimization.cbe.cornell.edu/index.php?title=Line_search_methods).
 
-    # Start the line search and loop until a step satisfying
-    # some conditions is found:
+For maximum flexibility, line-searches methods in `OptimPackNextGen` use
+reverse communication. Assuming `SomeLineSearch` is a concrete line-search
+type, a typical line-search is performed as follows:
+
+    # Create an instance of the line-search method:
+    ls = SomeLineSearch{T}(args...; kwds...)
+
+    # Start the line-search and loop until a step satisfying some convergence
+    # conditions are satisfied:
     x0 = ...            # initial variables
     f0 = func(x)        # function value at x0
     g0 = grad(x)        # gradient at x0
     d = ...             # search direction
     dtg0 = vdot(d, g0)  # directional derivative at x0
-    stp = ...           # initial step
+    stp1 = ...          # first step to try
     stpmin = ...        # lower bound for the step (usually zero)
     stpmax = ...        # upper bound for the step (usually a large number)
-    task = start!(ls, f0, dtg0, stp; stpmin = stpmin, stpmax = stpmax)
-    while task == :SEARCH
-        stp = getstep(ls) # get step length to try
-        x = x0 + stp*d    # compute trial point
-        f = func(x)       # function value at x
-        g = grad(x)       # gradient at x
-        dtg = vdot(d, g)  # directional derivative at x
-        task = iterate!(ls, stp, f, dtg)
+    state = start!(ls, f0, dtg0, stp1; stpmin, stpmax)
+    while state == :SEARCHING
+        stp = get_step(ls) # get step length to try
+        x = x0 + stp*d     # compute trial point
+        f = func(x)        # function value at x
+        g = grad(x)        # gradient at x
+        dtg = vdot(d, g)   # directional derivative at x
+        state = iterate!(ls, f, dtg)
     end
-    task = gettask(ls)
-    if task != :CONVERGENCE
-        if task == :WARNING
-            @warn getreason(ls)
+    if state != :CONVERGENCE
+        if state == :WARNING
+            @warn get_reason(ls)
         else
-            error(getreason(ls))
+            error(get_reason(ls))
         end
     end
 
-Note that the same line search instance may be re-used for subsequent line
-searches (with the same settings).
+Note that the same line-search instance may be re-used for subsequent
+line-searches with the same settings. To change line-search settings call
+`configure!(ls; kwds...)`.
 
 """
 abstract type LineSearch{T<:AbstractFloat} end
 
 """
-    getstep(ls)
+    get_step(ls)
 
-yields the length of the next step to try in the line search implemented by
+yields the length of the next step to try in the line-search implemented by
 `ls`.
-"""
-getstep(ls::LineSearch) = ls.stp
 
 """
-    gettask(ls)
-
-yields the current pending task in the line search implemented by `ls`.
-"""
-gettask(ls::LineSearch) = ls.task
+get_step(ls::LineSearch) = ls.stp
 
 """
-    getstatus(ls)
+    get_state(ls::LineSearch)
 
-yields the current status of the line search implemented by `ls`.
+yields the current state in the line-search implemented by `ls`. The returned
+value is one of:
+
+- `:STARTING` until line-search is started;
+- `:SEARCHING` while line-search is in progress;
+- `:CONVERGENCE` when line-search has converged;
+- `:WARNING` when line-search terminated with a warning;
+- `:ERROR` when line-search terminated with an error.
+
 """
-getstatus(ls::LineSearch) = ls.status
+get_state(ls::LineSearch) = ls.state
+
+"""
+    get_descr(ls::LineSearch)
+
+yields a symbolic description of the current state of the line-search
+implemented by `ls`.
+
+"""
+get_descr(ls::LineSearch) = ls.descr
+
+"""
+    set_descr(sym::Symbol, str::AbstractString)
+
+associates textual description `str` of the state of an iterative algorithm to
+symbolic description `sym`.
+
+"""
+function set_descr(sym::Symbol, str::AbstractString)
+    old = get(DESCR, sym, nothing)
+    if old === nothing
+        DESCR[sym] = str
+    elseif old == str
+        @warn "`:$sym` has already been associated with a textual description"
+    else
+        error("`:$sym` is already associated with a different description")
+    end
+    return nothing
+end
+
+function OptimPackNextGen.get_reason(ls::LineSearch)
+    sym = get_descr(ls)
+    str = get(DESCR, sym, nothing)
+    return str === nothing ? "No description available for `:$sym`" : str
+end
 
 # Helper function.
-function report!(ls::LineSearch, task::Symbol, status::Symbol)
-    ls.status = status
-    ls.task = task
-    return task
+function report!(ls::LineSearch, state::Symbol, descr::Symbol)
+    ls.descr = descr
+    ls.state = state
+    return state
 end
 
 """
-    getreason(ls)
+    use_derivatives(ls)
 
-yields a textual explanation for the current state of the line search
-implemented by `ls`.
-"""
-getreason(ls::LineSearch) = REASONS[ls.status]
-
-"""
-    usederivative(ls)
-
-indicates whether the line search instance `ls` requires the derivative of the
-objective function when calling `iterate!`.  Alternatively `ls` can also be the
-line search type.  Note that the derivative is always needed by the `start!`
+yields whether the line-search instance `ls` requires the derivative of the
+objective function when calling `iterate!`. Alternatively `ls` can also be the
+line-search type. Note that the derivative is always needed by the `start!`
 method.
-"""
-usederivatives(::T) where {T<:LineSearch} = usederivatives(T)
 
 """
-    start!(ls, f0, g0, stp; stpmin = 0, stpmax = Inf) -> task
+use_derivatives(::T) where {T<:LineSearch} = use_derivatives(T)
 
-starts a new line search with the method implemented by the line search
-instance `ls`, the returned value is the next task to perform (see `iterate!`
-for the interpretation of this value).  Arguments `f0` and `g0` are the value
-and the directional derivative of the objective function at the start of the
-search (that is for a step length equal to zero).  Argument `stp` is the length
-of the next step to try and must be nonnegative.  Keywords `stpmin` and
-`stpmax` can be used to specify bounds for the length of the step.
+# The following methods are to provide the default step bounds given `stp1`,
+# the first step to try. They may be extended for specific line-search methods.
+default_stpmin(ls::LineSearch{T}, stp1::Real) where {T} = zero(T)
+default_stpmax(ls::LineSearch{T}, stp1::Real) where {T} = typemax(T)
+
 """
-function start!(ls::LineSearch{T},
-                f0::Real, g0::Real, stp::Real;
-                stpmin::Real = zero(T),
-                stpmax::Real = typemax(T)) where {T<:AbstractFloat}
-    return start!(ls, convert(T, f0), convert(T, g0), convert(T, stp),
-                  convert(T, stpmin), convert(T, stpmax))
+    start!(ls, fx0, dgx0, stp1; stpmin = 0, stpmax = Inf) -> state
+
+starts a new line-search with the method implemented by the line-search
+instance `ls`, the returned value is the updated state of the algorithm (see
+[`iterate!`](@ref) for the interpretation of this value). Arguments `fx0` and
+`dgx0` are:
+
+    fx0 = f(x0)
+    dgx0 = d'·∇f(x0)
+
+the value and the directional derivative of the objective function `f(x)` at
+`x0`, the variables at start of the line-search, and with `d` the search
+direction. Argument `stp1 > 0` is the length of the first step to try. Keywords
+`stpmin` and `stpmax` can be used to specify bounds for the length of the step.
+
+At a lower level, method:
+
+    start!(ls::L, fx0::T, dgx0::T, stp1::T, stpmin::T, stpmax::T)
+
+shall be specialized for line-search methods of type `L<:LineSearch{T}` and is
+called with checked arguments.
+
+"""
+function start!(ls::LineSearch{T}, fx0::Real, dgx0::Real, stp1::Real;
+                stpmin::Real = default_stpmin(ls, stp1),
+                stpmax::Real = default_stpmax(ls, stp1)) where {T<:AbstractFloat}
+    # This high-level version provides default values for keywords, checks the
+    # input arguments for errors, and call the lower level specialized method
+    # with converted arguments. Note that the tests fail if any value is NaN.
+    zero(stpmin) ≤ stpmin ≤ stpmax || throw(ArgumentError(
+        "`0 ≤ stpmin ≤ stpmax` must hold"))
+    stpmin ≤ stp1 ≤ stpmax || throw(ArgumentError(
+        "`stpmin ≤ stp1 ≤ stpmax` must hold"))
+    dgx0 ≤ zero(dgx0) || throw(ArgumentError("Not a descent direction"))
+    return start!(ls, as(T, fx0), as(T, dgx0), as(T, stp1), as(T, stpmin), as(T, stpmax))
+end
+@noinline function start!(ls::L, fx0::T, dgx0::T, stp1::T, stpmin::T,
+                          stpmax::T) where {T<:AbstractFloat,L<:LineSearch{T}}
+    error("low-level method `start!` is not implemented for line-search of type `$L`")
 end
 
 """
-    iterate!(ls, stp, f, g) -> task
+    iterate!(ls, fx, dgx) -> state
 
-performs one iteration of the line search implemented by `ls` with `f` and `g`
-the value and directional derivative of the objective function for the step
-`stp` (which must be equal to `getstep(ls)`).
+performs one iteration of the line-search implemented by `ls`. Arguments `fx`
+and `dgx` are:
 
-The returned `task` is one of the following symbolic values:
+    fx = f(x0 + α⋅d)
+    dgx = d'·∇f(x0 + α⋅d)
 
-* `:SEARCH` to indicate that the caller should take the new trial step, given
-  by `getstep(ls)`, and call `iterate!` with the updated values of the
-  objective function and of its directional derivative.
+the value and directional derivative of the objective function `f(x)` for the
+step `α = get_step(ls)` and where `x0` and `d` are the variables at the start
+of the line-search and the search direction.
 
-* `:CONVERGENCE` to indicate that the line search criterion holds.
+The returned `state` is one of the following symbolic values:
+
+* `:SEARCHING` to indicate that the serach is still in progress. The caller
+  should take the new trial step, given by `get_step(ls)`, and call `iterate!`
+  with the updated values of the objective function and, if needed, of its
+  directional derivative.
+
+* `:CONVERGENCE` to indicate that the line-search criterion holds.
 
 * `:WARNING` to indicate that no further progresses are possible.
 
-""" iterate!
+* `:ERROR` to indicate that an error has occurred.
+
+"""
+function iterate!(ls::LineSearch{T}, fx::Real, dgx::Real) where {T<:AbstractFloat}
+    # This version is to convert arguments.
+    return iterate!(ls, as(T, fx), as(T, dgx))
+end
+@noinline function iterate!(ls::L, fx::T, dgx::T) where {T<:AbstractFloat,
+                                                         L<:LineSearch{T}}
+    error("method `iterate!` is not implemented for line-search of type `$L`")
+end
 
 #-------------------------------------------------------------------------------
 
+const default_armijo_tol = 1.0e-4
+
+"""
+    ArmijoLineSearch{T = $Float}(; ftol = $default_armijo_tol) -> ls
+
+yields a line-search instance for floating-point type `T` which implements
+Armijo's method. The objective of Armijo's method is to find a step `stp` that
+satisfies the sufficient decrease condition (1st Wolfe condition):
+
+    f(stp) ≤ f(0) + ftol*stp*f'(0),
+
+where `stp` is smaller or equal the initial step (backtracking). The method
+consists in reducing the step (by a factor 2) until the criterion holds.
+Keyword `ftol` specifies the positive tolerance for the sufficient decrease
+condition.
+
+The method is described in:
+
+* L. Armijo, "*Minimization of functions having Lipschitz continuous first
+  partial derivatives*" in Pacific Journal of Mathematics, vol. **16**, pp. 1–3
+  (1966).
+
+"""
 mutable struct ArmijoLineSearch{T<:AbstractFloat} <: LineSearch{T}
-    task::Symbol
-    status::Symbol
+    state::Symbol
+    descr::Symbol
     ftol::T
     finit::T
     ginit::T
     stp::T
     stpmin::T
+    function ArmijoLineSearch{T}(
+        ; ftol::Real = default_armijo_tol) where {T<:AbstractFloat}
+        zero(ftol) < ftol ≤ 1//2 || throw(ArgumentError("`0 < ftol ≤ 1/2` must hold"))
+        return new{T}(:STARTING, :NOT_STARTED, ftol, 0, 0, 0, 0)
+    end
 end
 
-"""
-
-    ArmijoLineSearch(T; ftol = 1e-4) -> ls
-
-yields a line search instance for floating-point type `T` which implements
-Armijo's method.  Keyword `ftol` can be used to specify a nonnegative tolerance
-for the sufficient decrease condition.
-
-
-## Description
-
-The objective of Armijo's method is to find a step `stp` that satisfies the
-sufficient decrease condition (1st Wolfe condition):
-
-    f(stp) ≤ f(0) + ftol*stp*f'(0),
-
-where `stp` is smaller or equal the initial step (backtracking).  The method
-consists in reducing the step (by a factor 2) until the criterion holds.
-
-
-## References
-
-* L. Armijo, "*Minimization of functions having Lipschitz continuous first
-  partial derivatives*" in Pacific Journal of Mathematics, vol. 16, pp. 1–3
-  (1966).
-
-"""
-function ArmijoLineSearch(::Type{T} = Float;
-                          ftol::Real = 1e-4) where {T<:AbstractFloat}
-    @assert 0 < ftol ≤ 1/2
-    ArmijoLineSearch{T}(:START, :NOT_STARTED, ftol, 0, 0, 0, 0)
-end
-
-# Armijo's line search does not use the directional derivative to refine the
+# Armijo's line-search does not use the directional derivative to refine the
 # step.
-usederivatives(::Type{<:ArmijoLineSearch}) = false
+use_derivatives(::Type{<:ArmijoLineSearch}) = false
 
-# start! method for Armijo's line search has the same implementation as the
-# Moré & Toraldo line search.
+# start! method for Armijo's line-search has the same implementation as the
+# Moré & Toraldo line-search.
 
-function iterate!(ls::ArmijoLineSearch, stp::Real, f::Real, g::Real)
-    @assert ls.task == :SEARCH
-    @assert stp == ls.stp
-    if f ≤ ls.finit + ls.ftol*stp*ls.ginit
+function iterate!(ls::ArmijoLineSearch{T}, f::T, g::T) where {T<:AbstractFloat}
+    @assert ls.state == :SEARCHING
+    # FIXME @assert stp == ls.stp
+    if f ≤ ls.finit + ls.ftol*ls.stp*ls.ginit
         return report!(ls, :CONVERGENCE, :FIRST_WOLFE_CONDITION_SATISFIED)
-    elseif stp > ls.stpmin
-        ls.stp = max(stp/2, ls.stpmin)
-        return report!(ls, :SEARCH, :COMPUTE_FG)
+    elseif ls.stp > ls.stpmin
+        ls.stp = max(ls.stp/2, ls.stpmin)
+        return report!(ls, :SEARCHING, :COMPUTE_F)
     else
         ls.stp = ls.stpmin
         return report!(ls, :WARNING, :STP_EQ_STPMIN)
@@ -248,39 +322,29 @@ end
 
 #-------------------------------------------------------------------------------
 
-mutable struct MoreToraldoLineSearch{T<:AbstractFloat} <: LineSearch{T}
-    task::Symbol
-    status::Symbol
-    gamma1::T
-    gamma2::T
-    ftol::T
-    finit::T
-    ginit::T
-    stp::T
-    stpmin::T
-    strict::Bool
-end
+const default_more_toraldo_ftol   = default_armijo_tol,
+const default_more_toraldo_gamma  = (0.1, 0.5)
+const default_more_toraldo_strict = false
 
 """
+    MoreToraldoLineSearch{T=$Float}(; kwds...) -> ls
 
-    MoreToraldoLineSearch(T; ...) -> ls
-
-yields a backtracking line search proposed by Moré & Toraldo (1991) and which
-is based on a safeguarded quadratic interpolation.  Argument `T` is the
+yields a backtracking line-search proposed by Moré & Toraldo (1991) and which
+is based on a safeguarded quadratic interpolation. Parameter `T` is the
 floating-point type for the computations.
 
 Keyword `ftol` can be used to specify a nonnegative tolerance for the
-sufficient decrease condition.
+sufficient decrease condition. By default, `ftol = $default_more_toraldo_ftol`.
 
-Keyword `gamma` can be used to specify a tuple of two values to safeguard the
+Keyword `gamma` can be used to specify a 2-tuple of values to safeguard the
 quadratic interpolation of the step and such that `0 < gamma[1] < gamma[2] <
-1`).  In Moré & Toraldo (1991, GPCG algorithm) `gamma = (0.01,0.5)` while in
-Birgin et al. (2000, SPG2 algorithm) `gamma = (0.1,0.9)`.  The default settings
-are `gamma = (0.1, 0.5)`.
+1`). In Moré & Toraldo (1991, GPCG algorithm) `gamma = (0.01,0.5)` while in
+Birgin et al. (2000, SPG2 algorithm) `gamma = (0.1,0.9)`. The default settings
+are `gamma = $default_more_toraldo_gamma`.
 
 If keyword `strict` is set to `false`, a variant of the method is used which
 takes a bissection step whenever the curvature of the model is not striclty
-positive.  By default, `strict` is `true`.
+positive. By default, `strict` is `$default_more_toraldo_strict`.
 
 
 ## Description
@@ -290,7 +354,7 @@ the sufficient decrease condition (1st Wolfe condition):
 
     f(stp) ≤ f(0) + ftol*stp*f'(0),
 
-where `stp` is smaller or equal the initial step (backtracking).  The principle
+where `stp` is smaller or equal the initial step (backtracking). The principle
 of the method is to reduce the step by a safeguarded quadratic interpolation
 (or by a bissection if the minimum of the quadratic interpolation falls outside
 the current search interval) until the criterion is met.
@@ -313,40 +377,46 @@ reach the minimum of the quadratic interpolation of the objective function.
   (2000).
 
 """
-function MoreToraldoLineSearch(::Type{T} = Float;
-                               ftol::Real = 1e-4,
-                               strict::Bool = false,
-                               gamma::NTuple{2,Real} = (0.1,0.5)
-                               ) where {T<:AbstractFloat}
-    @assert 0 < ftol ≤ 1/2
-    @assert 0 < gamma[1] < gamma[2] < 1
-    MoreToraldoLineSearch{T}(:START, :NOT_STARTED, gamma[1], gamma[2], ftol,
-                             0, 0, 0, 0, strict)
+mutable struct MoreToraldoLineSearch{T<:AbstractFloat} <: LineSearch{T}
+    state::Symbol
+    descr::Symbol
+    gamma1::T
+    gamma2::T
+    ftol::T
+    finit::T
+    ginit::T
+    stp::T
+    stpmin::T
+    strict::Bool
+    function MoreToraldoLineSearch{T}(
+        ; ftol::Real = default_more_toraldo_ftol,
+        strict::Bool = default_more_toraldo_strict,
+        gamma::NTuple{2,Real} = default_more_toraldo_gamma) where {T<:AbstractFloat}
+        return configure!(new{T}(:STARTING, :NOT_STARTED,
+                                 NaN, NaN, NaN, NaN, NaN, NaN, NaN, false);
+                          ftol, gamma, strict)
+    end
 end
 
-# Backtracking line search does not use the directional derivative to refine
+function configure!(ls::MoreToraldoLineSearch{T};
+                    ftol::Real = ls.ftol,
+                    strict::Bool = ls.strict,
+                    gamma::NTuple{2,Real} = ls.gamma) where {T<:AbstractFloat}
+    0 < ftol ≤ 1//2 || throw(ArgumentError("`0 < ftol ≤ 1/2` must hold"))
+    0 < gamma[1] < gamma[2] < 1 || throw(ArgumentError(
+        "`0 < gamma[1] < gamma[2] < 1` must hold"))
+    ls.ftol   = ftol
+    ls.gamma1 = gamma[1]
+    ls.gamma2 = gamma[2]
+    ls.strict = strict
+    return ls
+end
+# Backtracking line-search does not use the directional derivative to refine
 # the step but it does use the initial derivative.
-usederivatives(::Type{<:MoreToraldoLineSearch}) = false
+use_derivatives(::Type{<:MoreToraldoLineSearch}) = false
 
-function start!(ls::Union{MoreToraldoLineSearch,ArmijoLineSearch},
-                f0::Real, g0::Real, stp::Real, stpmin::Real, stpmax::Real)
-    # Check the input arguments for errors.
-    if stpmax < stpmin
-        throw(ArgumentError("STPMAX < STPMIN"))
-    end
-    if stpmin < 0
-        throw(ArgumentError("STPMIN < 0"))
-    end
-    if stp > stpmax
-         throw(ArgumentError("STP > STPMAX"))
-    end
-    if stp < stpmin
-         throw(ArgumentError("STP < STPMIN"))
-    end
-    if g0 ≥ 0
-        throw(ArgumentError("Not a descent direction"))
-        #return report!(ls, :ERROR, :NOT_DESCENT)
-    end
+function start!(ls::Union{MoreToraldoLineSearch{T},ArmijoLineSearch{T}},
+                f0::T, g0::T, stp::T, stpmin::T, stpmax::T) where {T<:AbstractFloat}
 
     # Store objective function and directional derivative at start of line
     # search.
@@ -354,26 +424,27 @@ function start!(ls::Union{MoreToraldoLineSearch,ArmijoLineSearch},
     ls.ginit = g0
     ls.stp = stp
     ls.stpmin = stpmin
-    return report!(ls, :SEARCH, :COMPUTE_FG)
+    return report!(ls, :SEARCHING, :COMPUTE_F)
 end
 
-function iterate!(ls::MoreToraldoLineSearch, stp::Real, f::Real, g::Real)
-    @assert ls.task == :SEARCH
-    @assert stp == ls.stp
-    if f ≤ ls.finit + ls.ftol*stp*ls.ginit
+function iterate!(ls::MoreToraldoLineSearch{T}, f::T, g::T) where {T<:AbstractFloat}
+    @assert ls.state == :SEARCHING
+    # FIXME @assert stp == ls.stp
+    if f ≤ ls.finit + ls.ftol*ls.stp*ls.ginit
         return report!(ls, :CONVERGENCE, :FIRST_WOLFE_CONDITION_SATISFIED)
-    elseif stp > ls.stpmin
-        q = -ls.ginit*stp
+    elseif ls.stp > ls.stpmin
+        # FIXME type-stability
+        q = -ls.ginit*ls.stp
         r = f - (ls.finit - q)
         if (ls.strict ? r > 0 && q > 0 : r != 0)
             # Safeguarded quadratic interpolation.
-            stp *= clamp(q/(r + r), ls.gamma1, ls.gamma2)
+            stp = clamp(q/(r + r), ls.gamma1, ls.gamma2)*ls.stp
         else
             # Bissection.
-            stp /= 2
+            stp = ls.stp/2
         end
         ls.stp = max(stp, ls.stpmin)
-        return report!(ls, :SEARCH, :COMPUTE_FG)
+        return report!(ls, :SEARCHING, :COMPUTE_F)
     else
         ls.stp = ls.stpmin
         return report!(ls, :WARNING, :STP_EQ_STPMIN)
@@ -382,12 +453,20 @@ end
 
 #-------------------------------------------------------------------------------
 
+# A few constants for Moré Thuente line-search method.
+const XTRAPL = 1.1
+const XTRAPU = 4.0
+const STPMAX = 1e20 # default upper step bound is STPMAX*stp1
+const default_more_thuente_ftol = 0.001
+const default_more_thuente_gtol = 0.9
+const default_more_thuente_xtol = 0.1
+
 """
+    MoreThuenteLineSearch{T=$Float}(; kwds...)
 
-`MoreThuenteLineSearch{T}` defines the work-space for Moré & Thuente line
-search.
+yields an object for Moré & Thuente line-search.
 
-Line search methods which need to compute a cubic step via `cstep!` need to
+Line-search methods which need to compute a cubic step via `cstep!` need to
 store some parameters in an instance of `LineSearchInterval` which has the
 following members:
 
@@ -403,16 +482,16 @@ following members:
 * `brackt` indicates whether a minimum is bracketed in the interval
   `(stx,sty)`.
 
-At the start of the line search, `brackt = false`, `stx = sty = 0` while `fx =
+At the start of the line-search, `brackt = false`, `stx = sty = 0` while `fx =
 fy = f0` and `dx = dy = g0` the value of the function and its derivative for
-the step `stp = 0`.  Then `cstep!` can be called (typically in the `iterate!`
+the step `stp = 0`. Then `cstep!` can be called (typically in the `iterate!`
 method) to compute a new step (based on cubic or quadratic interpolation) and
 to maintain the interval of search.
 
 """
 mutable struct MoreThuenteLineSearch{T<:AbstractFloat} <: LineSearch{T}
-    task::Symbol
-    status::Symbol
+    state::Symbol
+    descr::Symbol
     ftol::T
     gtol::T
     xtol::T
@@ -433,71 +512,48 @@ mutable struct MoreThuenteLineSearch{T<:AbstractFloat} <: LineSearch{T}
     oldwidth::T  # previous width of the interval
     stage::Int
     brackt::Bool # minimum has been bracketed?
+    function MoreThuenteLineSearch{T}(;
+                                      ftol::Real = default_more_thuente_ftol,
+                                      gtol::Real = default_more_thuente_gtol,
+                                      xtol::Real = default_more_thuente_xtol,
+                                      ) where {T<:AbstractFloat}
+        return configure!(
+            new{T}(:STARTING, :NOT_STARTED,
+                   NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN,
+                   NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN,
+                   0, false); xtol, ftol, gtol)
+    end
 end
 
-function MoreThuenteLineSearch(::Type{T} = Float;
-                               ftol::Real = 0.001,
-                               gtol::Real = 0.9,
-                               xtol::Real = 0.1) where {T<:AbstractFloat}
-    @assert 0 < ftol < 1
-    @assert 0 < gtol < 1
-    @assert 0 < xtol < 1
-    MoreThuenteLineSearch{T}(:START, :NOT_STARTED,
-                             ftol, gtol, xtol, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                             0, false)
+function configure!(ls::MoreThuenteLineSearch{T};
+                    ftol::Real = ls.ftol,
+                    gtol::Real = ls.gtol,
+                    xtol::Real = ls.xtol) where {T<:AbstractFloat}
+    # FIXME are these checks sufficient?
+    ftol > zero(ftol) || throw(ArgumentError("`ftol` must be positive"))
+    gtol > zero(gtol) || throw(ArgumentError("`gtol` must be positive"))
+    xtol ≥ zero(xtol) || throw(ArgumentError("`xtol` must be nonnegative"))
+    ls.ftol = ftol
+    ls.gtol = gtol
+    ls.xtol = xtol
+    return ls
 end
 
-# Moré & Thuente line search does use the directional derivative to refine the
+# Provide default floating-point type for line-search constructors.
+for func in (:ArmijoLineSearch, :MoreToraldoLineSearch, :MoreThuenteLineSearch,)
+    @eval $func(args...; kwds...) = $func{Float}(args...; kwds...)
+end
+
+# Moré & Thuente line-search does use the directional derivative to refine the
 # step.
-usederivatives(::Type{<:MoreThuenteLineSearch}) = true
+use_derivatives(::Type{<:MoreThuenteLineSearch}) = true
 
-# A few constants.
-const XTRAPL = 1.1
-const XTRAPU = 4.0
-const STPMAX = 1e20
+default_stpmax(ls::MoreThuenteLineSearch{T}, stp1::Real) where {T} =
+    as(T, STPMAX*stp1)
 
-function start!(ls::MoreThuenteLineSearch{T},
-                f0::Real, g0::Real, stp::Real;
-                ftol::Real = ls.ftol,
-                gtol::Real = ls.gtol,
-                xtol::Real = ls.xtol,
-                stpmin::Real = zero(T),
-                stpmax::Real = stp*STPMAX) where {T<:AbstractFloat}
-    start!(ls, f0, g0, stp, ftol, gtol, xtol, stpmin, stpmax)
-end
-
-function start!(ls::MoreThuenteLineSearch,
-                f0::Real, g0::Real, stp::Real,
-                ftol::Real, gtol::Real, xtol::Real,
-                stpmin::Real, stpmax::Real)
-
-    # Check the input arguments for errors.
-    if stpmax < stpmin
-        throw(ArgumentError("STPMAX < STPMIN"))
-    end
-    if stpmin < 0
-        throw(ArgumentError("STPMIN < 0"))
-    end
-    if xtol < 0
-         throw(ArgumentError("XTOL < 0"))
-    end
-    if ftol ≤ 0
-         throw(ArgumentError("FTOL ≤ 0"))
-    end
-    if gtol ≤ 0
-         throw(ArgumentError("GTOL ≤ 0"))
-    end
-    if g0 ≥ 0
-         throw(ArgumentError("Not a descent direction"))
-    end
-    if stp > stpmax
-         throw(ArgumentError("STP > STPMAX"))
-    end
-    if stp < stpmin
-         throw(ArgumentError("STP < STPMIN"))
-    end
-
+# Low-level `start!` method, arguments have been checked for errors.
+function start!(ls::MoreThuenteLineSearch{T}, fx0::T, dgx0::T, stp1::T,
+                stpmin::T, stpmax::T) where {T<:AbstractFloat}
     # Initialize local variables.
     # The variables STX, FX, GX contain the values of the step,
     # function, and derivative at the best step.
@@ -505,39 +561,30 @@ function start!(ls::MoreThuenteLineSearch,
     # function, and derivative at STY.
     # The variables STP, F, G contain the values of the step,
     # function, and derivative at STP.
-    ls.ftol      = ftol
-    ls.gtol      = gtol
-    ls.xtol      = xtol
     ls.stpmin    = stpmin
     ls.stpmax    = stpmax
-    ls.finit     = f0
-    ls.ginit     = g0
-    ls.stp       = stp
+    ls.finit     = fx0
+    ls.ginit     = dgx0
+    ls.stp       = stp1
     ls.stx       = 0
-    ls.fx        = f0
-    ls.gx        = g0
+    ls.fx        = fx0
+    ls.gx        = dgx0
     ls.sty       = 0
-    ls.fy        = f0
-    ls.gy        = g0
+    ls.fy        = fx0
+    ls.gy        = dgx0
     ls.lower     = 0
-    ls.upper     = stp + stp*XTRAPU
+    ls.upper     = (XTRAPU + one(XTRAPU))*stp1
     ls.width     = stpmax - stpmin
     ls.oldwidth  = 2*(stpmax - stpmin)
     ls.stage     = 1
     ls.brackt    = false
-    report!(ls, :SEARCH, :COMPUTE_FG)
+    report!(ls, :SEARCHING, :COMPUTE_FG)
 end
 
-function iterate!(ls::MoreThuenteLineSearch{T},
-                  stp::Real, f::Real, g::Real) where {T<:AbstractFloat}
-    return iterate!(ls, convert(T, stp), convert(T, f), convert(T, g))
-end
+function iterate!(ls::MoreThuenteLineSearch{T}, f::T, g::T) where {T<:AbstractFloat}
 
-function iterate!(ls::MoreThuenteLineSearch{T},
-                  stp::T, f::T, g::T) where {T<:AbstractFloat}
-
-    @assert ls.task == :SEARCH
-    @assert stp == ls.stp
+    @assert ls.state == :SEARCHING
+    # FIXME @assert stp == ls.stp
 
     P66 = T(0.66)
     HALF = T(0.5)
@@ -546,7 +593,7 @@ function iterate!(ls::MoreThuenteLineSearch{T},
     # If psi(stp) ≤ 0 and f'(stp) ≥ 0 for some step, then the algorithm enters
     # the second stage.
     gtest = ls.ftol*ls.ginit
-    ftest = ls.finit + stp*gtest
+    ftest = ls.finit + ls.stp*gtest
     if ls.stage == 1 && f ≤ ftest && g ≥ ZERO
         ls.stage = 2
     end
@@ -555,17 +602,17 @@ function iterate!(ls::MoreThuenteLineSearch{T},
     if f ≤ ftest && abs(g) ≤ -ls.gtol*ls.ginit
         return report!(ls, :CONVERGENCE, :STRONG_WOLFE_SATISFIED)
     end
-    if stp == ls.stpmin && (f > ftest || g ≥ gtest)
+    if ls.stp == ls.stpmin && (f > ftest || g ≥ gtest)
         return report!(ls, :WARNING, :STP_EQ_STPMIN)
     end
-    if stp == ls.stpmax && f ≤ ftest && g ≤ gtest
+    if ls.stp == ls.stpmax && f ≤ ftest && g ≤ gtest
         return report!(ls, :WARNING, :STP_EQ_STPMAX)
     end
     if ls.brackt
         if ls.upper - ls.lower ≤ ls.xtol*ls.upper
             return report!(ls, :WARNING, :XTOL_TEST_SATISFIED)
         end
-        if stp ≤ ls.lower || stp ≥ ls.upper
+        if ls.stp ≤ ls.lower || ls.stp ≥ ls.upper
             return report!(ls, :WARNING, :ROUNDING_ERRORS)
         end
     end
@@ -581,10 +628,10 @@ function iterate!(ls::MoreThuenteLineSearch{T},
         info, ls.brackt,
         ls.stx, fxm, gxm,
         ls.sty, fym, gym,
-        stp = cstep(ls.brackt, ls.lower, ls.upper,
+        ls.stp = cstep(ls.brackt, ls.lower, ls.upper,
                     ls.stx, ls.fx - ls.stx*gtest, ls.gx - gtest,
                     ls.sty, ls.fy - ls.sty*gtest, ls.gy - gtest,
-                    stp, f - stp*gtest, g - gtest)
+                    ls.stp, f - ls.stp*gtest, g - gtest)
 
         # Reset the function and derivative values for F.
         ls.fx = fxm + ls.stx*gtest
@@ -598,10 +645,10 @@ function iterate!(ls::MoreThuenteLineSearch{T},
         info, ls.brackt,
         ls.stx, ls.fx, ls.gx,
         ls.sty, ls.fy, ls.gy,
-        stp = cstep(ls.brackt, ls.lower, ls.upper,
+        ls.stp = cstep(ls.brackt, ls.lower, ls.upper,
                     ls.stx, ls.fx, ls.gx,
                     ls.sty, ls.fy, ls.gy,
-                    stp, f, g)
+                    ls.stp, f, g)
 
     end
 
@@ -609,7 +656,7 @@ function iterate!(ls::MoreThuenteLineSearch{T},
     if ls.brackt
         wcur = abs(ls.sty - ls.stx)
         if wcur ≥ P66*ls.oldwidth
-            stp = ls.stx + HALF*(ls.sty - ls.stx)
+            ls.stp = ls.stx + HALF*(ls.sty - ls.stx)
         end
         ls.oldwidth = ls.width
         ls.width = wcur
@@ -625,25 +672,22 @@ function iterate!(ls::MoreThuenteLineSearch{T},
             ls.upper = ls.stx
         end
     else
-        ls.lower = stp + XTRAPL*(stp - ls.stx)
-        ls.upper = stp + XTRAPU*(stp - ls.stx)
+        ls.lower = ls.stp + XTRAPL*(ls.stp - ls.stx)
+        ls.upper = ls.stp + XTRAPU*(ls.stp - ls.stx)
     end
 
     # Force the step to be within the bounds STPMAX and STPMIN.
-    stp = clamp(stp, ls.stpmin, ls.stpmax)
+    ls.stp = clamp(ls.stp, ls.stpmin, ls.stpmax)
 
     # If further progress is not possible, let STP be the best point obtained
     # during the search.
-    if (ls.brackt && (stp ≤ ls.lower || stp ≥ ls.upper ||
+    if (ls.brackt && (ls.stp ≤ ls.lower || ls.stp ≥ ls.upper ||
                       ls.upper - ls.lower ≤ ls.xtol*ls.upper))
-        stp = ls.stx
+        ls.stp = ls.stx
     end
 
-    # Save next step to try.
-    ls.stp = stp
-
-    # Obtain another function and derivative.
-    return report!(ls, :SEARCH, :COMPUTE_FG)
+   # Obtain another function and derivative.
+    return report!(ls, :SEARCHING, :COMPUTE_FG)
 end
 
 """
@@ -698,12 +742,9 @@ The returned value `info` indicates which case occured for computing the new
 step.
 
 """
-function cstep(brackt::Bool, stpmin::Real, stpmax::Real,
-               stx::Real, fx::Real, dx::Real,
-               sty::Real, fy::Real, dy::Real,
-               stp::Real, fp::Real, dp::Real)
-    cstep(brackt,
-          promote(stpmin, stpmax, stx, fx, dx, sty, fy, dy, stp, fp, dp)...)
+function cstep(brackt::Bool, args::Real...)
+    T = float(promote_type(map(typeof, args)...))
+    return cstep(brackt, map(as(T), args)...)
 end
 
 function cstep(brackt::Bool, stpmin::T, stpmax::T,

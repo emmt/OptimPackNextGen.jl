@@ -55,3 +55,12 @@ function get_tolerances(::Type{T}, name::AbstractString,
         throw(ArgumentError("relative tolerance for $name must be in [0,1]"))
     return as(T, atol), as(T, rtol)
 end
+
+"""
+    OptimPackNextGen.get_reason(alg) -> str
+
+yields a textual description of the current state of the iterative algorithm
+implemented by `alg`.
+
+"""
+function get_reason end
