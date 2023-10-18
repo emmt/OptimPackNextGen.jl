@@ -65,7 +65,7 @@ end
 Mike Powell's **COBYLA** algorithm attempts to find the variables `x` which
 solve the problem:
 
-    min f(x)    s.t.   c(x) ≤ 0
+    min f(x)    subject to   c(x) ≤ 0
 
 where `x` is a vector of variables that has `n ≥ 1` components, `f(x)` is an
 objective function and `c(x)` implement `m` inequality constraints.  The
@@ -165,7 +165,7 @@ minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)
 are similar to `Cobyla.minimize` and `Cobyla.minimize!` respectively but
 solve the contrained maximization problem:
 
-    max f(x)    s.t.   c(x) ≤ 0
+    max f(x)    subject to   c(x) ≤ 0
 
 """
 maximize(args...; kwds...) = optimize(args...; maximize=true, kwds...)

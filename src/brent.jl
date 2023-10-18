@@ -234,7 +234,7 @@ minimum, and `nf` the number of function calls.
 
 Optional argument `T` is the floating-point type to use for computations. If
 `T` is unspecified, it is determined by the numeric type of the arguments `a`,
-`b`, and ``args...`.
+`b`, and `args...`.
 
 To save computations, `args...` can consist in up to 3 points `x`, `w`, and `w`
 in the interval `[a,b]` along with their function values:
@@ -248,7 +248,7 @@ The method used is a combination of golden section search and successive
 parabolic interpolation. Convergence is never much slower than that for a
 Fibonacci search. If `f` has a continuous second derivative which is positive
 at the minimum (which is not at `a` or `b`), then convergence is superlinear,
-and usually of the order of about 1.3247.
+and usually of the order of about `1.3247`.
 
 Keywords `rtol` and `atol` can be used to specify a tolerance:
 

@@ -77,7 +77,7 @@ end
 Mike Powell's **BOBYQA** algorithm attempts to find the variables `x` which
 solve the bound constrained problem:
 
-    min f(x)  s.t.  xl ≤ x ≤ xu
+    min f(x)  subject to  xl ≤ x ≤ xu
 
 where `x` is a vector of variables that has `n ≥ 2` components `f(x)` is an
 objective function, `xl` and `xu` are bounds on the variables. The algorithm
@@ -178,7 +178,7 @@ minimize!(args...; kwds...) = optimize!(args...; maximize=false, kwds...)
 are similar to `Bobyqa.minimize` and `Bobyqa.minimize!` respectively but
 solve the bound constrained maximization problem:
 
-    max f(x)  s.t.  xl ≤ x ≤ xu
+    max f(x)  subject to  xl ≤ x ≤ xu
 
 """
 maximize(args...; kwds...) = optimize(args...; maximize=true, kwds...)
