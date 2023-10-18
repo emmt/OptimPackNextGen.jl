@@ -20,8 +20,8 @@ end
 
 function (objfun::ObjectiveFunction{<:AbstractNLPModel})(x::AbstractArray{T,N},
                                                          g::AbstractArray{T,N}) where {T,N}
-    grad!(parent(objfun), x, g)
-    return objfun(x)
+    f, g = objgrad!(parent(objfun), x, g)
+    return f
 end
 
 # Implement (part of) the NLPModels API.
