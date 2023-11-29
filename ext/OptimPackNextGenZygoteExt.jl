@@ -9,8 +9,9 @@ else
 end
 
 function OptimPackNextGen.auto_differentiate!(f, x, g)
-    vcopy!(g, Zygote.gradient(f, x)[1]);
-    return f(x)
+    m = Zygote.withgradient(f,x)
+    vcopy!(g,m[:grad][1] );
+    return m[:val]
 end
 
 end # module
