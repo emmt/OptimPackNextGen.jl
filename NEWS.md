@@ -24,11 +24,11 @@ Other changes:
 * Initial variables of a multi-variate problem in `spg` and `vmlmb` are
   converted to have floating-point element type.
 
-* VMLMB and SPG algorithms both yield similar results: a 2-tuple `(stats,x)`
-  where `stats` provides information about how the algorithm worked (number of
-  iterations, final value of objective function, execution time, etc.) and `x`
-  is the best solution found by the algorithm. Call `issuccess(stats)` to check
-  whether algorithm has converged.
+* VMLMB and SPG algorithms both yield similar results: a 2-tuple `(x,stats)`
+  where `x` is the best solution found by the algorithm and `stats` provides
+  information about how the algorithm worked (number of iterations, final value
+  of objective function, execution time, etc.). Call `issuccess(stats)` to
+  check whether algorithm has converged.
 
 * Spectral Projected Gradient (SPG) method:
 

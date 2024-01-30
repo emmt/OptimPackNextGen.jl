@@ -97,7 +97,7 @@ const default_amin = 0.1
 const default_amax = 0.9
 
 """
-    spg(fg!, prj!, x0; kwds...) -> stats, x
+    spg(fg!, prj!, x0; kwds...) -> x, stats
 
 attempts to solve the constrained problem:
 
@@ -107,9 +107,10 @@ by the Spectral Projected Gradient (SPG) method (Version 2: "continuous
 projected gradient direction" described in the references below). Arguments
 `fg!` and `prj!` implement the objective function `f(x)` and its gradient
 `∇f(x)`. Argument `x0 ∈ ℝⁿ` is the initial solution. The result is a 2-tuple
-`(stats, x)` with `stats` a structure with information about the algorithm
-computations and `x ∈ Ω` which, provided `issuccess(stats)` is true, is an
-approximate local minimizer of the objective function on the feasible set `Ω`.
+`(x, stats)` with `x ∈ Ω` and `stats` a structure with information about the
+algorithm computations (see [`OptimPAckNextGen.SPG.Stats`](@ref). Provided
+`issuccess(stats)` is true, `x` is an approximate local minimizer of the
+objective function on the feasible set `Ω`.
 
 The user must supply the functions `fg!` and `prj!` to evaluate the objective
 function and its gradient and to project an arbitrary point onto the feasible
@@ -128,7 +129,7 @@ region. These functions must be defined as:
 If the feasible set consists in simple separable bounds on the variables,
 another possibility is to call:
 
-    spg(fg!, Ω, x0) -> x
+    spg(fg!, Ω, x0) -> x, stats
 
 with `Ω` a bounded set (of type `BoundedSet` defined in package `NumOptBase`)
 to specify the feasible subset for the variables `x`.
@@ -236,7 +237,8 @@ one of the convergence criteria.
 """
 function spg(fg!, prj!, x0::AbstractArray; kwds...)
     x = copy_variables(x0)
-    return spg!(fg!, prj!, x; kwds...), x
+    stats = spg!(fg!, prj!, x; kwds...)
+    return x, stats
 end
 
 spg!(fg!, Ω::BoundedSet{T,N}, x::AbstractArray{T,N}; kwds...) where {T,N} =

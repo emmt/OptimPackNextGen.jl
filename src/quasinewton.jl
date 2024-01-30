@@ -134,7 +134,7 @@ const default_gtol = (0.0, 1.0e-6)
 const default_mem  = 5
 
 """
-    vmlmb(fg!, x0; kwds...) -> stats, x
+    vmlmb(fg!, x0; kwds...) -> x, stats
 
 attempts to solve the constrained problem:
 
@@ -144,9 +144,9 @@ by the VMLMB method, a Variable Metric method with Limited Memory and optional
 Bound constraints. Argument `fg!` implements the objective function `f(x)` and
 its gradient `∇f(x)`. Argument `x0 ∈ ℝⁿ` gives an initial approximation of the
 variables (its contents is left unchanged and it does not need to be feasible).
-The result is a 2-tuple `(stats, x)` with `stats` a structure with information
-about the algorithm computations and `x ∈ Ω` which, provided `issuccess(stats)`
-is true, is an approximate local minimizer of the objective function on the
+The result is a 2-tuple `(x, stats)` with `x ∈ Ω` and `stats` a structure with
+information about the algorithm computations. Provided `issuccess(stats)` is
+true, `x` is an approximate local minimizer of the objective function on the
 feasible set `Ω`.
 
 The caller must provide a function `fg!` to compute the value and the gradient
@@ -318,7 +318,7 @@ vmlmb_CUTEst(arg...; kwds...) =
     error("invalid arguments or `CUTEst` package not yet loaded")
 
 """
-     vmlmb!(fg!, x; mem=..., lower=..., upper=..., ftol=..., fmin=...) -> stats
+     vmlmb!(fg!, x; mem=..., lower=..., upper=..., ftol=..., fmin=...) -> x, stats
 
 finds a local minimizer of `f(x)` starting at `x` and storing the best solution
 in `x`. Method `vmlmb!` is the in-place version of `vmlmb` (which to see).
@@ -367,7 +367,8 @@ function vmlmb!(fg!, x::AbstractArray{T,N};
         autodiff)
 
     # Call the real method.
-    return _vmlmb!(fg!, x, Ω, cfg, lnsrch, observer, output)
+    stats = _vmlmb!(fg!, x, Ω, cfg, lnsrch, observer, output)
+    return x, stats
 end
 
 # Provide a default line search method if needed.
