@@ -54,7 +54,16 @@ end
                 iter::Integer, fcnt::Integer, pcnt::Integer, status::Status)
 
 yields an immutable object collecting information returned by the SPG method.
-All members are mandatory and are specified by keyword.
+All members are mandatory and are specified by keyword:
+
+- `fx` is the objective function value.
+- `pgtwon` is the Euclidean norm of projected gradient.
+- `pginfn` is the infinite norm of projected gradient.
+- `seconds` is the execution time in seconds.
+- `iter` is the number of iterations.
+- `fcnt` is the number of function (and gradient) evaluations.
+- `pcnt` is the number of projections.
+- `status` is algorithm status.
 
 """
 struct Stats
@@ -79,7 +88,7 @@ get_reason(stats::Stats) = get_reason(stats.status)
 get_reason(status::Status) =
     status == TOO_MANY_EVALUATIONS ? "Too many function evaluations" :
     status == TOO_MANY_ITERATIONS  ? "Too many iterations" :
-    status == SEARCHING            ? "Work in progress" :
+    status == SEARCHING            ? "Search in progress" :
     status == INFNORM_CONVERGENCE  ? "Convergence with projected gradient infinite-norm" :
     status == TWONORM_CONVERGENCE  ? "Convergence with projected gradient 2-norm" :
     status == FUNCTION_CONVERGENCE ? "Function does not change in the last `mem` iterations" :

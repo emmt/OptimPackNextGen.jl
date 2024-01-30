@@ -96,10 +96,10 @@ The following optional keywords can be specified:
       fboost = fm ± max(aboost, rboost*abs(fm))
 
   where `fm` is the best function value so far and `±` is `+` when seeking for
-  a maximum and -` when seeking for a minimum. By default, these parameters are
-  both set to zero as (hence `fboost = fm`) because these settings are the most
-  efficient in practice (despite what is claimed in the paper describing the
-  S.T.E.P. method).
+  a maximum and `-` when seeking for a minimum. By default, these parameters
+  are both set to zero as (hence `fboost = fm`) because these settings are the
+  most efficient in practice (unlike what is suggested in the paper describing
+  the S.T.E.P. method).
 
 * `printer` can be set with a user defined function to print iteration
   information, its signature is:

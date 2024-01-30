@@ -245,7 +245,7 @@ The following keywords are available:
    search is `MoreThuenteLineSearch`).
 
 * `blmvm` can be set true to emulate the BLMVM algorithm of Benson and Moré.
-  This option has no effects for an uncostrained problem.
+  This option has no effects for an unconstrained problem.
 
 The `stats` object has the following properties:
 
@@ -277,12 +277,12 @@ improvements and the capability to emulate L-BFGS and BLMVM methods.
 The limited memory BFGS method (L-BFGS) was first described by Nocedal (1980)
 who dubbed it SQN. The method is implemented in MINPACK-2 (1995) by the FORTRAN
 routine VMLM. The numerical performances of L-BFGS have been studied by Liu and
-Nocedal (1989) who proved that it is globally convergent for unfiformly convex
+Nocedal (1989) who proved that it is globally convergent for uniformly convex
 problems with a R-linear rate of convergence. They provided the FORTRAN code
 LBFGS. The BLMVM and VMLMB algorithms were proposed by Benson and Moré (2001)
 and Thiébaut (2002) to account for separable bound constraints on the
 variables. These two latter methods are rather different than L-BFGS-B by Byrd
-at al. (1995) which has more overheads and is slower.
+at al. (1995) which has more overheads and is slower in practice.
 
 * J. Nocedal, "*Updating Quasi-Newton Matrices with Limited Storage*" in
   Mathematics of Computation, vol. 35, pp. 773-782 (1980).
