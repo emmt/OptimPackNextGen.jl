@@ -9,7 +9,7 @@ else
 end
 
 function OptimPackNextGen.auto_differentiate!(f, x, g)
-    OptimPackNextGen.VectOps.vcopy!(g, Zygote.gradient(f, x)[1]);
+    OptimPackNextGen.NumOptBase.copy!(g, Zygote.gradient(f, x)[1]);
     return f(x)
 end
 
