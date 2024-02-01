@@ -17,10 +17,11 @@ export
     get_step,
     iterate!,
     start!,
+    steepest_descent_step,
     use_derivatives
 
 # Imports from other packages.
-using TypeUtils
+using TypeUtils, NumOptBase
 
 # Imports from parent module.
 import ..OptimPackNextGen
@@ -257,6 +258,118 @@ end
 @noinline function iterate!(ls::L, fx::T, dgx::T) where {T<:AbstractFloat,
                                                          L<:LineSearch{T}}
     error("method `iterate!` is not implemented for line-search of type `$L`")
+end
+
+"""
+
+    OptimPack.LineSearches.steepest_descent_step(T, x, d, fx;
+                                                 f2nd=NaN, fmin=NaN,
+                                                 dxrel=NaN, dxabs=NaN)
+
+yields the length `α` of the first trial step along the steepest
+descent direction. Positional arguments are:
+
+- `T` the floating-point type of the returned value.
+
+- `x` the current variables (or their Euclidean norm).
+
+- `d` the search direction `d` (or its Euclidean norm) at `x`. This direction
+  shall be the gradient (or the projected gradient for a constrained problem)
+  at `x` up to a change of sign.
+
+- `fx` the value of the objective function at `x`.
+
+The function returns the first valid step length that is computed according to
+the following keywords (in the listed order):
+
+- `f2nd` is a typical value of the second derivatives of the objective
+  function.
+
+- `fmin` is an estimate of the minimal value of the objective function.
+
+- `dxrel` is a small step size relative to the norm of the variables.
+
+- `dxabs` is an absolute size in the norm of the change of variables.
+
+   SEE ALSO: optm_start_line_search.
+"""
+function steepest_descent_step(::Type{T},
+                               x::Union{Real,AbstractArray},
+                               d::Union{Real,AbstractArray},
+                               fx::Real;
+                               f2nd::Real = NaN,
+                               fmin::Real = NaN,
+                               dxrel::Real = NaN,
+                               dxabs::Real = NaN) where {T<:AbstractFloat}
+
+    ispositive(α) = α > zero(α)
+    isvalidstep(α) = isfinite(α) & ispositive(α)
+
+    # Use typical value of second derivative of objective function if provided
+    # by the caller.
+    α = as(T, inv(f2nd))
+    isvalidstep(α) && return α
+
+    # Euclidean norm of `d` is needed by the other estimators.
+    dnorm = d isa AbstractArray ? norm2(T, d) : as(T, d)
+    ispositive(dnorm) || throw(ArgumentError(
+        "invalid search direction, `norm2(d) = $dnorm"))
+
+    # The behavior of a quadratic objective function f(x) along the search
+    # direction d starting at x is given by:
+    #
+    #     f(x + α⋅d) = f(x) + α⋅⟨d,∇f(x)⟩ + (1/2)⋅α²⋅⟨d,∇²f(x)⋅d⟩
+    #
+    # Taking the derivative in α, it can be found that the minimum in α is
+    # for:
+    #
+    #     α_best = -⟨d,∇f(x)⟩/⟨d,∇²f(x)⋅d⟩
+    #
+    # and it is easy to prove that:
+    #
+    #     min_α f(x + α⋅d) = f(x + α_best⋅d)
+    #                      = f(x) + (1/2)⋅α_best⋅⟨d,∇f(x)⟩
+    #
+    # If ⟨d,∇f(x)⟩ = 0, then α_best = 0; otherwise, if an inferior bound
+    # fmin ≤ f(x) (∀ x) is known, then:
+    #
+    #     fmin ≤ min_α f(x + α⋅d) = f(x) + (1/2)⋅α_best⋅⟨d,∇f(x)⟩
+    #
+    # holds and (assuming a convex function along d):
+    #
+    #  • if ⟨d,∇f(x)⟩ > 0, then α_best is negative and such that:
+    #
+    #        α_best ≥ 2⋅(fmin - f(x))/⟨d,∇f(x)⟩
+    #
+    #  • otherwise, ⟨d,∇f(x)⟩ < 0, then α_best is positive and such that:
+    #
+    #        α_best ≤ 2⋅(fmin - f(x))/⟨d,∇f(x)⟩
+    #
+    # This shows that, in any case, 2⋅(fmin - f(x))/⟨d,∇f(x)⟩ is the step of
+    # maximum length. The idea is to take this step and, if needed, backtrack
+    # from there.
+    #
+    # When `d = -∇f(x)` (steepest descent direction), the step to try is
+    # given by:
+    #
+    #     2⋅(f(x) - fmin)/‖d‖²
+    #
+    α = as(T, 2(fx - fmin)/dnorm/dnorm)
+    isvalidstep(α) && return α
+
+    # May use relative norm of initial change of variables.
+    if zero(dxrel) < dxrel < one(dxrel)
+        xnorm = x isa AbstractArray ? norm2(T, x) : as(T, x)
+        α = as(T, dxrel*xnorm/dnorm)
+        isvalidstep(α) && return α
+    end
+
+    # May use absolute norm of initial change of variables.
+    α = as(T, dxabs/dnorm)
+    isvalidstep(α) && return α
+
+    # All attemps failed.
+    throw(ArgumentError("invalid settings for steepest descent step length"))
 end
 
 #-------------------------------------------------------------------------------
