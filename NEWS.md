@@ -44,8 +44,7 @@ Other changes:
     type `BoundedSet` provided by package `NumOptBase`) to specify the feasible
     subset `Ω` for the variables `x` when simple bound constraints apply.
 
-  - All settings of the SPG method can be specified by keywords. Keyword `ws`
-    has been renamed as `info`.
+  - All settings of the SPG method can be specified by keywords.
 
   - Printer has a different signature: `printer(io, x, fx, info)` with `io` the
     output stream, `x` the current variables, `fx = f(x)` the corresponding

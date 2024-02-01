@@ -36,22 +36,6 @@ optimization with particular focus on large scale problems.
   the "variables" of the problem to solve).
 
 
-## Small to moderate size problems
-
-For problems of small to moderate size, `OptimPackNextGen` provides:
-
-* Mike Powell's `COBYLA` (Powell, 1994), `NEWUOA` (Powell, 2006), and `BOBYQA`
-  (Powell, 2009) algorithms for minimizing a function of many variables. These
-  methods are *derivatives free* (only the function values are needed).
-  `NEWUOA` is for unconstrained optimization. `COBYLA` accounts for general
-  inequality constraints. `BOBYQA` accounts for bound constraints on the
-  variables.
-
-* `nllsq` implements non-linear (weighted) least squares fit. Powell's NEWUOA
-  method is exploited to find the best fit parameters of given data by a user
-  defined model function.
-
-
 ## Univariate functions
 
 The following methods are provided for univariate functions:
@@ -97,16 +81,15 @@ Related software are the [`OptimPack`](https://github.com/emmt/OptimPack)
 library which implements the C version of the algorithms and the
 [`OptimPack.jl`](https://github.com/emmt/OptimPack.jl) Julia package which is a
 wrapper of this library for Julia. Compared to `OptimPack.jl`, the new
-`OptimPackNextGen.jl` implements in pure Julia the algorithms dedicated to
-large scale problems but still relies on the C libraries for a few algorithms
-(notably the Powell methods). Precompiled versions of these libraries are
-provided by
-[OptimPack_jll](https://github.com/JuliaBinaryWrappers/OptimPack_jll.jl)
-package. The rationale is to facilitate the integration of exotic types of
-variables for optimization problems in Julia. Eventually, `OptimPackNextGen.jl`
-will become the next version of `OptimPack.jl` but, until then, it is more
-flexible to have two separate modules and avoid coping with compatibility and
-design issues.
+`OptimPackNextGen.jl` provide pure Julia implementation of most algorithms and
+does not rely on foreign libraries. The exception are derivative-free Powell's
+methods which are now provided by
+[`PowellMethods.jl`](https://github.com/emmt/PowellMethods.jl) and, better, by
+[`PRIMA.jl`](https://github.com/libprima/PRIMA.jl). The rationale is to
+facilitate the integration of exotic types of variables for optimization
+problems in Julia. Eventually, `OptimPackNextGen.jl` will become the next
+version of `OptimPack.jl` but, until then, it is more flexible to have two
+separate modules and avoid coping with compatibility and design issues.
 
 
 ## References
@@ -141,20 +124,6 @@ design issues.
 * J.J. Moré and D.J. Thuente, "*Line search algorithms with guaranteed
   sufficient decrease*" in ACM Transactions on Mathematical Software (TOMS)
   Volume 20, Issue 3, Pages 286-307 (1994).
-
-* M.J.D. Powell, "*A direct search optimization method that models the
-  objective and constraint functions by linear interpolation*" in Advances in
-  Optimization and Numerical Analysis Mathematics and Its Applications, vol.
-  **275** (eds. Susana Gomez and Jean-Pierre Hennart), Kluwer Academic
-  Publishers, pp. 51-67 (1994).
-
-* M.J.D. Powell, "*The NEWUOA software for unconstrained minimization without
-  derivatives*" in Large-Scale Nonlinear Optimization, editors G. Di Pillo and
-  M. Roma, Springer, pp. 255-297 (2006).
-
-* M.J.D. Powell, "*The BOBYQA Algorithm for Bound Constrained Optimization
-  Without Derivatives*", Technical report, Department of Applied Mathematics
-  and Theoretical Physics, University of Cambridge (2009).
 
 * F. Soulez, É. Thiébaut, M. Tallon, I. Tallon-Bosc & P. Garcia, "*Optimal a
   posteriori fringe tracking in optical interferometry*" in Proc. SPIE 9146
