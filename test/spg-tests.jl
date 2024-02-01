@@ -82,17 +82,16 @@ function runtests(; floats = (Float64, Float32), n::Integer = 20)
     @testset "SPG for Rosenbrock function" for T in iterable(floats)
         eps = sizeof(T)*8 < 64 ? 1e-4 : 1e-6
         x0 = rosenbrock_init!(Array{T}(undef, n))
-        info = SPG.Info()
-        kwds = (info=info, verb=VERBOSE, eps1=eps, eps2=eps)
+        kwds = (mem=10, verb=VERBOSE, eps1=eps, eps2=eps)
         N = ndims(x0)
 
         println("\n# Testing SPG with $T floats and nonnegativity.")
-        x6 = spg(rosenbrock_fg!, BoundedSet{T,N}(0, +Inf), x0, 10; kwds...)
-        @test issuccess(info)
+        x6, stats = spg(rosenbrock_fg!, BoundedSet{T,N}(0, +Inf), x0; kwds...)
+        @test issuccess(stats)
 
         println("\n# Testing SPG with $T floats, automatic differentiation, and nonnegativity.")
-        x7 = spg(rosenbrock_f, nonnegative!, x0, 10; kwds..., autodiff=true)
-        @test issuccess(info)
+        x7, stats = spg(rosenbrock_f, nonnegative!, x0; kwds..., autodiff=true)
+        @test issuccess(stats)
     end
 end
 
