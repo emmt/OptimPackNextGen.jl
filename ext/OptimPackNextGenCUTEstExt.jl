@@ -4,13 +4,13 @@ if isdefined(Base, :get_extension)
     using NLPModels
     using CUTEst
     using OptimPackNextGen
-    import OptimPackNextGen.SPG: spg, spg_CUTEst
+    import OptimPackNextGen.SpectralProjectedGradient: spg, spg_CUTEst
     import OptimPackNextGen.QuasiNewton: vmlmb, vmlmb_CUTEst
 else
     using ..NLPModels
     using ..CUTEst
     using ..OptimPackNextGen
-    import ..OptimPackNextGen.SPG: spg, spg_CUTEst
+    import ..OptimPackNextGen.SpectralProjectedGradient: spg, spg_CUTEst
     import ..OptimPackNextGen.QuasiNewton: vmlmb, vmlmb_CUTEst
 end
 

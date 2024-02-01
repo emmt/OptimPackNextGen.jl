@@ -22,7 +22,7 @@ export
     Projector, Bound, BoundedSet,
 
     # Spectral Projected Gradient (SPG) method:
-    SPG, spg, spg!, spg_CUTEst,
+    spg, spg!, spg_CUTEst,
 
     # Brent's methods:
     fmin,
@@ -80,7 +80,7 @@ include("bradi.jl")
 include("step.jl")
 
 include("spg.jl")
-import .SPG: spg, spg!, spg_CUTEst
+import .SpectralProjectedGradient: spg, spg!, spg_CUTEst
 
 @static if !isdefined(Base, :get_extension)
     using Requires

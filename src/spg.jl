@@ -1,8 +1,9 @@
 """
 
-Module `OptimPackNextGen.SPG` implements the Spectral Projected Gradient Method
-(Version 2: "continuous projected gradient direction") to find the local
-minimizers of a given function with convex constraints, described in:
+Module `OptimPackNextGen.SpectralProjectedGradient` implements the Spectral
+Projected Gradient Method (Version 2: "continuous projected gradient
+direction") to find the local minimizers of a given function with convex
+constraints, described in:
 
 - E. G. Birgin, J. M. Martinez, and M. Raydan, "Nonmonotone spectral projected
   gradient methods on convex sets", SIAM Journal on Optimization 10,
@@ -13,7 +14,7 @@ minimizers of a given function with convex constraints, described in:
   (TOMS) 27, pp. 340-349 (2001).
 
 """
-module SPG
+module SpectralProjectedGradient
 
 export
     issuccess,
@@ -34,9 +35,10 @@ using  ..OptimPackNextGen: auto_differentiate!, copy_variables
 import ..OptimPackNextGen: get_reason
 
 """
-    SPG.Status
+    SpectralProjectedGradient.Status
 
-is the enumeration for the algorithm status in SPG method.
+is the enumeration for the algorithm status in the Spectral Projected Gradient
+(SPG) method.
 
 """
 @enum Status begin
@@ -49,11 +51,14 @@ is the enumeration for the algorithm status in SPG method.
 end
 
 """
-    SPG.Stats(; fval::Real, pgtwon::Real, pginfn::Real, seconds::Real,
-                iters::Integer, evals::Integer, projs::Integer, status::Status)
+    SpectralProjectedGradient.Stats(; fval::Real, pgtwon::Real, pginfn::Real,
+                                      seconds::Real, iters::Integer,
+                                      evals::Integer, projs::Integer,
+                                      status::Status)
 
-yields an immutable object collecting information returned by the SPG method.
-All members are mandatory and are specified by keyword:
+yields an immutable object collecting information returned by the Spectral
+Projected Gradient (SPG) method. All members are mandatory and are specified by
+keyword:
 
 - `fval` is the objective function value.
 - `pgtwon` is the Euclidean norm of projected gradient.
@@ -116,7 +121,8 @@ projected gradient direction" described in the references below). Arguments
 `fg!` and `prj!` implement the objective function `f(x)` and its gradient
 `∇f(x)`. Argument `x0 ∈ ℝⁿ` is the initial solution. The result is a 2-tuple
 `(x, stats)` with `x ∈ Ω` and `stats` a structure with information about the
-algorithm computations (see [`OptimPAckNextGen.SPG.Stats`](@ref). Provided
+algorithm computations (see
+[`OptimPAckNextGen.SpectralProjectedGradient.Stats`](@ref). Provided
 `issuccess(stats)` is true, `x` is an approximate local minimizer of the
 objective function on the feasible set `Ω`.
 
@@ -217,14 +223,14 @@ The `stats` object has the following properties:
 
 Possible `status` values are:
 
-| Status                     | Reason                                                |
-|:---------------------------|:------------------------------------------------------|
-| `SPG.SEARCHING`            | Work in progress                                      |
-| `SPG.INFNORM_CONVERGENCE`  | Convergence with projected gradient infinite-norm     |
-| `SPG.TWONORM_CONVERGENCE`  | Convergence with projected gradient 2-norm            |
-| `SPG.FUNCTION_CONVERGENCE` | Function does not change in the last `mem` iterations |
-| `SPG.TOO_MANY_ITERATIONS`  | Too many iterations                                   |
-| `SPG.TOO_MANY_EVALUATIONS` | Too many function evaluations                         |
+| Status                                           | Reason                                                |
+|:-------------------------------------------------|:------------------------------------------------------|
+| `SpectralProjectedGradient.SEARCHING`            | Search in progress                                      |
+| `SpectralProjectedGradient.INFNORM_CONVERGENCE`  | Convergence with projected gradient infinite-norm     |
+| `SpectralProjectedGradient.TWONORM_CONVERGENCE`  | Convergence with projected gradient 2-norm            |
+| `SpectralProjectedGradient.FUNCTION_CONVERGENCE` | Function does not change in the last `mem` iterations |
+| `SpectralProjectedGradient.TOO_MANY_ITERATIONS`  | Too many iterations                                   |
+| `SpectralProjectedGradient.TOO_MANY_EVALUATIONS` | Too many function evaluations                         |
 
 Call `issuccess(stats)` to check whether the algorithm converged according to
 one of the convergence criteria and call `get_reason(stats)` to retrieve a
@@ -490,8 +496,8 @@ end
 """
     spg_CUTEst(name; kwds...) -> stats, x
 
-yields the solution to the `CUTEst` problem `name` by the SPG method. This
-require to have loaded the `CUTest` package.
+yields the solution to the `CUTEst` problem `name` by the Spectral Projected
+Gradient (SPG) method. This require to have loaded the `CUTest` package.
 
 """
 spg_CUTEst(args...; kwds...) =
