@@ -32,9 +32,6 @@ optimization with particular focus on large scale problems.
 * [Line searches methods](doc/linesearches.md) are used to approximately
   minimize the objective function along a given search direction.
 
-* [Algebra](doc/algebra.md) describes operations on "vectors" (that is to say
-  the "variables" of the problem to solve).
-
 
 ## Univariate functions
 
@@ -54,12 +51,6 @@ The following methods are provided for univariate functions:
   *et al.*, 1994) for finding the global minimum (resp. maximum) of a function
   on an interval. The objective function `f(x)` and the variable `x` may have
   units.
-
-
-## Trust region
-
-* Methods `gqtpar` and `gqtpar!` implement Moré & Sorensen algorithm for
-  computing a trust region step (Moré & D.C. Sorensen, 1983).
 
 
 ## Installation
