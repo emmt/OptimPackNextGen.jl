@@ -42,22 +42,15 @@ export
 
     # Miscellaneous:
     ObjectiveFunction,
+    minimize,
+    minimize!,
+    configure!,
     get_reason,
     issuccess
 
 using LinearAlgebra
 using NumOptBase
 using TypeUtils
-
-"""
-
-`Float` is the type of all floating point scalars, it is currently an alias to
-`Cdouble` which is itself an alias to `Float64`.
-
-"""
-const Float = Cdouble
-
-include("wrappers.jl")
 
 include("utils.jl")
 

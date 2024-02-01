@@ -1,4 +1,12 @@
 """
+
+`Float` is the type of all floating point scalars, it is currently an alias to
+`Cdouble` which is itself an alias to `Float64`.
+
+"""
+const Float = Cdouble
+
+"""
     objfun = ObjectiveFunction(args...)
 
 yields a callable object built from arguments `args...` and suitable for
@@ -15,6 +23,50 @@ struct ObjectiveFunction{T}
     parent::T
 end
 Base.parent(objfun::ObjectiveFunction) = getfield(objfun, :parent)
+
+"""
+    configure!(ctx; kwds...) -> ctx
+
+change settings in the context `ctx` according to keywords `kwds...` and
+returns the modified context.
+
+"""
+function configure! end
+
+"""
+    minimize(ctx, f, x0; kwds...) -> x, stats
+
+attempt to minimize objective function `f` with initial variables `x0`
+and given the context `ctx`.
+
+"""
+function minimize end
+
+"""
+    minimize!(ctx, f, x0; kwds...) -> x, stats
+
+attempt to minimize objective function `f` with initial variables `x0` and
+given the context `ctx`. This is the *in-place* version of `minimize`: input
+variables `x0` are overwriten by the solution and `x === x0` holds on output.
+
+"""
+function minimize! end
+
+"""
+    OptimPackNextGen.scalar_type(obj) -> T
+
+yields the type of scalar computations with structured object `obj`.
+
+"""
+function scalar_type end
+
+"""
+    OptimPackNextGen.variables_type(obj) -> T
+
+yields the type of variables for computations with structured object `obj`..
+
+"""
+function variables_type end
 
 """
     OptimPackNextGen.auto_differentiate!(f, x, g) -> fx
@@ -47,3 +99,12 @@ implemented by `alg`.
 
 """
 function get_reason end
+
+"""
+     OptimPackNextGen.is_positive(x) -> bool
+
+yields whether `x` is strictly positive.
+
+"""
+is_positive(x) = x > zero(x)
+# FIXME unused: is_negative(x) = x < zero(x)
