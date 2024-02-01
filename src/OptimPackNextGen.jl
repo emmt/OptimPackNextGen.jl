@@ -61,8 +61,8 @@ include("wrappers.jl")
 
 include("utils.jl")
 
-include("gqtpar.jl")
-import .MoreSorensen: gqtpar, gqtpar!
+# FIXME: include("gqtpar.jl")
+# FIXME: import .MoreSorensen: gqtpar, gqtpar!
 
 include("linesearches.jl")
 
@@ -72,10 +72,8 @@ import .QuasiNewton: vmlmb, vmlmb!, vmlmb_CUTEst
 include("brent.jl")
 import .Brent: fmin, fzero
 
-include("powell.jl")
-
-include("nllsq.jl")
-import .NonLinearLeastSquares: nllsq, nllsq!
+# FIXME: include("nllsq.jl")
+# FIXME: import .NonLinearLeastSquares: nllsq, nllsq!
 
 include("bradi.jl")
 

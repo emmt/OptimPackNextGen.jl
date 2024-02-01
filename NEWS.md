@@ -73,6 +73,12 @@ Other changes:
     description of the state of the line-search algorithm than the result of
     `get_state`.
 
+* Powell's algorithms (COBYLA, BOBYQA, and NEWUOA) are no longer part of the
+  package and have been moved to
+  [PowellMethods](https://github.com/emmt/PowellMethods.jl). All Powell's
+  algorithms are provided by the
+  [`PRIMA`](https://github.com/libprima/PRIMA.jl) which is more complete and
+  more mature.
 
 ## Version 0.4.2
 
