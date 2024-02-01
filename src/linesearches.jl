@@ -25,7 +25,11 @@ using TypeUtils, NumOptBase
 
 # Imports from parent module.
 import ..OptimPackNextGen
-using OptimPackNextGen: Float, get_reason
+using OptimPackNextGen: Float
+import OptimPackNextGen:
+    get_reason,
+    scalar_type,
+    variables_type
 
 # Dictionary associating symbolic information about the state of an iterative
 # algorithm and a descriptive message.
@@ -98,8 +102,54 @@ Note that the same line-search instance may be re-used for subsequent
 line-searches with the same settings. To change line-search settings call
 `configure!(ls; kwds...)`.
 
+---
+    LineSearch{T}(A::LineSearch) -> B
+    LineSearch(A::LineSearch) -> B
+    copy(A::LineSearch) -> B
+    deepcopy(A::LineSearch) -> B
+
+yield an independent copy `B` of line-search object `A`. In the first example,
+`T` is the scalar type for `B` which may be different than that for `A`.
+
+---
+    convert(LineSearch{T}, A::LineSearch) -> B
+
+converts line-search object `A` so that its scalar type is `T`. The result `B`
+may be the same object as `A` if no conversion is needed.
+
 """
 abstract type LineSearch{T<:AbstractFloat} end
+
+# Generic copy/convert constructors.
+LineSearch(A::LineSearch) = copy(A)
+LineSearch{T}(A::LineSearch{T}) where {T<:AbstractFloat} = copy(A)
+LineSearch{T}(A::LineSearch) where {T<:AbstractFloat} =
+    convert(LineSearch{T}, A)
+Base.deepcopy(A::LineSearch) = copy(A)
+@generated function Base.copy(A::L) where {L<:LineSearch}
+    code = Expr(:block)
+    push!(code.args, :(B = L(undef);))
+    for i in 1:fieldcount(L)
+        push!(code.args, :(setfield!(B, $i, getfield(A, $i))))
+    end
+    push!(code.args, :(return B))
+    return code
+end
+Base.convert(::Type{<:LineSearch{T}}, A::LineSearch{T}) where {T<:AbstractFloat} = A
+@generated function Base.convert(::Type{<:LineSearch{T}},
+                                 A::L) where {T<:AbstractFloat,L<:LineSearch}
+    type = parameterless(L){T}
+    code = Expr(:block)
+    push!(code.args, :(B = $type(undef)))
+    for i in 1:fieldcount(type)
+        push!(code.args, :(setfield!(B, $i, as($(fieldtype(type, i)), getfield(A, $i)))))
+    end
+    push!(code.args, :(return B))
+    return code
+end
+
+scalar_type(ls::LineSearch) = scalar_type(typeof(ls))
+scalar_type(::Type{<:LineSearch{T}}) where {T} = T
 
 """
     get_step(ls)
@@ -153,7 +203,7 @@ function set_descr(sym::Symbol, str::AbstractString)
     return nothing
 end
 
-function OptimPackNextGen.get_reason(ls::LineSearch)
+function get_reason(ls::LineSearch)
     sym = get_descr(ls)
     str = get(DESCR, sym, nothing)
     return str === nothing ? "No description available for `:$sym`" : str
@@ -410,6 +460,8 @@ mutable struct ArmijoLineSearch{T<:AbstractFloat} <: LineSearch{T}
         zero(ftol) < ftol ≤ 1//2 || throw(ArgumentError("`0 < ftol ≤ 1/2` must hold"))
         return new{T}(:STARTING, :NOT_STARTED, ftol, 0, 0, 0, 0)
     end
+    # Special constructor needed for the generic copy/convert methods.
+    ArmijoLineSearch{T}(::UndefInitializer) where {T<:AbstractFloat} = new{T}()
 end
 
 # Armijo's line-search does not use the directional derivative to refine the
@@ -509,6 +561,8 @@ mutable struct MoreToraldoLineSearch{T<:AbstractFloat} <: LineSearch{T}
                                  NaN, NaN, NaN, NaN, NaN, NaN, NaN, false);
                           ftol, gamma, strict)
     end
+    # Special constructor needed for the generic copy/convert methods.
+    MoreToraldoLineSearch{T}(::UndefInitializer) where {T<:AbstractFloat} = new{T}()
 end
 
 function configure!(ls::MoreToraldoLineSearch{T};
@@ -636,6 +690,8 @@ mutable struct MoreThuenteLineSearch{T<:AbstractFloat} <: LineSearch{T}
                    NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN,
                    0, false); xtol, ftol, gtol)
     end
+    # Special constructor needed for the generic copy/convert methods.
+    MoreThuenteLineSearch{T}(::UndefInitializer) where {T<:AbstractFloat} = new{T}()
 end
 
 function configure!(ls::MoreThuenteLineSearch{T};
