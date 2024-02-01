@@ -54,9 +54,6 @@ using TypeUtils
 
 include("utils.jl")
 
-# FIXME: include("gqtpar.jl")
-# FIXME: import .MoreSorensen: gqtpar, gqtpar!
-
 include("linesearches.jl")
 
 include("quasinewton.jl")
@@ -64,9 +61,6 @@ import .QuasiNewton: vmlmb, vmlmb!, vmlmb_CUTEst
 
 include("brent.jl")
 import .Brent: fmin, fzero
-
-# FIXME: include("nllsq.jl")
-# FIXME: import .NonLinearLeastSquares: nllsq, nllsq!
 
 include("bradi.jl")
 
