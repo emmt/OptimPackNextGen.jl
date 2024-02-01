@@ -54,6 +54,15 @@ Other changes:
   - Floating-point type for scalar computations are done in at least double
     precision.
 
+* VMLMB method:
+
+  - A context can be allocated once to run multiple similar optimizations
+    avoiding allocations of workspaces.
+
+  - A better strategy for the scaling of the steepest descent direction is used
+    to save many calls to the objective function initially and after each
+    restart.
+
 * Line-search methods:
 
   - When creating a line-search instance, optional floating-point type `T` is

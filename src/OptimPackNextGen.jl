@@ -35,7 +35,7 @@ export
     nllsq!, nllsq,
 
     # Variable Metric with Limited Memory and Bounds (VMLMB) method:
-    vmlmb, vmlmb!, vmlmb_CUTEst,
+    VMLMB, vmlmb, vmlmb!, vmlmb_CUTEst,
 
     # Trust region step:
     gqtpar!, gqtpar,
@@ -57,7 +57,7 @@ include("utils.jl")
 include("linesearches.jl")
 
 include("quasinewton.jl")
-import .QuasiNewton: vmlmb, vmlmb!, vmlmb_CUTEst
+import .QuasiNewton: VMLMB, vmlmb, vmlmb!, vmlmb_CUTEst
 
 include("brent.jl")
 import .Brent: fmin, fzero
