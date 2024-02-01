@@ -72,18 +72,18 @@ type, a typical line-search is performed as follows:
     f0 = func(x)        # function value at x0
     g0 = grad(x)        # gradient at x0
     d = ...             # search direction
-    dtg0 = vdot(d, g0)  # directional derivative at x0
+    dᵗg0 = inner(d, g0) # directional derivative at x0
     stp1 = ...          # first step to try
     stpmin = ...        # lower bound for the step (usually zero)
     stpmax = ...        # upper bound for the step (usually a large number)
-    state = start!(ls, f0, dtg0, stp1; stpmin, stpmax)
+    state = start!(ls, f0, dᵗg0, stp1; stpmin, stpmax)
     while state == :SEARCHING
         stp = get_step(ls) # get step length to try
         x = x0 + stp*d     # compute trial point
         f = func(x)        # function value at x
         g = grad(x)        # gradient at x
-        dtg = vdot(d, g)   # directional derivative at x
-        state = iterate!(ls, f, dtg)
+        dᵗg = inner(d, g)  # directional derivative at x
+        state = iterate!(ls, f, dᵗg)
     end
     if state != :CONVERGENCE
         if state == :WARNING

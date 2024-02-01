@@ -61,8 +61,6 @@ include("wrappers.jl")
 
 include("utils.jl")
 
-include("vops.jl")
-
 include("gqtpar.jl")
 import .MoreSorensen: gqtpar, gqtpar!
 

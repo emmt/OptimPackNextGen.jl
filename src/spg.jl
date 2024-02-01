@@ -24,14 +24,13 @@ export
 # Imports from other packages.
 using LinearAlgebra
 using NumOptBase
+using NumOptBase: copy!
 using Printf
 using TypeUtils
 
 # Imports from parent module.
 using  ..OptimPackNextGen
 using  ..OptimPackNextGen: auto_differentiate!, copy_variables
-using  ..OptimPackNextGen.QuasiNewton: verbose
-using  ..OptimPackNextGen.VectOps
 import ..OptimPackNextGen: get_reason
 
 """
@@ -321,11 +320,11 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
     #    same workspace.
     #
     lastfv = fill!(Array{T}(undef, m), -Inf)
-    g = vcreate(x)
-    d = pg = vcreate(x)
-    s = x0 = vcreate(x)
-    y = g0 = vcreate(x)
-    xbest = vcreate(x)
+    g = similar(x)
+    d = pg = similar(x)
+    s = x0 = similar(x)
+    y = g0 = similar(x)
+    xbest = similar(x)
 
     # Project initial guess.
     prj!(x, x)
@@ -337,7 +336,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
 
     # Initialize best solution and best function value.
     fbest = f
-    vcopy!(xbest, x)
+    copy!(xbest, x)
 
     # Main loop.
     fconst = false
@@ -355,13 +354,13 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
 
         # Compute continuous projected gradient (and its norms) as:
         # `pg = (x - prj(x - eta*g))/eta` and using `pg` as a workspace.
-        vcombine!(pg, 1/eta, x, -1/eta, prj!(pg, vcombine!(pg, 1, x, -eta, g)))
+        combine!(pg, 1/eta, x, -1/eta, prj!(pg, combine!(pg, 1, x, -eta, g)))
         pcnt += 1
-        pgtwon = vnorm2(T, pg)
-        pginfn = vnorminf(T, pg)
+        pgtwon = norm2(T, pg)
+        pginfn = norminf(T, pg)
 
         # Print iteration information.
-        if verbose(verb, iter)
+        if verb > 0 && (iter % verb) == 0
             stats = Stats(; fx = f, pgtwon, pginfn, seconds = time() - t0,
                           iter, fcnt, pcnt, status)
             observer(output, stats, x, f ≤ fbest)
@@ -399,12 +398,12 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
             # Initial steplength.
             lambda = clamp(1/pginfn, lmin, lmax)
         else
-            vcombine!(s, 1, x, -1, x0)
-            vcombine!(y, 1, g, -1, g0)
-            sty = vdot(T, s, y)
+            combine!(s, x, -, x0)
+            combine!(y, g, -, g0)
+            sty = inner(T, s, y)
             if sty > zero(sty)
                 # Safeguarded Barzilai & Borwein spectral steplength.
-                sts = vdot(T, s, s)
+                sts = inner(T, s, s)
                 lambda = clamp(sts/sty, lmin, lmax)
             else
                 lambda = lmax
@@ -412,15 +411,15 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
         end
 
         # Save current point.
-        vcopy!(x0, x)
-        vcopy!(g0, g)
+        copy!(x0, x)
+        copy!(g0, g)
         f0 = f
 
         # Compute the spectral projected gradient direction and delta = ⟨g,d⟩
-        prj!(x, vcombine!(x, 1, x0, -lambda, g0)) # x = prj(x0 - lambda*g0)
+        prj!(x, combine!(x, 1, x0, -lambda, g0)) # x = prj(x0 - lambda*g0)
         pcnt += 1
-        vcombine!(d, 1, x, -1, x0) # d = x - x0
-        delta = vdot(T, g0, d)
+        combine!(d, x, -, x0) # d = x - x0
+        delta = inner(T, g0, d)
 
         # Nonmonotone line search.
         stp = one(T) # Step length for first trial.
@@ -434,7 +433,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
             # corresponding best point.
             if f < fbest
                 fbest = f
-                vcopy!(xbest, x)
+                copy!(xbest, x)
             end
 
             # Test stopping criteria.
@@ -458,7 +457,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
             end
 
             # Compute trial point.
-            vcombine!(x, 1, x0, stp, d) # x = x0 + stp*d
+            combine!(x, 1, x0, stp, d) # x = x0 + stp*d
         end
 
         if status != SEARCHING
@@ -473,7 +472,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
     end
 
     # Report final status.
-    if verbose(verb, 0) # always print last line if verb > 0
+    if verb > 0
         reason = get_reason(status)
         if !issuccess(status)
             printstyled(stderr, "# WARNING: ", reason, "\n"; color=:red)
@@ -483,7 +482,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
     end
 
     # Make sure to store the best solution so far.
-    fbest < f && vcopy!(x, xbest)
+    fbest < f && copy!(x, xbest)
 
     # Return algorithm statistics.
     seconds = time() - t0
@@ -497,7 +496,7 @@ yields the solution to the `CUTEst` problem `name` by the SPG method. This
 require to have loaded the `CUTest` package.
 
 """
-spg_CUTEst(arg...; kwds...) =
+spg_CUTEst(args...; kwds...) =
     error("invalid arguments or `CUTEst` package not yet loaded")
 
 function default_observer(output::IO, stats::Stats, x::AbstractArray, best::Bool)
