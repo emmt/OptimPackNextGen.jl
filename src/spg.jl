@@ -49,34 +49,34 @@ is the enumeration for the algorithm status in SPG method.
 end
 
 """
-    SPG.Stats(; fx::Real, pgtwon::Real, pginfn::Real, seconds::Real,
-                iter::Integer, fcnt::Integer, pcnt::Integer, status::Status)
+    SPG.Stats(; fval::Real, pgtwon::Real, pginfn::Real, seconds::Real,
+                iters::Integer, evals::Integer, projs::Integer, status::Status)
 
 yields an immutable object collecting information returned by the SPG method.
 All members are mandatory and are specified by keyword:
 
-- `fx` is the objective function value.
+- `fval` is the objective function value.
 - `pgtwon` is the Euclidean norm of projected gradient.
 - `pginfn` is the infinite norm of projected gradient.
 - `seconds` is the execution time in seconds.
-- `iter` is the number of iterations.
-- `fcnt` is the number of function (and gradient) evaluations.
-- `pcnt` is the number of projections.
+- `iters` is the number of iterations.
+- `evals` is the number of function (and gradient) evaluations.
+- `projs` is the number of projections.
 - `status` is algorithm status.
 
 """
 struct Stats
-    fx::Float64      # Objective function value.
+    fval::Float64    # Objective function value.
     pgtwon::Float64  # Euclidean norm of projected grad.
     pginfn::Float64  # Infinite norm of projected grad.
     seconds::Float64 # Execution time in seconds.
-    iter::Int        # Number of iterations.
-    fcnt::Int        # Number of function (and gradient) evaluations.
-    pcnt::Int        # Number of projections.
+    iters::Int       # Number of iterations.
+    evals::Int       # Number of function (and gradient) evaluations.
+    projs::Int       # Number of projections.
     status::Status   # Algorithm status.
-    function Stats(; fx::Real, pgtwon::Real, pginfn::Real, seconds::Real,
-                   iter::Integer, fcnt::Integer, pcnt::Integer, status::Status)
-        return new(fx, pgtwon, pginfn, seconds, iter, fcnt, pcnt, status)
+    function Stats(; fval::Real, pgtwon::Real, pginfn::Real, seconds::Real,
+                   iters::Integer, evals::Integer, projs::Integer, status::Status)
+        return new(fval, pgtwon, pginfn, seconds, iters, evals, projs, status)
     end
 end
 
@@ -176,9 +176,9 @@ The following keywords are available:
 * `ftol` specifies the relative function tolerance for the non-monotone
   Armijo-like stopping criterion. By default, `ftol = $(default_ftol)`.
 
-* `maxit` specifies the maximum number of iterations.
+* `maxiter` specifies the maximum number of iterations.
 
-* `maxfc` specifies the maximum number of function evaluations.
+* `maxeval` specifies the maximum number of function evaluations.
 
 * `verb` specifies the verbosity level. It can be a boolean to specify whether
   to call the observer at every iteration or an integer to call the observer
@@ -197,7 +197,7 @@ The following keywords are available:
 
 The `stats` object has the following properties:
 
-* `stats.fx` is the objective function value `f(x)`.
+* `stats.fval` is the objective function value `f(x)`.
 
 * `stats.pgtwon` is the Euclidean norm of the projected gradient of the last
   iterate.
@@ -207,16 +207,13 @@ The `stats` object has the following properties:
 
 * `stats.seconds` is the execution time in seconds.
 
-* `stats.iter` is the number of iterations, `0` for the starting point.
+* `stats.iters` is the number of iterations, `0` for the starting point.
 
-* `stats.fcnt` is the number of function (and gradient) evaluations.
+* `stats.evals` is the number of function (and gradient) evaluations.
 
-* `stats.pcnt` is the number of projections.
+* `stats.projs` is the number of projections.
 
 * `stats.status` indicates the final status of the algorithm (see below).
-
-* `stats.info` provides details about the state of the algorithm. Method
-  `get_reason` can be used to retrieve a descriptive message.
 
 Possible `status` values are:
 
@@ -229,8 +226,9 @@ Possible `status` values are:
 | `SPG.TOO_MANY_ITERATIONS`  | Too many iterations                                   |
 | `SPG.TOO_MANY_EVALUATIONS` | Too many function evaluations                         |
 
-Method `issuccess(stats)` yields whether the algorithm converged according to
-one of the convergence criteria.
+Call `issuccess(stats)` to check whether the algorithm converged according to
+one of the convergence criteria and call `get_reason(stats)` to retrieve a
+descriptive message about the end of the algorithm.
 
 ## References
 
@@ -258,8 +256,8 @@ spg!(fg!, Ω::BoundedSet, x::AbstractArray{T,N}; kwds...) where {T,N} =
 function spg!(fg!, prj!, x::AbstractArray;
               mem::Integer    = default_mem,
               autodiff::Bool  = false,
-              maxit::Integer  = typemax(Int),
-              maxfc::Integer  = typemax(Int),
+              maxiter::Integer  = typemax(Int),
+              maxeval::Integer  = typemax(Int),
               eps1::Real      = default_eps1,
               eps2::Real      = default_eps2,
               eta::Real       = default_eta,
@@ -288,7 +286,7 @@ function spg!(fg!, prj!, x::AbstractArray;
     # double-precision) and call private method with all arguments checked and
     # converted to the correct type.
     T = promote_type(Float64, eltype(x))
-    args = (prj!, x, Int(mem), Int(maxit), Int(maxfc), as(T, eps1), as(T, eps2),
+    args = (prj!, x, Int(mem), Int(maxiter), Int(maxeval), as(T, eps1), as(T, eps2),
             as(T, eta), as(T, lmin), as(T, lmax), as(T, ftol), as(T, amin), as(T, amax),
             observer, Int(verb), output)
     if autodiff
@@ -298,14 +296,14 @@ function spg!(fg!, prj!, x::AbstractArray;
     end
 end
 
-function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
+function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxiter::Int, maxeval::Int,
                eps1::T, eps2::T, eta::T, lmin::T, lmax::T, ftol::T,
                amin::T, amax::T, observer, verb::Int, output::IO) where {T<:AbstractFloat}
     # Initialization.
     t0 = time()
-    iter = 0
-    fcnt = 0
-    pcnt = 0
+    iters = 0
+    evals = 0
+    projs = 0
     status = SEARCHING
     pgtwon = as(T, Inf)
     pginfn = as(T, Inf)
@@ -328,11 +326,11 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
 
     # Project initial guess.
     prj!(x, x)
-    pcnt += 1
+    projs += 1
 
     # Evaluate function and gradient.
     f = as(T, fg!(x, g))
-    fcnt += 1
+    evals += 1
 
     # Initialize best solution and best function value.
     fbest = f
@@ -345,7 +343,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
         # Store function value for the nonmonotone line search and find minimum
         # and maximum function values since m last calls.
         if m > 1
-            lastfv[(iter%m) + 1] = f
+            lastfv[(iters%m) + 1] = f
             fmin, fmax = extrema(lastfv)
             fconst = !(fmin < fmax)
         else
@@ -355,14 +353,14 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
         # Compute continuous projected gradient (and its norms) as:
         # `pg = (x - prj(x - eta*g))/eta` and using `pg` as a workspace.
         combine!(pg, 1/eta, x, -1/eta, prj!(pg, combine!(pg, 1, x, -eta, g)))
-        pcnt += 1
+        projs += 1
         pgtwon = norm2(T, pg)
         pginfn = norminf(T, pg)
 
         # Print iteration information.
-        if verb > 0 && (iter % verb) == 0
-            stats = Stats(; fx = f, pgtwon, pginfn, seconds = time() - t0,
-                          iter, fcnt, pcnt, status)
+        if verb > 0 && (iters % verb) == 0
+            stats = Stats(; fval = f, pgtwon, pginfn, seconds = time() - t0,
+                          iters, evals, projs, status)
             observer(output, stats, x, f ≤ fbest)
         end
 
@@ -382,19 +380,19 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
             status = FUNCTION_CONVERGENCE
             break
         end
-        if iter ≥ maxit
+        if iters ≥ maxiter
             # Maximum number of iterations exceeded, stop.
             status = TOO_MANY_ITERATIONS
             break
         end
-        if fcnt ≥ maxfc
+        if evals ≥ maxeval
             # Maximum number of function evaluations exceeded, stop.
             status = TOO_MANY_EVALUATIONS
             break
         end
 
         # Compute spectral steplength.
-        if iter == 0
+        if iters == 0
             # Initial steplength.
             lambda = clamp(1/pginfn, lmin, lmax)
         else
@@ -417,7 +415,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
 
         # Compute the spectral projected gradient direction and delta = ⟨g,d⟩
         prj!(x, combine!(x, 1, x0, -lambda, g0)) # x = prj(x0 - lambda*g0)
-        pcnt += 1
+        projs += 1
         combine!(d, x, -, x0) # d = x - x0
         delta = inner(T, g0, d)
 
@@ -426,7 +424,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
         while true
             # Evaluate function and gradient at trial point.
             f = as(T, fg!(x, g))
-            fcnt += 1
+            evals += 1
 
             # Compare the new function value against the best function value
             # and, if smaller, update the best function value and the
@@ -441,7 +439,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
                 # Nonmonotone Armijo-like stopping criterion satisfied, stop.
                 break
             end
-            if fcnt ≥ maxfc
+            if evals ≥ maxeval
                 # Maximum number of function evaluations exceeded, stop.
                 status = TOO_MANY_EVALUATIONS
                 break
@@ -467,7 +465,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
         end
 
         # Proceed with next iteration.
-        iter += 1
+        iters += 1
 
     end
 
@@ -486,7 +484,7 @@ function _spg!(fg!, prj!, x::AbstractArray, m::Int, maxit::Int, maxfc::Int,
 
     # Return algorithm statistics.
     seconds = time() - t0
-    return Stats(; fx = fbest, pgtwon, pginfn, seconds, iter, fcnt, pcnt, status)
+    return Stats(; fval = fbest, pgtwon, pginfn, seconds, iters, evals, projs, status)
 end
 
 """
@@ -500,14 +498,14 @@ spg_CUTEst(args...; kwds...) =
     error("invalid arguments or `CUTEst` package not yet loaded")
 
 function default_observer(output::IO, stats::Stats, x::AbstractArray, best::Bool)
-    if stats.iter == 0
+    if stats.iters == 0
         @printf(output, "# %s\n# %s\n",
-                " ITER   EVAL   PROJ             F(x)              ‖PG(X)‖₂  ‖PG(X)‖_∞",
+                "ITERS  EVALS  PROJS              F(x)             ‖PG(X)‖₂  ‖PG(X)‖_∞",
                 "---------------------------------------------------------------------")
     end
     @printf(output, " %6d %6d %6d %3s %24.17e %9.2e %9.2e\n",
-            stats.iter, stats.fcnt, stats.pcnt, (best ? "(*)" : "   "),
-            stats.fx, stats.pgtwon, stats.pginfn)
+            stats.iters, stats.evals, stats.projs, (best ? "(*)" : "   "),
+            stats.fval, stats.pgtwon, stats.pginfn)
 end
 
 @noinline argument_error(args...) = argument_error(string(args...))

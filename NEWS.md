@@ -30,6 +30,9 @@ Other changes:
   of objective function, execution time, etc.). Call `issuccess(stats)` to
   check whether algorithm has converged.
 
+* VMLMB and SPG methods have a more similar API with same properties and
+  keywords when relevant.
+
 * Spectral Projected Gradient (SPG) method:
 
   - Methods `spg` and `spg!` uses an enumeration to represent the status of the
