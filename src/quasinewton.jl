@@ -126,20 +126,20 @@ get_reason(status::Status) =
 #------------------------------------------------------------------------------
 
 """
-    OptimPack.QuasiNewton.LBFGS{T,X}
+    OptimPack.QuasiNewton.LBFGS{T,V}
 
 is the type of the object storing the limited memory BFGS approximation of the
 Hessian of the objective function. Parameter `T` is the floating-point type for
-scalars in computations and parameter `X` is the type of the variables.
+scalars in computations and parameter `V` is the type of the variables.
 
 """
-mutable struct LBFGS{T,X}
+mutable struct LBFGS{T,V}
     m::Int           # maximum number of previous step to memorize
     mp::Int          # current number of memorized steps
     mrk::Int         # index of last update
     gamma::T         # gradient scaling
-    S::Vector{X}     # memorized variable changes
-    Y::Vector{X}     # memorized gradient changes
+    S::Vector{V}     # memorized variable changes
+    Y::Vector{V}     # memorized gradient changes
     rho::Vector{T}   # memorized values of s'⋅y
     alpha::Vector{T} # memorized values of `α`
 end
@@ -161,12 +161,12 @@ function LBFGS(x::AbstractArray, m::Integer)
     return LBFGS{T}(x, m)
 end
 
-function LBFGS{T}(x::X, m::Integer) where {T<:AbstractFloat,X<:AbstractArray}
+function LBFGS{T}(x::V, m::Integer) where {T<:AbstractFloat,V<:AbstractArray}
     float(eltype(x)) === eltype(x) || throw(ArgumentError(
         "variables type `$(eltype(x))` is not floating-point"))
     m ≥ zero(m) || throw(ArgumentError(
         "invalid number of previous step to memorize"))
-    return LBFGS{T,X}(m,
+    return LBFGS{T,V}(m,
                       0,                   # mp
                       0,                   # mrk
                       zero(T),             # gamma
@@ -401,25 +401,25 @@ get_tolerances(rtol::Number; atol::T) where {T<:Number} =
 get_tolerances(tol::Tuple{Number,Number}; atol::T) where {T<:Number} =
     (as(T, tol[1]), as(T, tol[2]))
 
-mutable struct VMLMB{T<:AbstractFloat,X<:AbstractArray,A,B,L}
-    # VMLMB context. T is floating-point type, X is type of variables,
+mutable struct VMLMB{T<:AbstractFloat,V<:AbstractArray,A,B,L}
+    # VMLMB context. T is floating-point type, V is type of variables,
     # B is l-BFGS type, L is linesearch type.
     variant::Symbol # method variant (one of `:LBFGS`, `:BLMVM`, or `:VMLMB`).
-    g::X            # gradient
-    g0::X           # gradient at start of line-search
-    x0::X           # variables at start of line-search
-    d::X            # ascent search direction
-    s::X            # effective step
-    pg::X           # projected gradient
-    pg0::X          # projected gradient at start of line search (for BLMVM)
-    best_x::X       # best solution found so far
-    best_g::X       # gradient at best solution
-    freevars::X     # subset of free variables (not for LBFGS)
-    wrk_x::X
+    g::V            # gradient
+    g0::V           # gradient at start of line-search
+    x0::V           # variables at start of line-search
+    d::V            # ascent search direction
+    s::V            # effective step
+    pg::V           # projected gradient
+    pg0::V          # projected gradient at start of line search (for BLMVM)
+    best_x::V       # best solution found so far
+    best_g::V       # gradient at best solution
+    freevars::V     # subset of free variables (not for LBFGS)
+    wrk_x::V
     wrk_alpha::Vector{T}
     wrk_rho::Vector{T}
-    lbfgs::A  # FIXME: LBFGS{T,X}
-    bounds::B # FIXME: BoundedSet{eltype(X),ndims(X)}
+    lbfgs::A  # FIXME: LBFGS{T,V}
+    bounds::B # FIXME: BoundedSet{eltype(V),ndims(V)}
     lnsrch::L # FIXME: LineSearch{T}
     fmin::T
     f2nd::T
@@ -456,7 +456,7 @@ function VMLMB(x::AbstractArray; kwds...)
     return VMLMB{T}(x; kwds...)
 end
 
-function VMLMB{T}(x::X;
+function VMLMB{T}(x::V;
                   mem::Integer = default_mem,
                   lower = default_lower,
                   upper = default_upper,
@@ -470,7 +470,7 @@ function VMLMB{T}(x::X;
                   ftol::Union{Real,NTuple{2,Real}} = default_ftol,
                   gtol::Union{Real,NTuple{2,Real}} = default_gtol,
                   lnsrch::Union{LineSearch,Nothing} = nothing,
-                  ) where {T<:AbstractFloat,X}
+                  ) where {T<:AbstractFloat,V}
     # Check arguments.
     float(eltype(x)) === eltype(x) || throw(ArgumentError(
         "variables type `$(eltype(x))` is not floating-point"))
@@ -527,7 +527,7 @@ function VMLMB{T}(x::X;
     # Build L-BFGS operator
     lbfgs = LBFGS(x, mem)
 
-    return VMLMB{T,X,typeof(lbfgs),typeof(bounds),typeof(lnsrch)}(
+    return VMLMB{T,V,typeof(lbfgs),typeof(bounds),typeof(lnsrch)}(
         variant,
         g,
         g0,
@@ -635,7 +635,7 @@ function minimize(ctx::VMLMB, fg!, x0; kwds...)
 end
 
 # The real worker.
-function minimize!(ctx::VMLMB{T,X}, fg!, x::X;
+function minimize!(ctx::VMLMB{T,V}, fg!, x::V;
                    precond = nothing,
                    autodiff::Bool = false,
                    maxiter::Integer = default_maxiter,
@@ -643,7 +643,7 @@ function minimize!(ctx::VMLMB{T,X}, fg!, x::X;
                    verb::Integer = default_verb,
                    output::IO = default_output,
                    printer = default_printer,
-                   observer = default_observer) where {T, X}
+                   observer = default_observer) where {T,V}
 
     # Check settings.
     @assert maxiter ≥ 0
@@ -943,8 +943,8 @@ end
 for trait in (:scalar_type, :variables_type)
     @eval $trait(ctx::VMLMB) = $trait(typeof(ctx))
 end
-scalar_type(::Type{<:VMLMB{T,X}}) where {T,X} = T
-variables_type(::Type{<:VMLMB{T,X}}) where {T,X} = X
+scalar_type(::Type{<:VMLMB{T,V}}) where {T,V} = T
+variables_type(::Type{<:VMLMB{T,V}}) where {T,V} = V
 
 # Determine suitable floating-point type to work with variables `x`.
 scalar_type(x::AbstractArray) = scalar_type(typeof(x))
