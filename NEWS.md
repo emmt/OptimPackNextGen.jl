@@ -1,5 +1,9 @@
 # User visible changes in `OptimPackNextGen` package
 
+## Version 0.4.3
+
+- Faster use of `Zygote` and extend to version 0.7 of `Zygote`.
+
 ## Version 0.4.2
 
 - Fix loading of `Zygote` extension with Julia ≤ 1.8.
