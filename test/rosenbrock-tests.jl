@@ -5,7 +5,12 @@ using Test
 using Printf
 using ForwardDiff
 using DifferentiationInterface
-backend = AutoForwardDiff()
+using Zygote
+using MoonCake
+
+backendZ = AutoZigote()
+backendFD = AutoForwardDiff()
+backendM = AutoMooncake(; config=nothing)
 
 rosenbrock_fg! = OptimPackNextGen.Examples.rosenbrock_fg!
 rosenbrock_f = OptimPackNextGen.Examples.rosenbrock_f
@@ -43,8 +48,13 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     xsol = ones(T,n)
     atol = 1e-3
     rosenbrock_init!(x0)
-    prep = prepare_gradient(rosenbrock_f, backend, zero(x0))
-    fg! = AutoDiffObjectiveFunction(rosenbrock_f, prep, backend)
+    prepFD = prepare_gradient(rosenbrock_f, backendFD, zero(x0))
+    prepZ = prepare_gradient(rosenbrock_f, backendZ, zero(x0))
+    prepM = prepare_gradient(rosenbrock_f, backendM, zero(x0))
+    
+    fgFD! = AutoDiffObjectiveFunction(rosenbrock_f, prepFD, backendFD)
+    fgZ! = AutoDiffObjectiveFunction(rosenbrock_f, prepZ, backendZ)
+    fgM! = AutoDiffObjectiveFunction(rosenbrock_f, prepM, backendM)
 
     #@printf("\nTesting NLCG in %s precision\n", prec)
     #x1 = nlcg(rosenbrock_fg!, x0, verb=VERBOSE)
@@ -58,9 +68,21 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
 
-    @printf("\nTesting VMLMB with automatic differentiation in %s precision with Oren & Spedicato scaling\n", prec)
-    x2a = vmlmb(fg!, x0, verb=VERBOSE)
-    err = maximum(abs.(x2 .- xsol))
+    @printf("\nTesting VMLMB with automatic differentiation with ForwardDiff in %s precision with Oren & Spedicato scaling\n", prec)
+    x2a = vmlmb(fgFD!, x0, verb=VERBOSE)
+    err = maximum(abs.(x2a .- xsol))
+    @printf("Maximum absolute error: %.3e\n", err)
+    @test err < atol
+
+    @printf("\nTesting VMLMB with automatic differentiation with Zygote in %s precision with Oren & Spedicato scaling\n", prec)
+    x2b = vmlmb(fgZ!, x0, verb=VERBOSE)
+    err = maximum(abs.(x2b .- xsol))
+    @printf("Maximum absolute error: %.3e\n", err)
+    @test err < atol
+
+    @printf("\nTesting VMLMB with automatic differentiation with MoonCake in %s precision with Oren & Spedicato scaling\n", prec)
+    x2c = vmlmb(fgM!, x0, verb=VERBOSE)
+    err = maximum(abs.(x2c .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
 
@@ -72,8 +94,8 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     @test err < atol
 
     @printf("\nTesting VMLMB with automatic differentiation in %s precision with Oren & Spedicato scaling\n", prec)
-    x3a = vmlmb(fg!, x0, verb=VERBOSE, mem=15)
-    err = maximum(abs.(x3 .- xsol))
+    x3a = vmlmb(fgFD!, x0, verb=VERBOSE, mem=15)
+    err = maximum(abs.(x3a .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
 
@@ -84,8 +106,8 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     @test err < atol
 
     @printf("\nTesting VMLMB with automatic differentiation in %s precision with nonnegativity\n", prec)
-    x4a = vmlmb(fg!, x0, verb=VERBOSE, lower=0)
-    err = maximum(abs.(x4 .- xsol))
+    x4a = vmlmb(fgFD!, x0, verb=VERBOSE, lower=0)
+    err = maximum(abs.(x4a .- xsol))
     @printf("Maximum absolute error: %.3e\n", err)
     @test err < atol
 
@@ -99,7 +121,7 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)
     x6 = spg(rosenbrock_fg!, nonnegative!, x0, 10; verb=VERBOSE)
     @printf("\nTesting SPG in %s precision with automatic differentiation and nonnegativity\n", prec)
-    x7 = spg(fg!, nonnegative!, x0, 10; verb=VERBOSE, autodiff=true)
+    x7 = spg(fgFD!, nonnegative!, x0, 10; verb=VERBOSE, autodiff=true)
 end
 
 end # module
