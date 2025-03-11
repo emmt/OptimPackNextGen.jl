@@ -25,7 +25,6 @@ using LazyAlgebra
 using ...OptimPackNextGen
 
 import OptimPackNextGen: getreason
-using OptimPackNextGen: auto_differentiate!
 using OptimPackNextGen.QuasiNewton: verbose
 
 const SEARCHING            =  0
@@ -176,17 +175,14 @@ function spg!(fg!, prj!, x, m::Integer;
               printer::Function = default_printer,
               verb::Integer = false,
               io::IO = stdout)
-    if autodiff
-        _spg!((x, g) -> auto_differentiate!(fg!, x, g),
-              prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
-              Float64(eps1), Float64(eps2), Float64(eta),
-              printer, Int(verb), io)
-    else
-        _spg!(fg!,
-              prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
-              Float64(eps1), Float64(eps2), Float64(eta),
-              printer, Int(verb), io)
-    end
+    autodiff || Base.depwarn("keyword autodiff is deprecated use DifferentiationInterface
+                                package with the `make_fg` function", :spg!)
+
+    _spg!(fg!,
+            prj!, x, Int(m), ws, Int(maxit), Int(maxfc),
+            Float64(eps1), Float64(eps2), Float64(eta),
+            printer, Int(verb), io)
+    
     return x
 end
 
