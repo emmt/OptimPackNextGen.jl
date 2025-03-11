@@ -29,11 +29,10 @@ julia = "1.5"
 
 [extras]
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
 
 [targets]
-test = ["Test", "Printf", "Unitful", "Zygote", "ForwardDiff", "Mooncake"]
+test = ["Test", "Unitful", "Zygote", "ForwardDiff", "Mooncake"]
