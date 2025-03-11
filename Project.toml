@@ -13,16 +13,15 @@ Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Unitless = "c904d999-9673-4878-a3dd-e3ef1851788a"
 
 [weakdeps]
-Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 
 [extensions]
-OptimPackNextGenZygoteExt = "Zygote"
+OptimPackNextGenDifferentiationInterfaceExt = "DifferentiationInterface"
 
 [compat]
 ArrayTools = "0.2.3, 0.3"
 Requires = "1"
 Unitless = "2"
-Zygote = "0.6, 0.7"
 julia = "1.5"
 
 [extras]

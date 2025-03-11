@@ -32,7 +32,6 @@ using LazyAlgebra
 using ...OptimPackNextGen
 using OptimPackNextGen.LineSearches
 using OptimPackNextGen.SimpleBounds
-using OptimPackNextGen: auto_differentiate!
 
 # Use the same floating point type for scalars as in OptimPackNextGen.
 import OptimPackNextGen.Float
@@ -85,16 +84,6 @@ and the contents of `gx` has to be overwritten with the gradient at `x` (when
 `x0` gives the initial approximation of the variables (its contents is left
 unchanged).  The best solution found so far is returned in `x`.
 
-Another possibility is to specify keyword `autodiff = true` and rely on
-automatic differentiation to compute the gradient:
-
-    x = vmlmb(f, x0; autodiff=true, kwds...)
-
-where `f` is a simpler function that takes the variables `x` as a single
-argument and returns the value of the objective function:
-
-    fx = f(x)
-
 The method [`OptimPackNextGen.auto_differentiate!`](@ref) is called to compute
 the gradient of the objective function, say `f`.  This method may be extended
 for the specific type of `f`.  An implementation of `auto_differentiate!` is
@@ -103,15 +92,6 @@ provided by `OptimPackNextGen` if the `Zygote` package is loaded.
 The following keywords are available:
 
 * `mem` specifies the amount of storage.
-
-* `autodiff` is a boolean specifying whether to rely on automatic
-  differentiation by calling [`OptimPackNextGen.auto_differentiate!](@ref).
-  If not specified, this keyword is assumed to be `false`.
-  You may use:
-
-      autodiff = !applicable(fg!, x0, x0)
-
-  to attempt to guess whether automatic differentiation is needed.
 
 * `xtol` is a tuple of two nonnegative reals specifying respectively the
   absolute and relative tolerances for deciding convergence on the variables.
@@ -240,6 +220,10 @@ function vmlmb!(fg!, x::T;
                 printer::Function = print_iteration,
                 output::IO = stdout,
                 lnsrch::Union{LineSearch{Float},Nothing} = nothing) where {T}
+
+    autodiff || Base.depwarn("keyword autodiff is deprecated use DifferentiationInterface
+                                package with  `AutoDiffObjectiveFunction` ", :vmlmb!)
+
     # Determine which options are used.
     flags::UInt = (blmvm ? EMULATE_BLMVM : 0)
 
@@ -284,7 +268,7 @@ function vmlmb!(fg!, x::T;
     end
 
     # Call the real method.
-    _vmlmb!(fg!, x, Int(mem), flags, lo, hi, bounds, autodiff, method,
+    _vmlmb!(fg!, x, Int(mem), flags, lo, hi, bounds, method,
             Float(fmin), Int(maxiter), Int(maxeval),
             Float(xtol[1]), Float(xtol[2]),
             Float(ftol[1]), Float(ftol[2]),
@@ -297,7 +281,6 @@ function _vmlmb!(fg!, x::T, mem::Int, flags::UInt,
                  lo::Union{Float, T},
                  hi::Union{Float, T},
                  bounds::UInt,
-                 autodiff::Bool,
                  method::Int,
                  fmin::Float, maxiter::Int, maxeval::Int,
                  xatol::Float, xrtol::Float,
@@ -385,11 +368,9 @@ function _vmlmb!(fg!, x::T, mem::Int, flags::UInt,
         if method > 0
             project_variables!(x, x, lo, hi)
         end
-        if autodiff
-            f = auto_differentiate!(fg!, x, g)
-        else
-            f = fg!(x, g)
-        end
+            
+        f = fg!(x, g)
+        
 
         eval += 1
         if method > 0
