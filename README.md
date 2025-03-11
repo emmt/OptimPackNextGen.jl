@@ -16,24 +16,42 @@ optimization with particular focus on large scale problems.
 * [Quasi-Newton methods](doc/quasinewton.md) can be used to solve nonlinear
   large scale optimization problems. Optionally, bounds on the variables can be
   taken into account. The objective function must be differentiable and the
-  caller must provide means to compute the objective function and its gradient.
-  If the [`Zygote`](https://github.com/FluxML/Zygote.jl) is loaded, the
-  gradient of the objective function may be computed by means of
-  automatic-differentiation.
 
 * *Spectral Projected Gradient* (SPG) method is provided for large-scale
   optimization problems with a differentiable objective function and convex
   constraints. The caller of `spg` (or `spg!`) shall provide a couple of
   functions to compute the objective function and its gradient and to project
-  the variables on the feasible set. If the
-  [`Zygote`](https://github.com/FluxML/Zygote.jl) is loaded, the gradient of
-  the objective function may be computed by means of automatic-differentiation.
+  the variables on the feasible set. 
 
 * [Line searches methods](doc/linesearches.md) are used to approximately
   minimize the objective function along a given search direction.
 
 * [Algebra](doc/algebra.md) describes operations on "vectors" (that is to say
   the "variables" of the problem to solve).
+
+* When `DifferentiationInterface` interface is load, the gradient of the objective can be computed with various auto-differentiation backends thanks to the provided wrapper `AutoDiffObjectiveFunction`.
+
+```julia
+using OptimPackNextGen
+
+# Minimizing Rosenbrock function
+f = OptimPackNextGen.Examples.rosenbrock_f  # f(x) return the value of the objective function 
+fg! = OptimPackNextGen.Examples.rosenbrock_fg! # fg!(x,gx) return the value of the objective function and update the gradient gx
+x0 = randn(2) # initial point
+
+# Minimize the objective function with value and gradient function
+x1 = vmlmb(fg!, x0)
+
+
+# Minimize the objective function with objective function only computing gradient with ForwardDiff
+using DifferentiationInterface
+using ForwardDiff
+backend = AutoForwardDiff()
+prep = prepare_gradient(f, backend, zero(x0))
+fgAD! = OptimPackNextGen.AutoDiffObjectiveFunction(f, prep, backend)
+x2 = vmlmb(fgAD!, x0)
+
+```
 
 
 ## Small to moderate size problems
