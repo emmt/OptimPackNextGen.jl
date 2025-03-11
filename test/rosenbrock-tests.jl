@@ -8,7 +8,7 @@ using DifferentiationInterface
 using Zygote
 using Mooncake
 
-backendZ = AutoZigote()
+backendZ = AutoZygote()
 backendFD = AutoForwardDiff()
 backendM = AutoMooncake(; config=nothing)
 
