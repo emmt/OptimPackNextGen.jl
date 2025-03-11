@@ -3,7 +3,6 @@ module OptimPackNextGenTests
 using OptimPackNextGen
 using Test
 using Printf
-using Zygote
 
 VERBOSE = true
 
