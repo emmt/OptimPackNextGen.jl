@@ -6,7 +6,7 @@ using Printf
 using ForwardDiff
 using DifferentiationInterface
 using Zygote
-using MoonCake
+using Mooncake
 
 backendZ = AutoZigote()
 backendFD = AutoForwardDiff()
