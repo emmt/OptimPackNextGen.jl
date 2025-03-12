@@ -121,7 +121,7 @@ for (T, prec) in ((Float64, "double"), (Float32, "single"))
     @printf("\nTesting SPG in %s precision with nonnegativity\n", prec)
     x6 = spg(rosenbrock_fg!, nonnegative!, x0, 10; verb=VERBOSE)
     @printf("\nTesting SPG in %s precision with automatic differentiation and nonnegativity\n", prec)
-    x7 = spg(fgFD!, nonnegative!, x0, 10; verb=VERBOSE, autodiff=true)
+    x7 = spg(fgFD!, nonnegative!, x0, 10; verb=VERBOSE)
 end
 
 end # module
