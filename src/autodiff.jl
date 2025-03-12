@@ -33,10 +33,3 @@ end
 
 AutoDiffObjectiveFunction(arg...; kwds...) =
      error("`DifferentiationInterface` package must be loaded first")
-
-function __init__()
-    @static if !isdefined(Base, :get_extension)
-        @require DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63" include(
-            "../ext/OptimPackNextGenDifferentiationInterfaceExt.jl")
-    end
-end

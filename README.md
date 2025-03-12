@@ -51,7 +51,7 @@ using DifferentiationInterface
 using ForwardDiff
 backend = AutoForwardDiff()
 prep = prepare_gradient(f, backend, zero(x0))
-fgAD! = OptimPackNextGen.AutoDiffObjectiveFunction(f, prep, backend)
+fgAD! = AutoDiffObjectiveFunction(f, prep, backend)
 x2 = vmlmb(fgAD!, x0)
 
 ```

@@ -9,13 +9,8 @@
 #
 module OptimPackNextGenDifferentiationInterfaceExt
 
-if isdefined(Base, :get_extension)
-    using DifferentiationInterface
-    using OptimPackNextGen
-else
-    using ..DifferentiationInterface
-    using ..OptimPackNextGen
-end
+using DifferentiationInterface
+using OptimPackNextGen
 
 struct AutoDiffObjectiveFunction{F,P,B} <: OptimPackNextGen.AbstractObjectiveFunction
 	f::F

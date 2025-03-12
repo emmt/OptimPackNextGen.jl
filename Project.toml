@@ -9,31 +9,29 @@ LazyAlgebra = "aeaa251e-9d76-11e9-311b-83636bf44738"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 OptimPack_jll = "8115cc2e-fb29-5d71-b5cb-a4fb1c5dcd4c"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Unitless = "c904d999-9673-4878-a3dd-e3ef1851788a"
-
-[weakdeps]
-DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
-
-[extensions]
-OptimPackNextGenDifferentiationInterfaceExt = "DifferentiationInterface"
 
 [compat]
 ArrayTools = "0.2.3, 0.3"
 ForwardDiff = "0.10"
 Mooncake = "0.4"
-Requires = "1"
 Unitless = "2"
 Zygote = "0.7"
-julia = "1.5"
+julia = "1.6"
+
+[extensions]
+OptimPackNextGenDifferentiationInterfaceExt = "DifferentiationInterface"
 
 [extras]
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
-Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
-DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 
 [targets]
 test = ["Test", "Unitful", "Zygote", "ForwardDiff", "Mooncake", "DifferentiationInterface"]
+
+[weakdeps]
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
