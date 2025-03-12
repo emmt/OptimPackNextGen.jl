@@ -20,3 +20,11 @@ doc/*.out
 doc/*.pdf
 doc/*.synctex.gz
 test/*.out
+
+# VSCode
+.vscode/
+# Local History for Visual Studio Code
+.history/
+
+# Mac/OSX
+.DS_Store

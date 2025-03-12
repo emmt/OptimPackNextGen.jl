@@ -175,7 +175,7 @@ function spg!(fg!, prj!, x, m::Integer;
               printer::Function = default_printer,
               verb::Integer = false,
               io::IO = stdout)
-    autodiff || Base.depwarn("keyword autodiff is deprecated use DifferentiationInterface
+    autodiff && Base.depwarn("keyword autodiff is deprecated use DifferentiationInterface
                                 package with the `make_fg` function", :spg!)
 
     _spg!(fg!,

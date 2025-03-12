@@ -16,6 +16,7 @@ optimization with particular focus on large scale problems.
 * [Quasi-Newton methods](doc/quasinewton.md) can be used to solve nonlinear
   large scale optimization problems. Optionally, bounds on the variables can be
   taken into account. The objective function must be differentiable and the
+  caller must provide means to compute the objective function and its gradient.
 
 * *Spectral Projected Gradient* (SPG) method is provided for large-scale
   optimization problems with a differentiable objective function and convex
@@ -29,7 +30,9 @@ optimization with particular focus on large scale problems.
 * [Algebra](doc/algebra.md) describes operations on "vectors" (that is to say
   the "variables" of the problem to solve).
 
-* When `DifferentiationInterface` interface is load, the gradient of the objective can be computed with various auto-differentiation backends thanks to the provided wrapper `AutoDiffObjectiveFunction`.
+* When `DifferentiationInterface` interface is loaded, the gradient of the
+  objective function can be computed with various auto-differentiation backends
+  thanks to the provided wrapper `AutoDiffObjectiveFunction`.
 
 ```julia
 using OptimPackNextGen

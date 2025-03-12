@@ -221,7 +221,7 @@ function vmlmb!(fg!, x::T;
                 output::IO = stdout,
                 lnsrch::Union{LineSearch{Float},Nothing} = nothing) where {T}
 
-    autodiff || Base.depwarn("keyword autodiff is deprecated use DifferentiationInterface
+    autodiff && Base.depwarn("keyword autodiff is deprecated use DifferentiationInterface
                                 package with  `AutoDiffObjectiveFunction` ", :vmlmb!)
 
     # Determine which options are used.
