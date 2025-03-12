@@ -27,11 +27,10 @@ export
     spg!,
     spg,
     vmlmb!,
-    vmlmb
+    vmlmb,
+    AutoDiffObjectiveFunction
 
-if !isdefined(Base, :get_extension)
-    using Requires
-end
+
 using LazyAlgebra
 import LazyAlgebra: conjgrad, conjgrad!
 
@@ -70,5 +69,8 @@ include("step.jl")
 
 include("spg.jl")
 import .SPG: spg, spg!
+
+# Load  examples
+include("Examples.jl")
 
 end # module

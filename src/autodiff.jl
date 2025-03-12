@@ -1,20 +1,35 @@
 """
-    OmptimPackNextGen.auto_differentiate!(f, x, g) -> fx
+    AutoDiffObjectiveFunction{F,P,B}
 
-yields `fx = f(x)` for a given function `f` and variables `x` and overwrites
-the contents of `g` with the gradient of the function at `x`.
+A callable structure wrapping an objective function  `f`  that used automatic differentiation
+for computing gradients.
 
-This method may be extended to compute the gradient and function value for
-specific `typeof(f)` or to automatically compute the gradient as can be done by
-the `Zygote` package if it is loaded.
+Fields:
+- `f::F`: The objective function.
+- `prep::P`: prep  object (cache) used in differentiation (can be `nothing`).
+- `backend::B`: The backend used for differentiation.
+"""
+
+abstract type AbstractObjectiveFunction <: Function end
+
 
 """
-auto_differentiate!(arg...; kwds...) =
-    error("`Zygote` package must be loaded first")
+	AutoDiffObjectiveFunction{F,P,B}
 
-function __init__()
-    @static if !isdefined(Base, :get_extension)
-        @require Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f" include(
-            "../ext/OptimPackNextGenZygoteExt.jl")
-    end
+A callable structure wrapping an objective function  `f`  that used automatic differentiation
+for computing gradients.
+
+Fields:
+- `f::F`: The objective function.
+- `prep::P`: prep  object (cache) used in differentiation (can be `nothing`).
+- `backend::B`: The backend used for differentiation.
+"""
+
+struct AutoDiffObjectiveFunction{F,P,B} <: AbstractObjectiveFunction
+	f::F
+	prep::P
+	backend::B
 end
+
+AutoDiffObjectiveFunction(arg...; kwds...) =
+     error("`DifferentiationInterface` package must be loaded first")

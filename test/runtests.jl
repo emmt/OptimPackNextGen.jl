@@ -3,7 +3,6 @@ module OptimPackNextGenTests
 using OptimPackNextGen
 using Test
 using Printf
-using Zygote
 
 VERBOSE = true
 
@@ -24,7 +23,7 @@ include("fmin-tests.jl")
 @testset "BraDi      " FminTests.runtests(:bradi; verb=false)
 #@testset "STEP       " FminTests.runtests(:step; verb=false)
 
-include("rosenbrock.jl")
+include("rosenbrock-tests.jl")
 include("bradi-tests.jl")
 
 if true
